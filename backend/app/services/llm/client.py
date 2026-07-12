@@ -258,10 +258,12 @@ class OpenAICompatibleClient(LLMClient):
         timeout: float = 120.0,
         supports_tool_choice: bool = True,
         supports_cache_control: bool = False,
+        extra_body: dict[str, Any] | None = None,
     ):
         super().__init__(api_key, base_url or self.DEFAULT_BASE_URL, model, timeout)
         self.supports_tool_choice = supports_tool_choice
         self.supports_cache_control = supports_cache_control
+        self.extra_body = extra_body or {}
         self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
@@ -318,6 +320,10 @@ class OpenAICompatibleClient(LLMClient):
 
         # Add any additional kwargs
         payload.update(kwargs)
+
+        # Merge provider-level extra body (e.g. chat_template_kwargs for Agnes)
+        if self.extra_body:
+            payload.update(self.extra_body)
 
         return payload
 
@@ -547,9 +553,16 @@ class OpenAICompatibleClient(LLMClient):
         choice = data.get("choices", [{}])[0]
         msg = choice.get("message", {})
 
+        # Extract reasoning_content from various API formats
+        reasoning = msg.get("reasoning_content") or ""
+        if not reasoning:
+            psf = msg.get("provider_specific_fields", {})
+            reasoning = psf.get("reasoning_content") or ""
+
         return LLMResponse(
             content=msg.get("content", ""),
             tool_calls=msg.get("tool_calls", []),
+            reasoning_content=reasoning or None,
             finish_reason=choice.get("finish_reason"),
             usage=data.get("usage"),
             model=data.get("model"),
@@ -1906,7 +1919,9 @@ class ProviderSpec:
     default_base_url: str | None
     supports_tool_choice: bool = True
     default_max_tokens: int = 4096
+    default_timeout: float = 120.0
     model_max_tokens: dict[str, int] = field(default_factory=dict)
+    extra_body: dict[str, Any] = field(default_factory=dict)
 
 
 # Provider aliases accepted for compatibility
@@ -1918,6 +1933,17 @@ PROVIDER_ALIASES: dict[str, str] = {
 
 # Canonical provider registry (single source of truth)
 PROVIDER_REGISTRY: dict[str, ProviderSpec] = {
+    "agnes": ProviderSpec(
+        provider="agnes",
+        display_name="Agnes AI",
+        protocol="openai_compatible",
+        default_base_url="https://apihub.agnes-ai.com/v1",
+        default_max_tokens=65536,
+        default_timeout=300.0,
+        model_max_tokens={
+            "agnes-2.0-flash": 65536,
+        },
+    ),
     "anthropic": ProviderSpec(
         provider="anthropic",
         display_name="Anthropic",
@@ -2171,6 +2197,10 @@ def create_llm_client(
     normalized_provider = normalize_provider(provider)
     spec = get_provider_spec(normalized_provider)
 
+    # Use provider-specific timeout if caller used the default
+    if spec and timeout == 120.0 and spec.default_timeout != 120.0:
+        timeout = spec.default_timeout
+
     # Get base URL
     final_base_url = get_provider_base_url(normalized_provider, base_url)
 
@@ -2207,6 +2237,7 @@ def create_llm_client(
             timeout=timeout,
             supports_tool_choice=supports_tool_choice,
             supports_cache_control=normalized_provider == "qwen",
+            extra_body=spec.extra_body if spec else None,
         )
     else:
         # Default to OpenAI-compatible for unknown providers
@@ -2217,6 +2248,7 @@ def create_llm_client(
             timeout=timeout,
             supports_tool_choice=True,
             supports_cache_control=False,
+            extra_body=spec.extra_body if spec else None,
         )
 
 
