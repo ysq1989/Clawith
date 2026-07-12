@@ -38,3 +38,7 @@ _agents/
 docs/
 .agents/rules/deploy.md
 backend/tests/test_agent_api_live.py
+
+# Deployment secrets
+baota.config.json
+scripts/bt/
