@@ -168,7 +168,7 @@ function CategoryTab({ type, isChinese }: { type: 'customer' | 'supplier'; isChi
                                     )}
                                 </td>
                                 <td style={{ ...tdStyle, color: 'var(--text-tertiary)', fontSize: 12 }}>
-                                    {cat.created_at ? new Date(cat.created_at).toLocaleDateString() : ''}
+                                    {cat.created_at ? new Date(cat.created_at).toLocaleString() : ''}
                                 </td>
                                 <td style={{ ...tdStyle, textAlign: 'center' }}>
                                     {editingId !== cat.id && (

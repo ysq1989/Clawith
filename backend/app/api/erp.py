@@ -2902,9 +2902,19 @@ async def list_categories(
 
 @router.post("/categories")
 async def create_category(body: CategoryCreate, type: str = "customer", user=Depends(get_current_user)):
-    """创建分类。"""
+    """创建分类（名称不能重复）。"""
     async with async_session() as db:
-        obj = ERPCategory(tenant_id=user.tenant_id, type=type, name=body.name)
+        # Check duplicate name
+        existing = await db.execute(
+            select(ERPCategory).where(
+                ERPCategory.tenant_id == user.tenant_id,
+                ERPCategory.type == type,
+                ERPCategory.name == body.name.strip(),
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(400, "分类名称已存在")
+        obj = ERPCategory(tenant_id=user.tenant_id, type=type, name=body.name.strip())
         db.add(obj)
         await db.commit()
         await db.refresh(obj)
@@ -2924,7 +2934,18 @@ async def update_category(category_id: str, body: CategoryCreate, user=Depends(g
         cat = result.scalar_one_or_none()
         if not cat:
             raise HTTPException(404, "分类不存在")
-        cat.name = body.name
+        # Check duplicate name (excluding current)
+        dup = await db.execute(
+            select(ERPCategory).where(
+                ERPCategory.tenant_id == user.tenant_id,
+                ERPCategory.type == cat.type,
+                ERPCategory.name == body.name.strip(),
+                ERPCategory.id != cat.id,
+            )
+        )
+        if dup.scalar_one_or_none():
+            raise HTTPException(400, "分类名称已存在")
+        cat.name = body.name.strip()
         await db.commit()
         await db.refresh(cat)
         return _category_to_out(cat)
