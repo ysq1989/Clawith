@@ -44,6 +44,7 @@ export default defineConfig({
     server: {
         port: 3008,
         host: '0.0.0.0',
+        hmr: false,
         proxy: {
             '/api': {
                 target: `http://localhost:${backendPort}`,
