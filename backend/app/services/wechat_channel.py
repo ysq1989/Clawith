@@ -246,7 +246,8 @@ async def _process_wechat_message(agent_id: uuid.UUID, msg: dict[str, Any], conf
             .order_by(ChatMessage.created_at.desc())
             .limit(agent_obj.context_window_size or DEFAULT_CONTEXT_WINDOW_SIZE)
         )
-        history = [{"role": m.role, "content": m.content} for m in reversed(history_r.scalars().all())]
+        from app.services.llm.utils import convert_chat_messages_to_llm_format
+        history = convert_chat_messages_to_llm_format(reversed(history_r.scalars().all()))
 
         db.add(
             ChatMessage(
