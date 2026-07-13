@@ -22,6 +22,16 @@ const AdminCompanies = lazy(() => import('./pages/AdminCompanies'));
 const OAuthCallback = lazy(() => import('./pages/OAuthCallback'));
 const SSOEntry = lazy(() => import('./pages/SSOEntry'));
 const OKR = lazy(() => import('./pages/OKR'));
+const ERPLayout = lazy(() => import('./pages/erp/ERPLayout'));
+const ERPDashboard = lazy(() => import('./pages/erp/ERPDashboard'));
+const ERPCustomers = lazy(() => import('./pages/erp/Customers'));
+const ERPSuppliers = lazy(() => import('./pages/erp/Suppliers'));
+const ERPProducts = lazy(() => import('./pages/erp/Products'));
+const ERPSalesOrders = lazy(() => import('./pages/erp/SalesOrders'));
+const ERPPurchaseOrders = lazy(() => import('./pages/erp/PurchaseOrders'));
+const ERPInventory = lazy(() => import('./pages/erp/Inventory'));
+const ERPFinance = lazy(() => import('./pages/erp/Finance'));
+const ERPReports = lazy(() => import('./pages/erp/Reports'));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const token = useAuthStore((s) => s.token);
@@ -293,6 +303,17 @@ export default function App() {
                     <Route path="okr" element={<OKR />} />
                     <Route path="invitations" element={<InvitationCodes />} />
                     <Route path="admin/platform-settings" element={<AdminCompanies />} />
+                </Route>
+                <Route path="/erp" element={<ProtectedRoute><ERPLayout /></ProtectedRoute>}>
+                    <Route index element={<ERPDashboard />} />
+                    <Route path="customers" element={<ERPCustomers />} />
+                    <Route path="suppliers" element={<ERPSuppliers />} />
+                    <Route path="products" element={<ERPProducts />} />
+                    <Route path="sales-orders" element={<ERPSalesOrders />} />
+                    <Route path="purchase-orders" element={<ERPPurchaseOrders />} />
+                    <Route path="inventory" element={<ERPInventory />} />
+                    <Route path="finance" element={<ERPFinance />} />
+                    <Route path="reports" element={<ERPReports />} />
                 </Route>
             </Routes>
             </Suspense>

@@ -1061,6 +1061,17 @@ export default function Layout() {
                             </span>
                             <span className="sidebar-item-text">{t('nav.okr', 'OKR')}</span>
                         </NavLink>
+                        <NavLink to="/erp" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
+                            <span className="sidebar-item-icon" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="3" y="3" width="7" height="7" rx="1"/>
+                                    <rect x="14" y="3" width="7" height="7" rx="1"/>
+                                    <rect x="3" y="14" width="7" height="7" rx="1"/>
+                                    <rect x="14" y="14" width="7" height="7" rx="1"/>
+                                </svg>
+                            </span>
+                            <span className="sidebar-item-text">{t('nav.erp', 'ERP')}</span>
+                        </NavLink>
                     </div>
                 </div>
                 
