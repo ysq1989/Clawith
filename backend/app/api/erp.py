@@ -679,6 +679,17 @@ class ContactOut(BaseModel):
         from_attributes = True
 
 
+def _contact_to_out(c):
+    return ContactOut(
+        id=str(c.id), parent_type=c.parent_type,
+        parent_id=str(c.parent_id), name=c.name,
+        position=c.position, email=c.email, phone=c.phone,
+        is_default=c.is_default if hasattr(c, 'is_default') else False,
+        notes=c.notes,
+        created_at=c.created_at.isoformat() if c.created_at else None,
+    )
+
+
 # ─── 附件 Schemas ────────────────────────────────────────────────────────────
 
 class AttachmentOut(BaseModel):
@@ -2955,16 +2966,7 @@ async def create_contact(
         db.add(contact)
         await db.commit()
         await db.refresh(contact)
-        return ContactOut(
-            id=str(contact.id),
-            parent_type=contact.parent_type,
-            parent_id=str(contact.parent_id),
-            name=contact.name,
-            position=contact.position,
-            phone=contact.phone,
-            notes=contact.notes,
-            created_at=str(contact.created_at) if contact.created_at else None,
-        )
+        return _contact_to_out(contact)
 
 
 @router.delete("/contacts/{contact_id}")
@@ -3021,7 +3023,7 @@ async def update_contact(contact_id: str, body: ContactUpdate, user=Depends(get_
             setattr(contact, field, value)
         await db.commit()
         await db.refresh(contact)
-        return ContactOut.model_validate(contact)
+        return _contact_to_out(contact)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
