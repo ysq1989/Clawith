@@ -485,7 +485,9 @@ class ERPContact(Base):
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     position: Mapped[str | None] = mapped_column(String(100))
+    email: Mapped[str | None] = mapped_column(String(200))
     phone: Mapped[str | None] = mapped_column(String(50))
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     notes: Mapped[str | None] = mapped_column(Text)
 
     created_at: Mapped[datetime] = mapped_column(

@@ -156,6 +156,9 @@ class CustomerOut(BaseModel):
     tax_id: str | None = None
     notes: str | None = None
     status: str
+    default_contact_name: str | None = None
+    default_contact_phone: str | None = None
+    default_contact_email: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -197,6 +200,9 @@ class SupplierOut(BaseModel):
     payment_terms: str | None = None
     notes: str | None = None
     status: str
+    default_contact_name: str | None = None
+    default_contact_phone: str | None = None
+    default_contact_email: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -565,7 +571,9 @@ class ERPSettingsOut(BaseModel):
 class ContactCreate(BaseModel):
     name: str
     position: str | None = None
+    email: str | None = None
     phone: str | None = None
+    is_default: bool = False
     notes: str | None = None
 
 
@@ -575,7 +583,9 @@ class ContactOut(BaseModel):
     parent_id: str
     name: str
     position: str | None = None
+    email: str | None = None
     phone: str | None = None
+    is_default: bool = False
     notes: str | None = None
     created_at: str | None = None
 
@@ -645,7 +655,26 @@ async def list_customers(
             q.order_by(ERPCustomer.created_at.desc())
             .offset((page - 1) * page_size).limit(page_size)
         )
-        items = [_customer_to_out(c) for c in result.scalars().all()]
+        items_raw = result.scalars().all()
+        # Fetch default contacts for all customers in this page
+        customer_ids = [c.id for c in items_raw]
+        contacts_q = select(ERPContact).where(
+            ERPContact.tenant_id == user.tenant_id,
+            ERPContact.parent_type == "customer",
+            ERPContact.parent_id.in_(customer_ids),
+            ERPContact.is_default == True,
+        )
+        contacts_result = await db.execute(contacts_q)
+        default_contacts = {c.parent_id: c for c in contacts_result.scalars().all()}
+        items = []
+        for c in items_raw:
+            out = _customer_to_out(c)
+            dc = default_contacts.get(c.id)
+            if dc:
+                out["default_contact_name"] = dc.name
+                out["default_contact_phone"] = dc.phone
+                out["default_contact_email"] = dc.email
+            items.append(out)
         return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
@@ -733,6 +762,8 @@ def _supplier_to_out(s):
 async def list_suppliers(
     search: str | None = None,
     status: str | None = None,
+    page: int = 1,
+    page_size: int = 20,
     user=Depends(get_current_user),
 ):
     async with async_session() as db:
@@ -748,8 +779,33 @@ async def list_suppliers(
             )
         if status:
             q = q.where(ERPSupplier.status == status)
-        result = await db.execute(q.order_by(ERPSupplier.created_at.desc()))
-        return [_supplier_to_out(s) for s in result.scalars().all()]
+        from sqlalchemy import func as sqlfunc
+        count_q = select(sqlfunc.count()).select_from(q.subquery())
+        total = (await db.execute(count_q)).scalar() or 0
+        result = await db.execute(
+            q.order_by(ERPSupplier.created_at.desc())
+            .offset((page - 1) * page_size).limit(page_size)
+        )
+        items_raw = result.scalars().all()
+        supplier_ids = [s.id for s in items_raw]
+        contacts_q = select(ERPContact).where(
+            ERPContact.tenant_id == user.tenant_id,
+            ERPContact.parent_type == "supplier",
+            ERPContact.parent_id.in_(supplier_ids),
+            ERPContact.is_default == True,
+        )
+        contacts_result = await db.execute(contacts_q)
+        default_contacts = {c.parent_id: c for c in contacts_result.scalars().all()}
+        items = []
+        for s in items_raw:
+            out = _supplier_to_out(s)
+            dc = default_contacts.get(s.id)
+            if dc:
+                out["default_contact_name"] = dc.name
+                out["default_contact_phone"] = dc.phone
+                out["default_contact_email"] = dc.email
+            items.append(out)
+        return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
 @router.post("/suppliers", response_model=SupplierOut)
@@ -2625,6 +2681,45 @@ async def delete_contact(contact_id: str, user=Depends(get_current_user)):
         await db.delete(contact)
         await db.commit()
         return {"ok": True}
+
+
+class ContactUpdate(BaseModel):
+    name: str | None = None
+    position: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    is_default: bool | None = None
+    notes: str | None = None
+
+
+@router.patch("/contacts/{contact_id}")
+async def update_contact(contact_id: str, body: ContactUpdate, user=Depends(get_current_user)):
+    """更新联系人（包括设为默认联系人）。"""
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPContact).where(
+                ERPContact.id == uuid.UUID(contact_id),
+                ERPContact.tenant_id == user.tenant_id,
+            )
+        )
+        contact = result.scalar_one_or_none()
+        if not contact:
+            raise HTTPException(404, "联系人不存在")
+        # If setting as default, clear other defaults for same parent
+        if body.is_default is True:
+            await db.execute(
+                ERPContact.__table__.update().where(
+                    ERPContact.tenant_id == user.tenant_id,
+                    ERPContact.parent_type == contact.parent_type,
+                    ERPContact.parent_id == contact.parent_id,
+                    ERPContact.is_default == True,
+                ).values(is_default=False)
+            )
+        for field, value in body.model_dump(exclude_unset=True).items():
+            setattr(contact, field, value)
+        await db.commit()
+        await db.refresh(contact)
+        return ContactOut.model_validate(contact)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
