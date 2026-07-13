@@ -205,6 +205,7 @@ class ProductCreate(BaseModel):
     category: str | None = None
     unit: str | None = "pcs"
     unit_price: float | None = None
+    stock_qty: int = 0
     min_stock: int = 0
     description: str | None = None
 
@@ -215,6 +216,7 @@ class ProductUpdate(BaseModel):
     category: str | None = None
     unit: str | None = None
     unit_price: float | None = None
+    stock_qty: int | None = None
     min_stock: int | None = None
     description: str | None = None
     status: str | None = None
@@ -246,6 +248,7 @@ class MaterialCreate(BaseModel):
     category: str | None = None
     unit: str | None = "pcs"
     cost_price: float | None = None
+    stock_qty: int = 0
     min_stock: int = 0
     description: str | None = None
 
@@ -256,6 +259,7 @@ class MaterialUpdate(BaseModel):
     category: str | None = None
     unit: str | None = None
     cost_price: float | None = None
+    stock_qty: int | None = None
     min_stock: int | None = None
     description: str | None = None
     status: str | None = None

@@ -17,7 +17,7 @@ interface Material {
     category: string;
     unit: string;
     cost_price: number;
-    current_stock: number;
+    stock_qty: number;
     min_stock: number;
     status: string;
     description: string;
@@ -75,7 +75,7 @@ function MaterialForm({
         category: material?.category ?? '',
         unit: material?.unit ?? '',
         cost_price: String(material?.cost_price ?? ''),
-        current_stock: String(material?.current_stock ?? '0'),
+        stock_qty: String(material?.stock_qty ?? '0'),
         min_stock: String(material?.min_stock ?? '0'),
         status: material?.status ?? 'active',
         description: material?.description ?? '',
@@ -93,7 +93,7 @@ function MaterialForm({
             const body = {
                 ...form,
                 cost_price: parseFloat(form.cost_price) || 0,
-                current_stock: parseInt(form.current_stock) || 0,
+                stock_qty: parseInt(form.stock_qty) || 0,
                 min_stock: parseInt(form.min_stock) || 0,
             };
             if (material) {
@@ -149,7 +149,7 @@ function MaterialForm({
                     </div>
                     <div style={{ display: 'flex', gap: 12 }}>
                         <div style={{ flex: 1 }}>
-                            <FormField label={isChinese ? '当前库存' : 'Current Stock'} type="number" value={form.current_stock} onChange={v => update('current_stock', v)} />
+                            <FormField label={isChinese ? '当前库存' : 'Current Stock'} type="number" value={form.stock_qty} onChange={v => update('stock_qty', v)} />
                         </div>
                         <div style={{ flex: 1 }}>
                             <FormField label={isChinese ? '最低库存' : 'Min Stock'} type="number" value={form.min_stock} onChange={v => update('min_stock', v)} />
@@ -285,7 +285,7 @@ export default function Materials() {
                             ) : materials.length === 0 ? (
                                 <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.noData', '暂无数据')}</td></tr>
                             ) : materials.map(m => {
-                                const isLowStock = m.current_stock < m.min_stock;
+                                const isLowStock = m.stock_qty < m.min_stock;
                                 const rowBg = isLowStock ? 'rgba(239,68,68,0.06)' : 'transparent';
                                 return (
                                     <tr key={m.id} style={{ borderBottom: '1px solid var(--border-subtle)', background: rowBg }}>
@@ -295,7 +295,7 @@ export default function Materials() {
                                         <td style={tdStyle}>{m.unit}</td>
                                         <td style={tdStyle}>{m.cost_price}</td>
                                         <td style={{ ...tdStyle, color: isLowStock ? '#ef4444' : 'var(--text-primary)', fontWeight: isLowStock ? 600 : 400 }}>
-                                            {m.current_stock}
+                                            {m.stock_qty}
                                             {isLowStock && <span style={{ fontSize: 11, marginLeft: 4 }}>({t('erp.material.lowStock', '低库存')})</span>}
                                         </td>
                                         <td style={tdStyle}>

@@ -117,7 +117,7 @@ function StatusBadge({ status, isChinese }: { status: string; isChinese: boolean
 
 /* ─── Searchable Select Component ─── */
 function SearchableSelect({
-    value, onChange, placeholder, apiPath, isChinese, labelKey,
+    value, onChange, placeholder, apiPath, isChinese, labelKey, status,
 }: {
     value: string;
     onChange: (id: string, item: any) => void;
@@ -125,13 +125,14 @@ function SearchableSelect({
     apiPath: string;
     isChinese: boolean;
     labelKey: 'name' | 'name_sku';
+    status?: string;
 }) {
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
     const { data, isLoading } = useQuery({
-        queryKey: ['searchable-select', apiPath, search, page],
-        queryFn: () => fetchJson<any>(`${apiPath}?search=${encodeURIComponent(search)}&page=${page}&page_size=10`),
+        queryKey: ['searchable-select', apiPath, search, page, status],
+        queryFn: () => fetchJson<any>(`${apiPath}?search=${encodeURIComponent(search)}&page=${page}&page_size=10${status ? `&status=${status}` : ''}`),
         enabled: open,
     });
     const items = Array.isArray(data) ? data : (data?.items ?? []);
@@ -244,7 +245,7 @@ function NewOrderDialog({
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => onClose(false)}>
-            <div style={{ background: 'var(--bg-primary)', borderRadius: 12, border: '1px solid var(--border-subtle)', width: 620, maxHeight: '90vh', overflow: 'auto', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ background: 'var(--bg-primary)', borderRadius: 12, border: '1px solid var(--border-subtle)', width: 760, maxHeight: '90vh', overflow: 'auto', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
                 <h3 style={{ margin: '0 0 20px', fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
                     {isChinese ? '新建采购订单' : 'New Purchase Order'}
                 </h3>
@@ -260,6 +261,7 @@ function NewOrderDialog({
                         apiPath="/erp/suppliers"
                         isChinese={isChinese}
                         labelKey="name"
+                        status="active"
                     />
                 </div>
 
