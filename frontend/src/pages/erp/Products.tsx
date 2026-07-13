@@ -16,9 +16,8 @@ interface Product {
     sku: string;
     category: string;
     unit: string;
-    selling_price: number;
-    cost_price: number;
-    current_stock: number;
+    unit_price: number;
+    stock_qty: number;
     min_stock: number;
     status: string;
     description: string;
@@ -75,9 +74,8 @@ function ProductForm({
         sku: product?.sku ?? '',
         category: product?.category ?? '',
         unit: product?.unit ?? '',
-        selling_price: String(product?.selling_price ?? ''),
-        cost_price: String(product?.cost_price ?? ''),
-        current_stock: String(product?.current_stock ?? '0'),
+        unit_price: String(product?.unit_price ?? ''),
+        stock_qty: String(product?.stock_qty ?? '0'),
         min_stock: String(product?.min_stock ?? '0'),
         status: product?.status ?? 'active',
         description: product?.description ?? '',
@@ -94,9 +92,8 @@ function ProductForm({
         try {
             const body = {
                 ...form,
-                selling_price: parseFloat(form.selling_price) || 0,
-                cost_price: parseFloat(form.cost_price) || 0,
-                current_stock: parseInt(form.current_stock) || 0,
+                unit_price: parseFloat(form.unit_price) || 0,
+                stock_qty: parseInt(form.stock_qty) || 0,
                 min_stock: parseInt(form.min_stock) || 0,
             };
             if (product) {
@@ -149,15 +146,12 @@ function ProductForm({
                     </div>
                     <div style={{ display: 'flex', gap: 12 }}>
                         <div style={{ flex: 1 }}>
-                            <FormField label={isChinese ? '售价' : 'Selling Price'} type="number" value={form.selling_price} onChange={v => update('selling_price', v)} />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                            <FormField label={isChinese ? '成本价' : 'Cost Price'} type="number" value={form.cost_price} onChange={v => update('cost_price', v)} />
+                            <FormField label={isChinese ? '售价' : 'Price'} type="number" value={form.unit_price} onChange={v => update('unit_price', v)} />
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: 12 }}>
                         <div style={{ flex: 1 }}>
-                            <FormField label={isChinese ? '当前库存' : 'Current Stock'} type="number" value={form.current_stock} onChange={v => update('current_stock', v)} />
+                            <FormField label={isChinese ? '当前库存' : 'Current Stock'} type="number" value={form.stock_qty} onChange={v => update('stock_qty', v)} />
                         </div>
                         <div style={{ flex: 1 }}>
                             <FormField label={isChinese ? '最低库存' : 'Min Stock'} type="number" value={form.min_stock} onChange={v => update('min_stock', v)} />
@@ -281,8 +275,7 @@ export default function Products() {
                                 <th style={thStyle}>{t('erp.product.sku', 'SKU')}</th>
                                 <th style={thStyle}>{t('erp.product.category', '分类')}</th>
                                 <th style={thStyle}>{t('erp.product.unit', '单位')}</th>
-                                <th style={thStyle}>{t('erp.product.sellingPrice', '售价')}</th>
-                                <th style={thStyle}>{t('erp.product.costPrice', '成本价')}</th>
+                                <th style={thStyle}>{t('erp.product.price', '售价')}</th>
                                 <th style={thStyle}>{t('erp.product.stock', '库存量')}</th>
                                 <th style={thStyle}>{t('erp.product.status', '状态')}</th>
                                 <th style={{ ...thStyle, textAlign: 'center' }}>{t('erp.actions', '操作')}</th>
@@ -290,11 +283,11 @@ export default function Products() {
                         </thead>
                         <tbody>
                             {isLoading ? (
-                                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.loading', '加载中...')}</td></tr>
+                                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.loading', '加载中...')}</td></tr>
                             ) : products.length === 0 ? (
-                                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.noData', '暂无数据')}</td></tr>
+                                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.noData', '暂无数据')}</td></tr>
                             ) : products.map(p => {
-                                const isLowStock = p.current_stock < p.min_stock;
+                                const isLowStock = p.stock_qty < p.min_stock;
                                 const rowBg = isLowStock ? 'rgba(239,68,68,0.06)' : 'transparent';
                                 return (
                                     <tr key={p.id} style={{ borderBottom: '1px solid var(--border-subtle)', background: rowBg }}>
@@ -302,10 +295,9 @@ export default function Products() {
                                         <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 12 }}>{p.sku}</td>
                                         <td style={tdStyle}>{p.category}</td>
                                         <td style={tdStyle}>{p.unit}</td>
-                                        <td style={tdStyle}>{p.selling_price}</td>
-                                        <td style={tdStyle}>{p.cost_price}</td>
+                                        <td style={tdStyle}>{p.unit_price}</td>
                                         <td style={{ ...tdStyle, color: isLowStock ? '#ef4444' : 'var(--text-primary)', fontWeight: isLowStock ? 600 : 400 }}>
-                                            {p.current_stock}
+                                            {p.stock_qty}
                                             {isLowStock && <span style={{ fontSize: 11, marginLeft: 4 }}>({t('erp.product.lowStock', '低库存')})</span>}
                                         </td>
                                         <td style={tdStyle}>
