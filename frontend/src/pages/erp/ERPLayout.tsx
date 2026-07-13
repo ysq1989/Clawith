@@ -5,8 +5,11 @@
  * Uses NavLink for active-state highlighting and project CSS variables for theming.
  */
 
-import { Outlet, NavLink, useLocation } from 'react-router-dom';
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
+import { useAuthStore } from '../../stores';
+import { fetchJson } from '../../services/api';
 import {
     IconLayoutDashboard,
     IconUsers,
@@ -134,8 +137,16 @@ const navLinkActive: React.CSSProperties = {
 export default function ERPLayout() {
     const { t, i18n } = useTranslation();
     const location = useLocation();
+    const navigate = useNavigate();
     const isChinese = i18n.language?.startsWith('zh');
     const pageTitle = resolvePageTitle(location.pathname, t);
+    const user = useAuthStore((s) => s.user);
+    const { data: tenantInfo } = useQuery({
+        queryKey: ['erp-tenant-info'],
+        queryFn: () => fetchJson<{ name?: string }>('/tenants/me'),
+    });
+    const companyName = tenantInfo?.name || user?.display_name || (isChinese ? '当前公司' : 'Current Company');
+    const companyInitial = (Array.from(companyName.trim())[0] as string | undefined)?.toUpperCase() || 'C';
 
     return (
         <div style={{ display: 'flex', minHeight: '100vh' }}>
@@ -243,6 +254,34 @@ export default function ERPLayout() {
                         {pageTitle}
                     </h1>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <button
+                            onClick={() => navigate('/')}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 8,
+                                background: '#f1f5f9', border: '1px solid #e2e8f0',
+                                padding: '6px 12px', borderRadius: 8,
+                                cursor: 'pointer', fontSize: 13, color: '#1e293b',
+                                transition: 'border-color 0.15s',
+                            }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#3b82f6'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#e2e8f0'; }}
+                            title={isChinese ? '点击切换公司' : 'Click to switch company'}
+                        >
+                            <span style={{
+                                width: 24, height: 24, borderRadius: 6,
+                                background: '#3b82f6', color: '#ffffff',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: 12, fontWeight: 700, flexShrink: 0,
+                            }}>
+                                {companyInitial}
+                            </span>
+                            <span style={{ fontWeight: 500, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {companyName}
+                            </span>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M6 9l6 6 6-6"/>
+                            </svg>
+                        </button>
                         <button
                             style={{
                                 background: 'none', border: 'none', padding: 6,
