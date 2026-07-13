@@ -74,8 +74,8 @@ const sidebarStyle: React.CSSProperties = {
     left: 0,
     bottom: 0,
     width: SIDEBAR_WIDTH,
-    background: 'var(--bg-secondary)',
-    borderRight: '1px solid var(--border-subtle)',
+    background: '#0f2b4c',
+    borderRight: '1px solid #1a3a5c',
     display: 'flex',
     flexDirection: 'column',
     zIndex: 100,
@@ -84,9 +84,11 @@ const sidebarStyle: React.CSSProperties = {
 
 const mainStyle: React.CSSProperties = {
     marginLeft: SIDEBAR_WIDTH,
+    flex: 1,
     display: 'flex',
     flexDirection: 'column',
     minHeight: '100vh',
+    width: `calc(100% - ${SIDEBAR_WIDTH}px)`,
 };
 
 const topbarStyle: React.CSSProperties = {
@@ -95,8 +97,8 @@ const topbarStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderBottom: '1px solid var(--border-subtle)',
-    background: 'var(--bg-primary)',
+    borderBottom: '1px solid #e2e8f0',
+    background: '#ffffff',
     flexShrink: 0,
 };
 
@@ -104,6 +106,7 @@ const contentStyle: React.CSSProperties = {
     flex: 1,
     padding: '24px',
     overflowY: 'auto',
+    background: '#f1f5f9',
 };
 
 const navLinkBase: React.CSSProperties = {
@@ -115,7 +118,7 @@ const navLinkBase: React.CSSProperties = {
     borderRadius: 6,
     fontSize: 13,
     fontWeight: 500,
-    color: 'var(--text-secondary)',
+    color: '#8ab4e0',
     textDecoration: 'none',
     transition: 'background 0.15s, color 0.15s',
     cursor: 'pointer',
@@ -123,8 +126,8 @@ const navLinkBase: React.CSSProperties = {
 
 const navLinkActive: React.CSSProperties = {
     ...navLinkBase,
-    background: 'var(--bg-tertiary)',
-    color: 'var(--text-primary)',
+    background: 'rgba(59, 130, 246, 0.2)',
+    color: '#ffffff',
 };
 
 /* ─── Component ─── */
@@ -136,6 +139,22 @@ export default function ERPLayout() {
 
     return (
         <div style={{ display: 'flex', minHeight: '100vh' }}>
+            {/* Blue-white theme CSS variable overrides */}
+            <style>{`
+                [data-erp-root] {
+                    --bg-primary: #ffffff;
+                    --bg-secondary: #ffffff;
+                    --bg-tertiary: #f1f5f9;
+                    --text-primary: #1e293b;
+                    --text-secondary: #475569;
+                    --text-tertiary: #94a3b8;
+                    --border-subtle: #e2e8f0;
+                    --accent-primary: #3b82f6;
+                    --accent-hover: #2563eb;
+                    color-scheme: light;
+                }
+            `}</style>
+            <div data-erp-root style={{ display: 'flex', width: '100%' }}>
             {/* ── Sidebar ── */}
             <aside style={sidebarStyle}>
                 {/* Logo / Title */}
@@ -144,21 +163,21 @@ export default function ERPLayout() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 10,
-                    borderBottom: '1px solid var(--border-subtle)',
+                    borderBottom: '1px solid #1a3a5c',
                 }}>
                     <div style={{
                         width: 32, height: 32, borderRadius: 8,
-                        background: 'var(--accent-primary)',
+                        background: '#3b82f6',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: 'var(--bg-primary)', fontWeight: 700, fontSize: 14, flexShrink: 0,
+                        color: '#ffffff', fontWeight: 700, fontSize: 14, flexShrink: 0,
                     }}>
                         E
                     </div>
                     <div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#ffffff', lineHeight: 1.2 }}>
                             {t('erp.title', 'ERP 管理系统')}
                         </div>
-                        <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                        <div style={{ fontSize: 10, color: '#6b9ec9', marginTop: 2 }}>
                             {t('erp.subtitle', 'Enterprise Resource Planning')}
                         </div>
                     </div>
@@ -174,12 +193,14 @@ export default function ERPLayout() {
                             style={({ isActive }) => isActive ? navLinkActive : navLinkBase}
                             onMouseEnter={e => {
                                 if (!(e.currentTarget as HTMLElement).dataset.active) {
-                                    (e.currentTarget as HTMLElement).style.background = 'var(--bg-tertiary)';
+                                    (e.currentTarget as HTMLElement).style.background = 'rgba(59, 130, 246, 0.1)';
+                                    (e.currentTarget as HTMLElement).style.color = '#ffffff';
                                 }
                             }}
                             onMouseLeave={e => {
                                 if (!(e.currentTarget as HTMLElement).dataset.active) {
                                     (e.currentTarget as HTMLElement).style.background = 'transparent';
+                                    (e.currentTarget as HTMLElement).style.color = '#8ab4e0';
                                 }
                             }}
                         >
@@ -190,21 +211,21 @@ export default function ERPLayout() {
                 </nav>
 
                 {/* Bottom: Back to Clawith */}
-                <div style={{ padding: '12px 8px 16px', borderTop: '1px solid var(--border-subtle)' }}>
+                <div style={{ padding: '12px 8px 16px', borderTop: '1px solid #1a3a5c' }}>
                     <NavLink
                         to="/"
                         style={{
                             ...navLinkBase,
                             margin: 0,
-                            color: 'var(--text-tertiary)',
+                            color: '#6b9ec9',
                             fontSize: 12,
                         }}
                         onMouseEnter={e => {
-                            (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
-                            (e.currentTarget as HTMLElement).style.background = 'var(--bg-tertiary)';
+                            (e.currentTarget as HTMLElement).style.color = '#ffffff';
+                            (e.currentTarget as HTMLElement).style.background = 'rgba(59, 130, 246, 0.15)';
                         }}
                         onMouseLeave={e => {
-                            (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)';
+                            (e.currentTarget as HTMLElement).style.color = '#6b9ec9';
                             (e.currentTarget as HTMLElement).style.background = 'transparent';
                         }}
                     >
@@ -218,14 +239,14 @@ export default function ERPLayout() {
             <div style={mainStyle}>
                 {/* Top bar */}
                 <header style={topbarStyle}>
-                    <h1 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: 'var(--text-primary)' }}>
+                    <h1 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#1e293b' }}>
                         {pageTitle}
                     </h1>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <button
                             style={{
                                 background: 'none', border: 'none', padding: 6,
-                                color: 'var(--text-tertiary)', cursor: 'pointer',
+                                color: '#64748b', cursor: 'pointer',
                                 borderRadius: 6, display: 'flex', alignItems: 'center',
                             }}
                             title={t('erp.notifications', '通知')}
@@ -235,7 +256,7 @@ export default function ERPLayout() {
                         <button
                             style={{
                                 background: 'none', border: 'none', padding: 6,
-                                color: 'var(--text-tertiary)', cursor: 'pointer',
+                                color: '#64748b', cursor: 'pointer',
                                 borderRadius: 6, display: 'flex', alignItems: 'center',
                             }}
                             title={t('erp.account', '账户')}
@@ -249,6 +270,7 @@ export default function ERPLayout() {
                 <main style={contentStyle}>
                     <Outlet />
                 </main>
+            </div>
             </div>
         </div>
     );
