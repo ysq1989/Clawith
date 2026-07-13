@@ -3,7 +3,8 @@
 Core tables powering the ERP feature:
   - ERPCustomer         : Customer master data
   - ERPSupplier         : Supplier master data
-  - ERPProduct           : Product / SKU master data
+  - ERPProduct           : Product / finished goods (sales-related)
+  - ERPMaterial          : Material / raw material (purchase-related)
   - ERPWarehouse         : Warehouse locations
   - ERPSalesOrder        : Sales order header
   - ERPSalesOrderItem    : Sales order line items
@@ -104,7 +105,7 @@ class ERPSupplier(Base):
 
 
 class ERPProduct(Base):
-    """Product / SKU master data, scoped per tenant."""
+    """Product / finished-goods master data (sales-related), scoped per tenant."""
 
     __tablename__ = "erp_products"
 
@@ -122,6 +123,39 @@ class ERPProduct(Base):
     category: Mapped[str | None] = mapped_column(String(100))
     unit: Mapped[str | None] = mapped_column(String(20))
     unit_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    stock_qty: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    min_stock: Mapped[int] = mapped_column(Integer, default=0)
+    description: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="active"
+    )  # active | inactive | archived
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class ERPMaterial(Base):
+    """Material / raw-material master data (purchase-related), scoped per tenant."""
+
+    __tablename__ = "erp_materials"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    sku: Mapped[str | None] = mapped_column(String(100))
+    category: Mapped[str | None] = mapped_column(String(100))
+    unit: Mapped[str | None] = mapped_column(String(20))
     cost_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     stock_qty: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     min_stock: Mapped[int] = mapped_column(Integer, default=0)
@@ -278,7 +312,7 @@ class ERPPurchaseOrder(Base):
 
 
 class ERPPurchaseOrderItem(Base):
-    """Individual line item within a purchase order."""
+    """Individual line item within a purchase order (references material)."""
 
     __tablename__ = "erp_purchase_order_items"
 
@@ -291,9 +325,9 @@ class ERPPurchaseOrderItem(Base):
         nullable=False,
         index=True,
     )
-    product_id: Mapped[uuid.UUID] = mapped_column(
+    material_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("erp_products.id"),
+        ForeignKey("erp_materials.id"),
         nullable=False,
         index=True,
     )
@@ -321,12 +355,21 @@ class ERPStockRecord(Base):
         nullable=False,
         index=True,
     )
-    product_id: Mapped[uuid.UUID] = mapped_column(
+    product_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("erp_products.id"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
+    material_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("erp_materials.id"),
+        nullable=True,
+        index=True,
+    )
+    record_source: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # 'product' | 'material'
     warehouse_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("erp_warehouses.id"),

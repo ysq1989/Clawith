@@ -27,6 +27,7 @@ const ERPDashboard = lazy(() => import('./pages/erp/ERPDashboard'));
 const ERPCustomers = lazy(() => import('./pages/erp/Customers'));
 const ERPSuppliers = lazy(() => import('./pages/erp/Suppliers'));
 const ERPProducts = lazy(() => import('./pages/erp/Products'));
+const ERPMaterials = lazy(() => import('./pages/erp/Materials'));
 const ERPSalesOrders = lazy(() => import('./pages/erp/SalesOrders'));
 const ERPPurchaseOrders = lazy(() => import('./pages/erp/PurchaseOrders'));
 const ERPInventory = lazy(() => import('./pages/erp/Inventory'));
@@ -309,6 +310,7 @@ export default function App() {
                     <Route path="customers" element={<ERPCustomers />} />
                     <Route path="suppliers" element={<ERPSuppliers />} />
                     <Route path="products" element={<ERPProducts />} />
+                    <Route path="materials" element={<ERPMaterials />} />
                     <Route path="sales-orders" element={<ERPSalesOrders />} />
                     <Route path="purchase-orders" element={<ERPPurchaseOrders />} />
                     <Route path="inventory" element={<ERPInventory />} />

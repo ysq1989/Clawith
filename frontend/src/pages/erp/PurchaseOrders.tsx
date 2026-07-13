@@ -12,8 +12,8 @@ import { fetchJson } from '../../services/api';
 /* ─── Types ─── */
 interface OrderLine {
     id?: string;
-    product_id: string;
-    product_name?: string;
+    material_id: string;
+    material_name?: string;
     quantity: number;
     unit_price: number;
     subtotal: number;
@@ -44,7 +44,7 @@ interface SupplierOption {
     name: string;
 }
 
-interface ProductOption {
+interface MaterialOption {
     id: string;
     name: string;
     sku: string;
@@ -117,32 +117,32 @@ function StatusBadge({ status, isChinese }: { status: string; isChinese: boolean
 
 /* ─── New Purchase Order Dialog ─── */
 function NewOrderDialog({
-    onClose, isChinese, supplierOptions, productOptions,
+    onClose, isChinese, supplierOptions, materialOptions,
 }: {
     onClose: (saved: boolean) => void;
     isChinese: boolean;
     supplierOptions: SupplierOption[];
-    productOptions: ProductOption[];
+    materialOptions: MaterialOption[];
 }) {
     const queryClient = useQueryClient();
     const [supplierId, setSupplierId] = useState('');
     const [notes, setNotes] = useState('');
     const [lines, setLines] = useState<OrderLine[]>([
-        { product_id: '', quantity: 1, unit_price: 0, subtotal: 0 },
+        { material_id: '', quantity: 1, unit_price: 0, subtotal: 0 },
     ]);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
 
-    const addLine = () => setLines(prev => [...prev, { product_id: '', quantity: 1, unit_price: 0, subtotal: 0 }]);
+    const addLine = () => setLines(prev => [...prev, { material_id: '', quantity: 1, unit_price: 0, subtotal: 0 }]);
     const removeLine = (idx: number) => setLines(prev => prev.filter((_, i) => i !== idx));
 
     const updateLine = (idx: number, field: keyof OrderLine, value: any) => {
         setLines(prev => prev.map((line, i) => {
             if (i !== idx) return line;
             const updated = { ...line, [field]: value };
-            if (field === 'product_id') {
-                const prod = productOptions.find(p => p.id === value);
-                if (prod) updated.unit_price = prod.cost_price;
+            if (field === 'material_id') {
+                const mat = materialOptions.find(m => m.id === value);
+                if (mat) updated.unit_price = mat.cost_price;
             }
             updated.subtotal = updated.quantity * updated.unit_price;
             return updated;
@@ -153,7 +153,7 @@ function NewOrderDialog({
 
     const handleSubmit = async () => {
         if (!supplierId) { setError(isChinese ? '请选择供应商' : 'Please select a supplier'); return; }
-        if (lines.some(l => !l.product_id || l.quantity <= 0)) { setError(isChinese ? '请完善明细行' : 'Please complete all line items'); return; }
+        if (lines.some(l => !l.material_id || l.quantity <= 0)) { setError(isChinese ? '请完善明细行' : 'Please complete all line items'); return; }
         setSaving(true); setError('');
         try {
             await fetchJson('/erp/purchase-orders', {
@@ -161,7 +161,7 @@ function NewOrderDialog({
                 body: JSON.stringify({
                     supplier_id: supplierId,
                     notes,
-                    lines: lines.map(l => ({ product_id: l.product_id, quantity: l.quantity, unit_price: l.unit_price })),
+                    lines: lines.map(l => ({ material_id: l.material_id, quantity: l.quantity, unit_price: l.unit_price })),
                 }),
             });
             queryClient.invalidateQueries({ queryKey: ['erp-purchase-orders'] });
@@ -203,12 +203,12 @@ function NewOrderDialog({
                         {lines.map((line, idx) => (
                             <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                 <select
-                                    value={line.product_id}
-                                    onChange={e => updateLine(idx, 'product_id', e.target.value)}
+                                    value={line.material_id}
+                                    onChange={e => updateLine(idx, 'material_id', e.target.value)}
                                     style={{ ...inputStyle, flex: 2 }}
                                 >
-                                    <option value="">{isChinese ? '选择产品' : 'Select Product'}</option>
-                                    {productOptions.map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
+                                    <option value="">{isChinese ? '选择物料' : 'Select Material'}</option>
+                                    {materialOptions.map(m => <option key={m.id} value={m.id}>{m.name} ({m.sku})</option>)}
                                 </select>
                                 <input type="number" min={1} value={line.quantity} onChange={e => updateLine(idx, 'quantity', parseInt(e.target.value) || 0)} style={{ ...inputStyle, width: 80 }} placeholder={isChinese ? '数量' : 'Qty'} />
                                 <input type="number" value={line.unit_price} onChange={e => updateLine(idx, 'unit_price', parseFloat(e.target.value) || 0)} style={{ ...inputStyle, width: 100 }} placeholder={isChinese ? '单价' : 'Price'} />
@@ -303,7 +303,7 @@ function OrderDetailDialog({
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                <th style={thStyle}>{isChinese ? '产品' : 'Product'}</th>
+                                <th style={thStyle}>{isChinese ? '物料' : 'Material'}</th>
                                 <th style={thStyle}>{isChinese ? '数量' : 'Qty'}</th>
                                 <th style={thStyle}>{isChinese ? '单价' : 'Unit Price'}</th>
                                 <th style={thStyle}>{isChinese ? '小计' : 'Subtotal'}</th>
@@ -312,7 +312,7 @@ function OrderDetailDialog({
                         <tbody>
                             {order.lines.map((line, idx) => (
                                 <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                    <td style={tdStyle}>{line.product_name ?? line.product_id}</td>
+                                    <td style={tdStyle}>{line.material_name ?? line.material_id}</td>
                                     <td style={tdStyle}>{line.quantity}</td>
                                     <td style={tdStyle}>{line.unit_price.toFixed(2)}</td>
                                     <td style={tdStyle}>{line.subtotal.toFixed(2)}</td>
@@ -380,9 +380,9 @@ export default function PurchaseOrders() {
         enabled: showNewOrder,
     });
 
-    const { data: productsData } = useQuery({
-        queryKey: ['erp-products-options'],
-        queryFn: () => fetchJson<{ items: ProductOption[] }>('/erp/products?page_size=999'),
+    const { data: materialsData } = useQuery({
+        queryKey: ['erp-materials-options'],
+        queryFn: () => fetchJson<{ items: MaterialOption[] }>('/erp/materials?page_size=999'),
         enabled: showNewOrder,
     });
 
@@ -486,7 +486,7 @@ export default function PurchaseOrders() {
                 <NewOrderDialog
                     isChinese={isChinese}
                     supplierOptions={suppliersData?.items ?? []}
-                    productOptions={productsData?.items ?? []}
+                    materialOptions={materialsData?.items ?? []}
                     onClose={() => setShowNewOrder(false)}
                 />
             )}

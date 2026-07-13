@@ -19,6 +19,7 @@ interface InventoryItem {
     min_stock: number;
     cost_price: number;
     stock_value: number;
+    item_type?: 'product' | 'material';
 }
 
 interface InventoryResponse {
@@ -37,6 +38,7 @@ interface StockMovement {
     quantity: number;
     reason: string;
     created_at: string;
+    item_type?: 'product' | 'material';
 }
 
 interface MovementsResponse {
@@ -200,29 +202,41 @@ export default function Inventory() {
     const queryClient = useQueryClient();
 
     const [activeTab, setActiveTab] = useState<'overview' | 'movements'>('overview');
+    const [stockType, setStockType] = useState<'all' | 'product' | 'material'>('all');
     const [overviewPage, setOverviewPage] = useState(1);
     const [movementsPage, setMovementsPage] = useState(1);
     const [stockDialog, setStockDialog] = useState<'inbound' | 'outbound' | 'transfer' | null>(null);
 
     /* ── Overview query ── */
+    const stockTypeParam = stockType === 'all' ? '' : `&type=${stockType}`;
     const { data: overviewData, isLoading: overviewLoading } = useQuery({
-        queryKey: ['erp-inventory', overviewPage],
-        queryFn: () => fetchJson<InventoryResponse>(`/erp/inventory?page=${overviewPage}&page_size=20`),
+        queryKey: ['erp-inventory', overviewPage, stockType],
+        queryFn: () => fetchJson<InventoryResponse>(`/erp/inventory?page=${overviewPage}&page_size=20${stockTypeParam}`),
     });
 
     /* ── Movements query ── */
     const { data: movementsData, isLoading: movementsLoading } = useQuery({
-        queryKey: ['erp-inventory-movements', movementsPage],
-        queryFn: () => fetchJson<MovementsResponse>(`/erp/inventory/movements?page=${movementsPage}&page_size=20`),
+        queryKey: ['erp-inventory-movements', movementsPage, stockType],
+        queryFn: () => fetchJson<MovementsResponse>(`/erp/inventory/movements?page=${movementsPage}&page_size=20${stockTypeParam}`),
         enabled: activeTab === 'movements',
     });
 
-    /* ── Product options for stock dialog ── */
+    /* ── Product/Material options for stock dialog ── */
     const { data: productsData } = useQuery({
         queryKey: ['erp-products-options'],
         queryFn: () => fetchJson<{ items: { id: string; name: string; sku: string }[] }>('/erp/products?page_size=999'),
-        enabled: !!stockDialog,
+        enabled: !!stockDialog && stockType !== 'material',
     });
+
+    const { data: materialsData } = useQuery({
+        queryKey: ['erp-materials-options'],
+        queryFn: () => fetchJson<{ items: { id: string; name: string; sku: string }[] }>('/erp/materials?page_size=999'),
+        enabled: !!stockDialog && stockType !== 'product',
+    });
+
+    const stockOptions = stockType === 'material'
+        ? (materialsData?.items ?? [])
+        : (productsData?.items ?? []);
 
     const overviewItems = overviewData?.items ?? [];
     const overviewTotal = overviewData?.total ?? 0;
@@ -255,6 +269,23 @@ export default function Inventory() {
                         </button>
                     ))}
                 </div>
+                <div style={{ display: 'flex', gap: 4, marginLeft: 8 }}>
+                    {(['all', 'product', 'material'] as const).map(type => (
+                        <button
+                            key={type}
+                            onClick={() => { setStockType(type); setOverviewPage(1); setMovementsPage(1); }}
+                            style={{
+                                padding: '5px 14px', borderRadius: 100, fontSize: 12, fontWeight: 500,
+                                border: stockType === type ? 'none' : '1px solid var(--border-subtle)',
+                                background: stockType === type ? '#0ea5e9' : 'var(--bg-secondary)',
+                                color: stockType === type ? '#fff' : 'var(--text-secondary)',
+                                cursor: 'pointer', transition: 'all 0.15s',
+                            }}
+                        >
+                            {type === 'all' ? (isChinese ? '全部' : 'All') : type === 'product' ? (isChinese ? '产品' : 'Products') : (isChinese ? '物料' : 'Materials')}
+                        </button>
+                    ))}
+                </div>
                 <div style={{ flex: 1 }} />
                 {activeTab === 'overview' && (
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -279,7 +310,8 @@ export default function Inventory() {
                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                        <th style={thStyle}>{t('erp.product.name', '产品名称')}</th>
+                                        <th style={thStyle}>{isChinese ? '类型' : 'Type'}</th>
+                                        <th style={thStyle}>{t('erp.product.name', isChinese ? '名称' : 'Name')}</th>
                                         <th style={thStyle}>{t('erp.product.sku', 'SKU')}</th>
                                         <th style={thStyle}>{t('erp.inventory.currentStock', '当前库存')}</th>
                                         <th style={thStyle}>{t('erp.inventory.minStock', '最低库存')}</th>
@@ -288,14 +320,26 @@ export default function Inventory() {
                                 </thead>
                                 <tbody>
                                     {overviewLoading ? (
-                                        <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.loading', '加载中...')}</td></tr>
+                                        <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.loading', '加载中...')}</td></tr>
                                     ) : overviewItems.length === 0 ? (
-                                        <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.noData', '暂无数据')}</td></tr>
+                                        <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.noData', '暂无数据')}</td></tr>
                                     ) : overviewItems.map(item => {
                                         const isLow = item.current_stock < item.min_stock;
                                         const rowBg = isLow ? 'rgba(239,68,68,0.06)' : 'transparent';
+                                        const isMaterial = item.item_type === 'material';
                                         return (
                                             <tr key={item.id} style={{ borderBottom: '1px solid var(--border-subtle)', background: rowBg }}>
+                                                <td style={tdStyle}>
+                                                    <span style={{
+                                                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                        padding: '2px 8px', borderRadius: 100, fontSize: 11, fontWeight: 500,
+                                                        background: isMaterial ? 'rgba(139,92,246,0.12)' : 'rgba(59,130,246,0.12)',
+                                                        border: `1px solid ${isMaterial ? 'rgba(139,92,246,0.3)' : 'rgba(59,130,246,0.3)'}`,
+                                                        color: isMaterial ? '#8b5cf6' : '#3b82f6',
+                                                    }}>
+                                                        {isMaterial ? (isChinese ? '物料' : 'Material') : (isChinese ? '产品' : 'Product')}
+                                                    </span>
+                                                </td>
                                                 <td style={tdStyle}>{item.product_name}</td>
                                                 <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 12 }}>{item.sku}</td>
                                                 <td style={{ ...tdStyle, color: isLow ? '#ef4444' : 'var(--text-primary)', fontWeight: isLow ? 600 : 400 }}>
@@ -330,26 +374,39 @@ export default function Inventory() {
                                 <thead>
                                     <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                                         <th style={thStyle}>{t('erp.movement.time', '时间')}</th>
-                                        <th style={thStyle}>{t('erp.product.name', '产品')}</th>
+                                        <th style={thStyle}>{isChinese ? '类型' : 'Type'}</th>
+                                        <th style={thStyle}>{t('erp.product.name', isChinese ? '名称' : 'Name')}</th>
                                         <th style={thStyle}>{t('erp.movement.warehouse', '仓库')}</th>
-                                        <th style={thStyle}>{t('erp.movement.type', '类型')}</th>
+                                        <th style={thStyle}>{t('erp.movement.type', '操作类型')}</th>
                                         <th style={thStyle}>{t('erp.movement.quantity', '数量')}</th>
                                         <th style={thStyle}>{t('erp.movement.reason', '原因')}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {movementsLoading ? (
-                                        <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.loading', '加载中...')}</td></tr>
+                                        <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.loading', '加载中...')}</td></tr>
                                     ) : movementItems.length === 0 ? (
-                                        <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.noData', '暂无数据')}</td></tr>
+                                        <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.noData', '暂无数据')}</td></tr>
                                     ) : movementItems.map(m => {
                                         const typeColor = MOVEMENT_TYPE_COLOR[m.movement_type] ?? 'var(--text-tertiary)';
                                         const typeLabel = isChinese
                                             ? (MOVEMENT_TYPE_LABELS[m.movement_type]?.zh ?? m.movement_type)
                                             : (MOVEMENT_TYPE_LABELS[m.movement_type]?.en ?? m.movement_type);
+                                        const isMaterial = m.item_type === 'material';
                                         return (
                                             <tr key={m.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                                                 <td style={{ ...tdStyle, color: 'var(--text-tertiary)' }}>{new Date(m.created_at).toLocaleString()}</td>
+                                                <td style={tdStyle}>
+                                                    <span style={{
+                                                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                        padding: '2px 8px', borderRadius: 100, fontSize: 11, fontWeight: 500,
+                                                        background: isMaterial ? 'rgba(139,92,246,0.12)' : 'rgba(59,130,246,0.12)',
+                                                        border: `1px solid ${isMaterial ? 'rgba(139,92,246,0.3)' : 'rgba(59,130,246,0.3)'}`,
+                                                        color: isMaterial ? '#8b5cf6' : '#3b82f6',
+                                                    }}>
+                                                        {isMaterial ? (isChinese ? '物料' : 'Material') : (isChinese ? '产品' : 'Product')}
+                                                    </span>
+                                                </td>
                                                 <td style={tdStyle}>{m.product_name}</td>
                                                 <td style={tdStyle}>{m.warehouse}</td>
                                                 <td style={tdStyle}>
@@ -386,7 +443,7 @@ export default function Inventory() {
                 <StockOperationDialog
                     operationType={stockDialog}
                     isChinese={isChinese}
-                    productOptions={productsData?.items ?? []}
+                    productOptions={stockOptions}
                     onClose={() => setStockDialog(null)}
                 />
             )}

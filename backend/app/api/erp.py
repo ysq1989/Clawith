@@ -1,4 +1,4 @@
-"""ERP REST API — customers, suppliers, products, orders, inventory, finance, reports.
+"""ERP REST API — customers, suppliers, products, materials, orders, inventory, finance, reports.
 
 All endpoints are tenant-scoped: data is filtered by the requesting user's
 tenant_id so cross-tenant leakage is impossible.
@@ -8,6 +8,7 @@ Route summary
 Customers      GET/POST /customers, GET/PATCH/DELETE /customers/{id}
 Suppliers      GET/POST /suppliers, GET/PATCH/DELETE /suppliers/{id}
 Products       GET/POST /products,  GET/PATCH/DELETE /products/{id}
+Materials      GET/POST /materials, GET/PATCH/DELETE /materials/{id}
 Warehouses     GET/POST /warehouses, GET/PATCH/DELETE /warehouses/{id}
 Sales orders   GET/POST /sales-orders, GET/PATCH/DELETE /sales-orders/{id},
                POST /sales-orders/{id}/status
@@ -32,6 +33,7 @@ from app.database import async_session
 from app.models.erp import (
     ERPCustomer,
     ERPFinancialRecord,
+    ERPMaterial,
     ERPPurchaseOrder,
     ERPPurchaseOrderItem,
     ERPProduct,
@@ -203,7 +205,6 @@ class ProductCreate(BaseModel):
     category: str | None = None
     unit: str | None = "pcs"
     unit_price: float | None = None
-    cost_price: float | None = None
     min_stock: int = 0
     description: str | None = None
 
@@ -214,7 +215,6 @@ class ProductUpdate(BaseModel):
     category: str | None = None
     unit: str | None = None
     unit_price: float | None = None
-    cost_price: float | None = None
     min_stock: int | None = None
     description: str | None = None
     status: str | None = None
@@ -227,6 +227,46 @@ class ProductOut(BaseModel):
     category: str | None = None
     unit: str | None = None
     unit_price: float | None = None
+    stock_qty: int
+    min_stock: int
+    description: str | None = None
+    status: str
+    created_at: str | None = None
+    updated_at: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+# ─── 物料 Schemas ─────────────────────────────────────────────────────────────
+
+class MaterialCreate(BaseModel):
+    name: str
+    sku: str | None = None
+    category: str | None = None
+    unit: str | None = "pcs"
+    cost_price: float | None = None
+    min_stock: int = 0
+    description: str | None = None
+
+
+class MaterialUpdate(BaseModel):
+    name: str | None = None
+    sku: str | None = None
+    category: str | None = None
+    unit: str | None = None
+    cost_price: float | None = None
+    min_stock: int | None = None
+    description: str | None = None
+    status: str | None = None
+
+
+class MaterialOut(BaseModel):
+    id: str
+    name: str
+    sku: str | None = None
+    category: str | None = None
+    unit: str | None = None
     cost_price: float | None = None
     stock_qty: int
     min_stock: int
@@ -332,7 +372,7 @@ class SalesOrderOut(BaseModel):
 
 
 class PurchaseOrderItemCreate(BaseModel):
-    product_id: str
+    material_id: str
     quantity: int
     unit_price: float | None = None
     notes: str | None = None
@@ -340,8 +380,8 @@ class PurchaseOrderItemCreate(BaseModel):
 
 class PurchaseOrderItemOut(BaseModel):
     id: str
-    product_id: str
-    product_name: str | None = None
+    material_id: str
+    material_name: str | None = None
     quantity: int
     unit_price: float
     subtotal: float
@@ -396,14 +436,18 @@ class StatusUpdate(BaseModel):
 
 
 class StockOperation(BaseModel):
-    product_id: str
+    record_source: str  # 'product' | 'material'
+    product_id: str | None = None
+    material_id: str | None = None
     warehouse_id: str
     quantity: int
     reason: str | None = None
 
 
 class StockTransfer(BaseModel):
-    product_id: str
+    record_source: str  # 'product' | 'material'
+    product_id: str | None = None
+    material_id: str | None = None
     from_warehouse_id: str
     to_warehouse_id: str
     quantity: int
@@ -411,7 +455,9 @@ class StockTransfer(BaseModel):
 
 class StockRecordOut(BaseModel):
     id: str
-    product_id: str
+    record_source: str | None = None  # 'product' | 'material'
+    product_id: str | None = None
+    material_id: str | None = None
     warehouse_id: str
     record_type: str
     quantity: int
@@ -732,7 +778,6 @@ def _product_to_out(p):
         id=str(p.id), name=p.name, sku=p.sku, category=p.category,
         unit=p.unit,
         unit_price=_to_f(p.unit_price),
-        cost_price=_to_f(p.cost_price),
         stock_qty=p.stock_qty, min_stock=p.min_stock,
         description=p.description, status=p.status,
         created_at=p.created_at.isoformat() if p.created_at else None,
@@ -825,6 +870,112 @@ async def delete_product(product_id: str, user=Depends(get_current_user)):
         if not p:
             raise HTTPException(404, "Product not found")
         p.status = "inactive"
+        await db.commit()
+        return {"status": "ok"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  物料 (MATERIALS)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def _material_to_out(m):
+    return MaterialOut(
+        id=str(m.id), name=m.name, sku=m.sku, category=m.category,
+        unit=m.unit,
+        cost_price=_to_f(m.cost_price),
+        stock_qty=m.stock_qty, min_stock=m.min_stock,
+        description=m.description, status=m.status,
+        created_at=m.created_at.isoformat() if m.created_at else None,
+        updated_at=m.updated_at.isoformat() if m.updated_at else None,
+    )
+
+
+@router.get("/materials", response_model=list[MaterialOut])
+async def list_materials(
+    search: str | None = None,
+    status: str | None = None,
+    category: str | None = None,
+    user=Depends(get_current_user),
+):
+    async with async_session() as db:
+        q = select(ERPMaterial).where(ERPMaterial.tenant_id == user.tenant_id)
+        if search:
+            like = f"%{search}%"
+            q = q.where(
+                or_(
+                    ERPMaterial.name.ilike(like),
+                    ERPMaterial.sku.ilike(like),
+                )
+            )
+        if status:
+            q = q.where(ERPMaterial.status == status)
+        if category:
+            q = q.where(ERPMaterial.category == category)
+        result = await db.execute(q.order_by(ERPMaterial.created_at.desc()))
+        return [_material_to_out(m) for m in result.scalars().all()]
+
+
+@router.post("/materials", response_model=MaterialOut)
+async def create_material(body: MaterialCreate, user=Depends(get_current_user)):
+    async with async_session() as db:
+        obj = ERPMaterial(tenant_id=user.tenant_id, **body.model_dump())
+        db.add(obj)
+        await db.commit()
+        await db.refresh(obj)
+        return _material_to_out(obj)
+
+
+@router.get("/materials/{material_id}", response_model=MaterialOut)
+async def get_material(material_id: str, user=Depends(get_current_user)):
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPMaterial).where(
+                ERPMaterial.id == material_id,
+                ERPMaterial.tenant_id == user.tenant_id,
+            )
+        )
+        m = result.scalar_one_or_none()
+        if not m:
+            raise HTTPException(404, "Material not found")
+        return _material_to_out(m)
+
+
+@router.patch("/materials/{material_id}", response_model=MaterialOut)
+async def update_material(
+    material_id: str, body: MaterialUpdate, user=Depends(get_current_user)
+):
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPMaterial).where(
+                ERPMaterial.id == material_id,
+                ERPMaterial.tenant_id == user.tenant_id,
+            )
+        )
+        m = result.scalar_one_or_none()
+        if not m:
+            raise HTTPException(404, "Material not found")
+        for k, v in body.model_dump(exclude_unset=True).items():
+            setattr(m, k, v)
+        await db.commit()
+        await db.refresh(m)
+        return _material_to_out(m)
+
+
+@router.delete("/materials/{material_id}")
+async def delete_material(material_id: str, user=Depends(get_current_user)):
+    """Soft-delete: set status to 'inactive'."""
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPMaterial).where(
+                ERPMaterial.id == material_id,
+                ERPMaterial.tenant_id == user.tenant_id,
+            )
+        )
+        m = result.scalar_one_or_none()
+        if not m:
+            raise HTTPException(404, "Material not found")
+        m.status = "inactive"
         await db.commit()
         return {"status": "ok"}
 
@@ -961,6 +1112,17 @@ async def _resolve_product_names(db, product_ids):
     if product_ids:
         result = await db.execute(
             select(ERPProduct.id, ERPProduct.name).where(ERPProduct.id.in_(product_ids))
+        )
+        names = {row.id: row.name for row in result.fetchall()}
+    return names
+
+
+async def _resolve_material_names(db, material_ids):
+    """Batch-resolve material names for purchase order items."""
+    names: dict[uuid.UUID, str] = {}
+    if material_ids:
+        result = await db.execute(
+            select(ERPMaterial.id, ERPMaterial.name).where(ERPMaterial.id.in_(material_ids))
         )
         names = {row.id: row.name for row in result.fetchall()}
     return names
@@ -1234,6 +1396,7 @@ async def update_sales_order_status(
                         db.add(ERPStockRecord(
                             tenant_id=user.tenant_id,
                             product_id=product.id,
+                            record_source="product",
                             warehouse_id=uuid.UUID(int=0),
                             related_order_id=order.id,
                             record_type="out",
@@ -1356,8 +1519,9 @@ async def create_purchase_order(body: PurchaseOrderCreate, user=Depends(get_curr
         for item in body.items:
             price = item.unit_price
             if price is None:
+                # 物料默认价格：从 erp_materials.cost_price 获取
                 p_result = await db.execute(
-                    select(ERPProduct.cost_price).where(ERPProduct.id == item.product_id)
+                    select(ERPMaterial.cost_price).where(ERPMaterial.id == item.material_id)
                 )
                 p_row = p_result.first()
                 price = float(p_row[0]) if p_row and p_row[0] is not None else 0.0
@@ -1365,7 +1529,7 @@ async def create_purchase_order(body: PurchaseOrderCreate, user=Depends(get_curr
             total_amount += subtotal
             order_items.append(
                 ERPPurchaseOrderItem(
-                    product_id=item.product_id,
+                    material_id=item.material_id,
                     quantity=item.quantity,
                     unit_price=price,
                     subtotal=subtotal,
@@ -1398,7 +1562,7 @@ async def create_purchase_order(body: PurchaseOrderCreate, user=Depends(get_curr
 
         item_outs = [
             PurchaseOrderItemOut(
-                id=str(oi.id), product_id=str(oi.product_id),
+                id=str(oi.id), material_id=str(oi.material_id),
                 quantity=oi.quantity, unit_price=_to_f(oi.unit_price),
                 subtotal=_to_f(oi.subtotal), notes=oi.notes,
             )
@@ -1429,12 +1593,12 @@ async def get_purchase_order(order_id: str, user=Depends(get_current_user)):
             select(ERPPurchaseOrderItem).where(ERPPurchaseOrderItem.order_id == order.id)
         )
         items = items_result.scalars().all()
-        product_names = await _resolve_product_names(db, list({i.product_id for i in items}))
+        material_names = await _resolve_material_names(db, list({i.material_id for i in items}))
 
         item_outs = [
             PurchaseOrderItemOut(
-                id=str(i.id), product_id=str(i.product_id),
-                product_name=product_names.get(i.product_id),
+                id=str(i.id), material_id=str(i.material_id),
+                material_name=material_names.get(i.material_id),
                 quantity=i.quantity, unit_price=_to_f(i.unit_price),
                 subtotal=_to_f(i.subtotal), notes=i.notes,
             )
@@ -1483,8 +1647,9 @@ async def update_purchase_order(
             for item in items_data:
                 price = item.unit_price
                 if price is None:
+                    # 物料默认价格：从 erp_materials.cost_price 获取
                     p_result = await db.execute(
-                        select(ERPProduct.cost_price).where(ERPProduct.id == item.product_id)
+                        select(ERPMaterial.cost_price).where(ERPMaterial.id == item.material_id)
                     )
                     p_row = p_result.first()
                     price = float(p_row[0]) if p_row and p_row[0] is not None else 0.0
@@ -1492,7 +1657,7 @@ async def update_purchase_order(
                 total_amount += subtotal
                 db.add(ERPPurchaseOrderItem(
                     order_id=order.id,
-                    product_id=item.product_id,
+                    material_id=item.material_id,
                     quantity=item.quantity,
                     unit_price=price,
                     subtotal=subtotal,
@@ -1514,12 +1679,12 @@ async def update_purchase_order(
             select(ERPSupplier.name).where(ERPSupplier.id == order.supplier_id)
         )
         supplier_name = sup_result.scalar_one_or_none()
-        product_names = await _resolve_product_names(db, list({i.product_id for i in items}))
+        material_names = await _resolve_material_names(db, list({i.material_id for i in items}))
 
         item_outs = [
             PurchaseOrderItemOut(
-                id=str(i.id), product_id=str(i.product_id),
-                product_name=product_names.get(i.product_id),
+                id=str(i.id), material_id=str(i.material_id),
+                material_name=material_names.get(i.material_id),
                 quantity=i.quantity, unit_price=_to_f(i.unit_price),
                 subtotal=_to_f(i.subtotal), notes=i.notes,
             )
@@ -1555,15 +1720,16 @@ async def update_purchase_order_status(
                 )
                 items = items_result.scalars().all()
                 for item in items:
-                    prod_result = await db.execute(
-                        select(ERPProduct).where(ERPProduct.id == item.product_id)
+                    mat_result = await db.execute(
+                        select(ERPMaterial).where(ERPMaterial.id == item.material_id)
                     )
-                    product = prod_result.scalar_one_or_none()
-                    if product:
-                        product.stock_qty += item.quantity
+                    material = mat_result.scalar_one_or_none()
+                    if material:
+                        material.stock_qty += item.quantity
                         db.add(ERPStockRecord(
                             tenant_id=user.tenant_id,
-                            product_id=product.id,
+                            material_id=material.id,
+                            record_source="material",
                             warehouse_id=uuid.UUID(int=0),
                             related_order_id=order.id,
                             record_type="in",
@@ -1614,35 +1780,68 @@ async def delete_purchase_order(order_id: str, user=Depends(get_current_user)):
 async def list_stock(
     warehouse_id: str | None = None,
     product_id: str | None = None,
+    material_id: str | None = None,
+    record_source: str | None = None,
     user=Depends(get_current_user),
 ):
-    """Return current stock levels (stock_qty on erp_products)."""
+    """Return current stock levels. record_source='product'|'material' 筛选来源。"""
     async with async_session() as db:
-        q = select(ERPProduct).where(
-            ERPProduct.tenant_id == user.tenant_id,
-            ERPProduct.status != "inactive",
-        )
-        if product_id:
-            q = q.where(ERPProduct.id == product_id)
-        result = await db.execute(q.order_by(ERPProduct.name))
-        products = result.scalars().all()
-        return [
-            {
+        # 产品库存
+        if record_source != "material":
+            prod_q = select(ERPProduct).where(
+                ERPProduct.tenant_id == user.tenant_id,
+                ERPProduct.status != "inactive",
+            )
+            if product_id:
+                prod_q = prod_q.where(ERPProduct.id == product_id)
+            prod_result = await db.execute(prod_q.order_by(ERPProduct.name))
+            products = prod_result.scalars().all()
+        else:
+            products = []
+
+        # 物料库存
+        if record_source != "product":
+            mat_q = select(ERPMaterial).where(
+                ERPMaterial.tenant_id == user.tenant_id,
+                ERPMaterial.status != "inactive",
+            )
+            if material_id:
+                mat_q = mat_q.where(ERPMaterial.id == material_id)
+            mat_result = await db.execute(mat_q.order_by(ERPMaterial.name))
+            materials = mat_result.scalars().all()
+        else:
+            materials = []
+
+        result = []
+        for p in products:
+            result.append({
+                "record_source": "product",
                 "product_id": str(p.id),
-                "product_name": p.name,
+                "name": p.name,
                 "sku": p.sku,
                 "stock_qty": p.stock_qty,
                 "min_stock": p.min_stock,
                 "unit": p.unit,
-            }
-            for p in products
-        ]
+            })
+        for m in materials:
+            result.append({
+                "record_source": "material",
+                "material_id": str(m.id),
+                "name": m.name,
+                "sku": m.sku,
+                "stock_qty": m.stock_qty,
+                "min_stock": m.min_stock,
+                "unit": m.unit,
+            })
+        return result
 
 
 def _stock_record_to_out(r):
     return StockRecordOut(
         id=str(r.id),
-        product_id=str(r.product_id),
+        record_source=r.record_source,
+        product_id=_to_str(r.product_id),
+        material_id=_to_str(r.material_id),
         warehouse_id=str(r.warehouse_id),
         record_type=r.record_type,
         quantity=r.quantity,
@@ -1655,25 +1854,52 @@ def _stock_record_to_out(r):
 @router.post("/stock/inbound", response_model=StockRecordOut)
 async def stock_inbound(body: StockOperation, user=Depends(get_current_user)):
     async with async_session() as db:
-        prod_result = await db.execute(
-            select(ERPProduct).where(
-                ERPProduct.id == body.product_id,
-                ERPProduct.tenant_id == user.tenant_id,
+        if body.record_source == "material":
+            # 物料入库
+            if not body.material_id:
+                raise HTTPException(400, "material_id is required for material stock")
+            mat_result = await db.execute(
+                select(ERPMaterial).where(
+                    ERPMaterial.id == body.material_id,
+                    ERPMaterial.tenant_id == user.tenant_id,
+                )
             )
-        )
-        product = prod_result.scalar_one_or_none()
-        if not product:
-            raise HTTPException(404, "Product not found")
-
-        product.stock_qty += body.quantity
-        record = ERPStockRecord(
-            tenant_id=user.tenant_id,
-            product_id=product.id,
-            warehouse_id=body.warehouse_id,
-            record_type="in",
-            quantity=body.quantity,
-            reason=body.reason,
-        )
+            material = mat_result.scalar_one_or_none()
+            if not material:
+                raise HTTPException(404, "Material not found")
+            material.stock_qty += body.quantity
+            record = ERPStockRecord(
+                tenant_id=user.tenant_id,
+                material_id=material.id,
+                record_source="material",
+                warehouse_id=body.warehouse_id,
+                record_type="in",
+                quantity=body.quantity,
+                reason=body.reason,
+            )
+        else:
+            # 产品入库
+            if not body.product_id:
+                raise HTTPException(400, "product_id is required for product stock")
+            prod_result = await db.execute(
+                select(ERPProduct).where(
+                    ERPProduct.id == body.product_id,
+                    ERPProduct.tenant_id == user.tenant_id,
+                )
+            )
+            product = prod_result.scalar_one_or_none()
+            if not product:
+                raise HTTPException(404, "Product not found")
+            product.stock_qty += body.quantity
+            record = ERPStockRecord(
+                tenant_id=user.tenant_id,
+                product_id=product.id,
+                record_source="product",
+                warehouse_id=body.warehouse_id,
+                record_type="in",
+                quantity=body.quantity,
+                reason=body.reason,
+            )
         db.add(record)
         await db.commit()
         await db.refresh(record)
@@ -1683,30 +1909,62 @@ async def stock_inbound(body: StockOperation, user=Depends(get_current_user)):
 @router.post("/stock/outbound", response_model=StockRecordOut)
 async def stock_outbound(body: StockOperation, user=Depends(get_current_user)):
     async with async_session() as db:
-        prod_result = await db.execute(
-            select(ERPProduct).where(
-                ERPProduct.id == body.product_id,
-                ERPProduct.tenant_id == user.tenant_id,
+        if body.record_source == "material":
+            # 物料出库
+            if not body.material_id:
+                raise HTTPException(400, "material_id is required for material stock")
+            mat_result = await db.execute(
+                select(ERPMaterial).where(
+                    ERPMaterial.id == body.material_id,
+                    ERPMaterial.tenant_id == user.tenant_id,
+                )
             )
-        )
-        product = prod_result.scalar_one_or_none()
-        if not product:
-            raise HTTPException(404, "Product not found")
-        if product.stock_qty < body.quantity:
-            raise HTTPException(
-                400,
-                f"Insufficient stock: available {product.stock_qty}, requested {body.quantity}",
+            material = mat_result.scalar_one_or_none()
+            if not material:
+                raise HTTPException(404, "Material not found")
+            if material.stock_qty < body.quantity:
+                raise HTTPException(
+                    400,
+                    f"Insufficient stock: available {material.stock_qty}, requested {body.quantity}",
+                )
+            material.stock_qty -= body.quantity
+            record = ERPStockRecord(
+                tenant_id=user.tenant_id,
+                material_id=material.id,
+                record_source="material",
+                warehouse_id=body.warehouse_id,
+                record_type="out",
+                quantity=body.quantity,
+                reason=body.reason,
             )
-
-        product.stock_qty -= body.quantity
-        record = ERPStockRecord(
-            tenant_id=user.tenant_id,
-            product_id=product.id,
-            warehouse_id=body.warehouse_id,
-            record_type="out",
-            quantity=body.quantity,
-            reason=body.reason,
-        )
+        else:
+            # 产品出库
+            if not body.product_id:
+                raise HTTPException(400, "product_id is required for product stock")
+            prod_result = await db.execute(
+                select(ERPProduct).where(
+                    ERPProduct.id == body.product_id,
+                    ERPProduct.tenant_id == user.tenant_id,
+                )
+            )
+            product = prod_result.scalar_one_or_none()
+            if not product:
+                raise HTTPException(404, "Product not found")
+            if product.stock_qty < body.quantity:
+                raise HTTPException(
+                    400,
+                    f"Insufficient stock: available {product.stock_qty}, requested {body.quantity}",
+                )
+            product.stock_qty -= body.quantity
+            record = ERPStockRecord(
+                tenant_id=user.tenant_id,
+                product_id=product.id,
+                record_source="product",
+                warehouse_id=body.warehouse_id,
+                record_type="out",
+                quantity=body.quantity,
+                reason=body.reason,
+            )
         db.add(record)
         await db.commit()
         await db.refresh(record)
@@ -1716,42 +1974,86 @@ async def stock_outbound(body: StockOperation, user=Depends(get_current_user)):
 @router.post("/stock/transfer")
 async def stock_transfer(body: StockTransfer, user=Depends(get_current_user)):
     async with async_session() as db:
-        prod_result = await db.execute(
-            select(ERPProduct).where(
-                ERPProduct.id == body.product_id,
-                ERPProduct.tenant_id == user.tenant_id,
+        if body.record_source == "material":
+            # 物料转移
+            if not body.material_id:
+                raise HTTPException(400, "material_id is required for material stock")
+            mat_result = await db.execute(
+                select(ERPMaterial).where(
+                    ERPMaterial.id == body.material_id,
+                    ERPMaterial.tenant_id == user.tenant_id,
+                )
             )
-        )
-        product = prod_result.scalar_one_or_none()
-        if not product:
-            raise HTTPException(404, "Product not found")
-        if product.stock_qty < body.quantity:
-            raise HTTPException(
-                400,
-                f"Insufficient stock: available {product.stock_qty}, requested {body.quantity}",
+            material = mat_result.scalar_one_or_none()
+            if not material:
+                raise HTTPException(404, "Material not found")
+            if material.stock_qty < body.quantity:
+                raise HTTPException(
+                    400,
+                    f"Insufficient stock: available {material.stock_qty}, requested {body.quantity}",
+                )
+            material.stock_qty -= body.quantity
+            out_record = ERPStockRecord(
+                tenant_id=user.tenant_id,
+                material_id=material.id,
+                record_source="material",
+                warehouse_id=body.from_warehouse_id,
+                record_type="out",
+                quantity=body.quantity,
+                reason=f"Transfer to warehouse {body.to_warehouse_id}",
             )
-
-        product.stock_qty -= body.quantity
-        out_record = ERPStockRecord(
-            tenant_id=user.tenant_id,
-            product_id=product.id,
-            warehouse_id=body.from_warehouse_id,
-            record_type="out",
-            quantity=body.quantity,
-            reason=f"Transfer to warehouse {body.to_warehouse_id}",
-        )
-        db.add(out_record)
-
-        product.stock_qty += body.quantity
-        in_record = ERPStockRecord(
-            tenant_id=user.tenant_id,
-            product_id=product.id,
-            warehouse_id=body.to_warehouse_id,
-            record_type="in",
-            quantity=body.quantity,
-            reason=f"Transfer from warehouse {body.from_warehouse_id}",
-        )
-        db.add(in_record)
+            db.add(out_record)
+            material.stock_qty += body.quantity
+            in_record = ERPStockRecord(
+                tenant_id=user.tenant_id,
+                material_id=material.id,
+                record_source="material",
+                warehouse_id=body.to_warehouse_id,
+                record_type="in",
+                quantity=body.quantity,
+                reason=f"Transfer from warehouse {body.from_warehouse_id}",
+            )
+            db.add(in_record)
+        else:
+            # 产品转移
+            if not body.product_id:
+                raise HTTPException(400, "product_id is required for product stock")
+            prod_result = await db.execute(
+                select(ERPProduct).where(
+                    ERPProduct.id == body.product_id,
+                    ERPProduct.tenant_id == user.tenant_id,
+                )
+            )
+            product = prod_result.scalar_one_or_none()
+            if not product:
+                raise HTTPException(404, "Product not found")
+            if product.stock_qty < body.quantity:
+                raise HTTPException(
+                    400,
+                    f"Insufficient stock: available {product.stock_qty}, requested {body.quantity}",
+                )
+            product.stock_qty -= body.quantity
+            out_record = ERPStockRecord(
+                tenant_id=user.tenant_id,
+                product_id=product.id,
+                record_source="product",
+                warehouse_id=body.from_warehouse_id,
+                record_type="out",
+                quantity=body.quantity,
+                reason=f"Transfer to warehouse {body.to_warehouse_id}",
+            )
+            db.add(out_record)
+            product.stock_qty += body.quantity
+            in_record = ERPStockRecord(
+                tenant_id=user.tenant_id,
+                product_id=product.id,
+                record_source="product",
+                warehouse_id=body.to_warehouse_id,
+                record_type="in",
+                quantity=body.quantity,
+                reason=f"Transfer from warehouse {body.from_warehouse_id}",
+            )
+            db.add(in_record)
 
         await db.commit()
         return {
@@ -1763,9 +2065,10 @@ async def stock_transfer(body: StockTransfer, user=Depends(get_current_user)):
 
 @router.get("/stock/alerts")
 async def stock_alerts(user=Depends(get_current_user)):
-    """Products where stock_qty < min_stock."""
+    """Products and materials where stock_qty < min_stock."""
     async with async_session() as db:
-        result = await db.execute(
+        # 产品库存预警
+        prod_result = await db.execute(
             select(ERPProduct).where(
                 ERPProduct.tenant_id == user.tenant_id,
                 ERPProduct.status == "active",
@@ -1773,22 +2076,46 @@ async def stock_alerts(user=Depends(get_current_user)):
                 ERPProduct.min_stock > 0,
             ).order_by(ERPProduct.name)
         )
-        products = result.scalars().all()
-        return [
-            {
+        products = prod_result.scalars().all()
+
+        # 物料库存预警
+        mat_result = await db.execute(
+            select(ERPMaterial).where(
+                ERPMaterial.tenant_id == user.tenant_id,
+                ERPMaterial.status == "active",
+                ERPMaterial.stock_qty < ERPMaterial.min_stock,
+                ERPMaterial.min_stock > 0,
+            ).order_by(ERPMaterial.name)
+        )
+        materials = mat_result.scalars().all()
+
+        alerts = []
+        for p in products:
+            alerts.append({
+                "record_source": "product",
                 "product_id": str(p.id),
-                "product_name": p.name,
+                "name": p.name,
                 "sku": p.sku,
                 "stock_qty": p.stock_qty,
                 "min_stock": p.min_stock,
-            }
-            for p in products
-        ]
+            })
+        for m in materials:
+            alerts.append({
+                "record_source": "material",
+                "material_id": str(m.id),
+                "name": m.name,
+                "sku": m.sku,
+                "stock_qty": m.stock_qty,
+                "min_stock": m.min_stock,
+            })
+        return alerts
 
 
 @router.get("/stock/records", response_model=list[StockRecordOut])
 async def list_stock_records(
     product_id: str | None = None,
+    material_id: str | None = None,
+    record_source: str | None = None,
     warehouse_id: str | None = None,
     user=Depends(get_current_user),
 ):
@@ -1796,6 +2123,10 @@ async def list_stock_records(
         q = select(ERPStockRecord).where(ERPStockRecord.tenant_id == user.tenant_id)
         if product_id:
             q = q.where(ERPStockRecord.product_id == product_id)
+        if material_id:
+            q = q.where(ERPStockRecord.material_id == material_id)
+        if record_source:
+            q = q.where(ERPStockRecord.record_source == record_source)
         if warehouse_id:
             q = q.where(ERPStockRecord.warehouse_id == warehouse_id)
         result = await db.execute(q.order_by(ERPStockRecord.created_at.desc()))
@@ -2016,24 +2347,25 @@ async def purchase_report(
 
 @router.get("/reports/inventory", response_model=list[InventoryReportItem])
 async def inventory_report(user=Depends(get_current_user)):
+    """库存报表：物料成本库存（因为成本价属于物料）。"""
     async with async_session() as db:
         result = await db.execute(
-            select(ERPProduct).where(
-                ERPProduct.tenant_id == user.tenant_id,
-                ERPProduct.status == "active",
-            ).order_by(ERPProduct.name)
+            select(ERPMaterial).where(
+                ERPMaterial.tenant_id == user.tenant_id,
+                ERPMaterial.status == "active",
+            ).order_by(ERPMaterial.name)
         )
-        products = result.scalars().all()
+        materials = result.scalars().all()
         return [
             InventoryReportItem(
-                product_id=str(p.id),
-                product_name=p.name,
-                sku=p.sku,
-                stock_qty=p.stock_qty,
-                cost_price=_to_f(p.cost_price),
-                stock_value=p.stock_qty * _to_f(p.cost_price),
+                product_id=str(m.id),
+                product_name=m.name,
+                sku=m.sku,
+                stock_qty=m.stock_qty,
+                cost_price=_to_f(m.cost_price),
+                stock_value=m.stock_qty * _to_f(m.cost_price),
             )
-            for p in products
+            for m in materials
         ]
 
 
