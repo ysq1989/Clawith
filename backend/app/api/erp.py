@@ -2960,7 +2960,9 @@ async def create_contact(
             parent_id=uuid.UUID(parent_id),
             name=body.name,
             position=body.position,
+            email=body.email,
             phone=body.phone,
+            is_default=body.is_default,
             notes=body.notes,
         )
         db.add(contact)
