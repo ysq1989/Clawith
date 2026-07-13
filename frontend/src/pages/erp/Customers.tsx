@@ -3,13 +3,14 @@
  * Contacts are integrated into the edit dialog.
  */
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { IconPlus, IconSearch, IconEdit, IconTrash } from '@tabler/icons-react';
+import { IconPlus, IconSearch, IconEdit, IconTrash, IconUpload, IconDownload } from '@tabler/icons-react';
 import { fetchJson } from '../../services/api';
 import { useDialog } from '../../components/Dialog/DialogProvider';
 import { useAuthStore } from '../../stores';
+import { formatFileSize } from '../../utils/formatFileSize';
 
 /* ─── Types ─── */
 interface Customer {
@@ -321,171 +322,284 @@ function CustomerForm({
 
     const cellInputStyle: React.CSSProperties = { ...inputStyle, width: '100%', padding: '4px 6px', fontSize: 12 };
 
+    // Tab state
+    const [formTab, setFormTab] = useState<'basic' | 'financial' | 'contacts' | 'attachments'>('basic');
+    const tabs = [
+        { key: 'basic' as const, label: isChinese ? '基础信息' : 'Basic Info' },
+        { key: 'financial' as const, label: isChinese ? '财务信息' : 'Financial' },
+        ...(isEdit ? [{ key: 'contacts' as const, label: isChinese ? '联系人' : 'Contacts' }] : []),
+        ...(isEdit ? [{ key: 'attachments' as const, label: isChinese ? '附件' : 'Attachments' }] : []),
+    ];
+
+    // Attachments (edit mode only)
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const { data: attachments = [] } = useQuery<any[]>({
+        queryKey: ['erp-attachments', 'customer', customer?.id],
+        queryFn: () => fetchJson<any[]>(`/erp/attachments?parent_type=customer&parent_id=${customer!.id}`),
+        enabled: isEdit,
+    });
+    const uploadAttachment = async (file: File) => {
+        if (!customer) return;
+        const fd = new FormData();
+        fd.append('file', file);
+        const token = localStorage.getItem('token');
+        await fetch(`/api/erp/attachments?parent_type=customer&parent_id=${customer.id}`, {
+            method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
+        });
+        queryClient.invalidateQueries({ queryKey: ['erp-attachments', 'customer', customer.id] });
+    };
+    const deleteAttachment = async (id: string) => {
+        await fetchJson(`/erp/attachments/${id}`, { method: 'DELETE' });
+        queryClient.invalidateQueries({ queryKey: ['erp-attachments', 'customer', customer?.id] });
+    };
+    const downloadAttachment = (id: string) => {
+        const token = localStorage.getItem('token');
+        window.open(`/api/erp/attachments/${id}/download?token=${token}`, '_blank');
+    };
+
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => onClose(false)}>
             <div style={{ background: 'var(--bg-primary)', borderRadius: 12, border: '1px solid var(--border-subtle)', width: 800, maxHeight: '90vh', overflow: 'auto', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
-                <h3 style={{ margin: '0 0 20px', fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
+                <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
                     {customer ? (isChinese ? '编辑客户' : 'Edit Customer') : (isChinese ? '新建客户' : 'New Customer')}
                 </h3>
 
-                {/* ── Section 1: Basic Info ── */}
-                <SectionCard title={isChinese ? '基础信息' : 'Basic Info'}>
-                    {/* Code (read-only, auto-generated for new) */}
-                    <div>
-                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                            {isChinese ? '客户编码' : 'Customer Code'}
-                        </label>
-                        <input
-                            type="text"
-                            value={isEdit ? form.code : (isChinese ? '自动生成' : 'Auto-generated')}
-                            readOnly
-                            style={{ ...inputStyle, width: '100%', background: 'var(--bg-secondary)', color: 'var(--text-tertiary)' }}
-                        />
-                    </div>
-                    {/* Name (required) */}
-                    <div>
-                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                            {isChinese ? '客户名称 *' : 'Customer Name *'}
-                        </label>
-                        <input
-                            type="text"
-                            value={form.name}
-                            onChange={e => update('name', e.target.value)}
-                            style={{ ...inputStyle, width: '100%' }}
-                        />
-                    </div>
-                    {/* Short name */}
-                    <FormField label={isChinese ? '简称' : 'Short Name'} value={form.short_name} onChange={v => update('short_name', v)} />
-                    {/* Category */}
-                    <div>
-                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                            {isChinese ? '客户分类' : 'Category'}
-                        </label>
-                        <CategorySelect
-                            value={effectiveCategoryId}
-                            onChange={(id: string) => update('category_id', id)}
-                            categories={categories}
-                            isChinese={isChinese}
-                        />
-                    </div>
-                    {/* Salesperson */}
-                    <div>
-                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                            {isChinese ? '业务员' : 'Salesperson'}
-                        </label>
-                        <EmployeeSelect
-                            value={form.salesperson_id}
-                            onChange={(id: string) => update('salesperson_id', id)}
-                            employees={employees}
-                            isChinese={isChinese}
-                        />
-                    </div>
-                    {/* Address */}
-                    <FormField label={isChinese ? '地址' : 'Address'} value={form.address} onChange={v => update('address', v)} />
-                    {/* Status */}
-                    <div>
-                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                            {isChinese ? '状态' : 'Status'}
-                        </label>
-                        <select value={form.status} onChange={e => update('status', e.target.value)} style={{ ...inputStyle, width: '100%' }}>
-                            <option value="active">{isChinese ? '活跃' : 'Active'}</option>
-                            <option value="inactive">{isChinese ? '停用' : 'Inactive'}</option>
-                        </select>
-                    </div>
-                </SectionCard>
+                {/* ── Tab Bar ── */}
+                <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border-subtle)', marginBottom: 20 }}>
+                    {tabs.map(tab => (
+                        <button
+                            key={tab.key}
+                            onClick={() => setFormTab(tab.key)}
+                            style={{
+                                background: 'none', border: 'none', borderBottom: formTab === tab.key ? '2px solid var(--accent-primary)' : '2px solid transparent',
+                                padding: '8px 16px', fontSize: 13, fontWeight: 500, cursor: 'pointer', color: formTab === tab.key ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                                transition: 'color 0.15s, border-color 0.15s',
+                            }}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
 
-                {/* ── Section 2: Contacts (edit mode only) ── */}
-                {isEdit && (
-                    <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
-                        <h4 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {isChinese ? '联系人列表' : 'Contacts'}
-                        </h4>
-                        <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 6, overflow: 'hidden' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                <thead>
-                                    <tr style={{ background: 'var(--bg-secondary)' }}>
-                                        <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '姓名' : 'Name'} *</th>
-                                        <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '职位' : 'Position'}</th>
-                                        <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '邮箱' : 'Email'}</th>
-                                        <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '电话' : 'Phone'}</th>
-                                        <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '备注' : 'Notes'}</th>
-                                        <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 50 }}>{isChinese ? '默认' : 'Default'}</th>
-                                        <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 50 }} />
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {contacts.map(ct => (
-                                        <tr key={ct.id} style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                                            <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{ct.name}</td>
-                                            <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{ct.position || '-'}</td>
-                                            <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{ct.email || '-'}</td>
-                                            <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{ct.phone || '-'}</td>
-                                            <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{ct.notes || '-'}</td>
-                                            <td style={{ ...tdStyle, padding: '6px 8px', textAlign: 'center' }}>
-                                                <input
-                                                    type="radio"
-                                                    name="default-contact"
-                                                    checked={ct.is_default}
-                                                    onChange={() => { if (!ct.is_default) handleSetDefault(ct.id); }}
-                                                    style={{ cursor: 'pointer' }}
-                                                />
-                                            </td>
-                                            <td style={{ ...tdStyle, padding: '6px 8px', textAlign: 'center' }}>
-                                                <button onClick={() => handleDeleteContact(ct.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 2 }}>
-                                                    <IconTrash size={13} stroke={1.5} />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {/* New contact input row */}
-                                    <tr style={{ borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}>
-                                        <td style={{ padding: '4px 4px' }}>
-                                            <input value={newContact.name} onChange={e => setNewContact(p => ({ ...p, name: e.target.value }))} placeholder={isChinese ? '姓名 *' : 'Name *'} style={cellInputStyle} />
-                                        </td>
-                                        <td style={{ padding: '4px 4px' }}>
-                                            <input value={newContact.position} onChange={e => setNewContact(p => ({ ...p, position: e.target.value }))} placeholder={isChinese ? '职位' : 'Position'} style={cellInputStyle} />
-                                        </td>
-                                        <td style={{ padding: '4px 4px' }}>
-                                            <input value={newContact.email} onChange={e => setNewContact(p => ({ ...p, email: e.target.value }))} placeholder={isChinese ? '邮箱' : 'Email'} style={cellInputStyle} />
-                                        </td>
-                                        <td style={{ padding: '4px 4px' }}>
-                                            <input value={newContact.phone} onChange={e => setNewContact(p => ({ ...p, phone: e.target.value }))} placeholder={isChinese ? '电话' : 'Phone'} style={cellInputStyle} />
-                                        </td>
-                                        <td style={{ padding: '4px 4px' }}>
-                                            <input value={newContact.notes} onChange={e => setNewContact(p => ({ ...p, notes: e.target.value }))} placeholder={isChinese ? '备注' : 'Notes'} style={cellInputStyle} />
-                                        </td>
-                                        <td style={{ padding: '4px 4px' }} />
-                                        <td style={{ padding: '4px 8px', textAlign: 'center' }}>
-                                            <button onClick={handleAddContact} disabled={savingContact || !newContact.name.trim()} style={{ ...btnPrimary, padding: '3px 10px', fontSize: 11, opacity: (!newContact.name.trim() || savingContact) ? 0.5 : 1 }}>
-                                                {savingContact ? '...' : (isChinese ? '添加' : 'Add')}
-                                            </button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                {/* ── Tab: Basic Info ── */}
+                {formTab === 'basic' && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                        {/* Code (read-only, auto-generated for new) */}
+                        <div>
+                            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                                {isChinese ? '客户编码' : 'Customer Code'}
+                            </label>
+                            <input
+                                type="text"
+                                value={isEdit ? form.code : (isChinese ? '自动生成' : 'Auto-generated')}
+                                readOnly
+                                style={{ ...inputStyle, width: '100%', background: 'var(--bg-secondary)', color: 'var(--text-tertiary)' }}
+                            />
+                        </div>
+                        {/* Name (required) */}
+                        <div>
+                            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                                {isChinese ? '客户名称 *' : 'Customer Name *'}
+                            </label>
+                            <input
+                                type="text"
+                                value={form.name}
+                                onChange={e => update('name', e.target.value)}
+                                style={{ ...inputStyle, width: '100%' }}
+                            />
+                        </div>
+                        {/* Short name */}
+                        <FormField label={isChinese ? '简称' : 'Short Name'} value={form.short_name} onChange={v => update('short_name', v)} />
+                        {/* Category */}
+                        <div>
+                            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                                {isChinese ? '客户分类' : 'Category'}
+                            </label>
+                            <CategorySelect
+                                value={effectiveCategoryId}
+                                onChange={(id: string) => update('category_id', id)}
+                                categories={categories}
+                                isChinese={isChinese}
+                            />
+                        </div>
+                        {/* Salesperson */}
+                        <div>
+                            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                                {isChinese ? '业务员' : 'Salesperson'}
+                            </label>
+                            <EmployeeSelect
+                                value={form.salesperson_id}
+                                onChange={(id: string) => update('salesperson_id', id)}
+                                employees={employees}
+                                isChinese={isChinese}
+                            />
+                        </div>
+                        {/* Address */}
+                        <FormField label={isChinese ? '地址' : 'Address'} value={form.address} onChange={v => update('address', v)} />
+                        {/* Status */}
+                        <div>
+                            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                                {isChinese ? '状态' : 'Status'}
+                            </label>
+                            <select value={form.status} onChange={e => update('status', e.target.value)} style={{ ...inputStyle, width: '100%' }}>
+                                <option value="active">{isChinese ? '活跃' : 'Active'}</option>
+                                <option value="inactive">{isChinese ? '停用' : 'Inactive'}</option>
+                            </select>
+                        </div>
+                        {/* Notes — spans both columns */}
+                        <div style={{ gridColumn: '1 / -1' }}>
+                            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                                {isChinese ? '备注' : 'Notes'}
+                            </label>
+                            <textarea value={form.notes} onChange={e => update('notes', e.target.value)} rows={3} style={{ ...inputStyle, width: '100%', resize: 'vertical' }} />
                         </div>
                     </div>
                 )}
 
-                {/* ── Section 3: Financial Info ── */}
-                <SectionCard title={isChinese ? '财务信息' : 'Financial Info'}>
-                    <FormField label={isChinese ? '公司名称' : 'Company Name'} value={form.company_name} onChange={v => update('company_name', v)} />
-                    <FormField label={isChinese ? '统一社会信用代码' : 'Credit Code'} value={form.credit_code} onChange={v => update('credit_code', v)} />
-                    <FormField label={isChinese ? '法人代表' : 'Legal Representative'} value={form.legal_representative} onChange={v => update('legal_representative', v)} />
-                    <FormField label={isChinese ? '法人电话' : 'Legal Rep Phone'} value={form.legal_rep_phone} onChange={v => update('legal_rep_phone', v)} />
-                    <FormField label={isChinese ? '银行账户' : 'Bank Account Name'} value={form.bank_account_name} onChange={v => update('bank_account_name', v)} />
-                    <FormField label={isChinese ? '银行账号' : 'Bank Account Number'} value={form.bank_account_number} onChange={v => update('bank_account_number', v)} />
-                    <FormField label={isChinese ? '银行名称' : 'Bank Name'} value={form.bank_name} onChange={v => update('bank_name', v)} />
-                    <FormField label={isChinese ? '开户银行' : 'Bank Branch'} value={form.bank_branch} onChange={v => update('bank_branch', v)} />
-                </SectionCard>
+                {/* ── Tab: Financial Info ── */}
+                {formTab === 'financial' && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                        <FormField label={isChinese ? '公司名称' : 'Company Name'} value={form.company_name} onChange={v => update('company_name', v)} />
+                        <FormField label={isChinese ? '统一社会信用代码' : 'Credit Code'} value={form.credit_code} onChange={v => update('credit_code', v)} />
+                        <FormField label={isChinese ? '法人代表' : 'Legal Representative'} value={form.legal_representative} onChange={v => update('legal_representative', v)} />
+                        <FormField label={isChinese ? '法人电话' : 'Legal Rep Phone'} value={form.legal_rep_phone} onChange={v => update('legal_rep_phone', v)} />
+                        <FormField label={isChinese ? '银行账户' : 'Bank Account Name'} value={form.bank_account_name} onChange={v => update('bank_account_name', v)} />
+                        <FormField label={isChinese ? '银行账号' : 'Bank Account Number'} value={form.bank_account_number} onChange={v => update('bank_account_number', v)} />
+                        <FormField label={isChinese ? '银行名称' : 'Bank Name'} value={form.bank_name} onChange={v => update('bank_name', v)} />
+                        <FormField label={isChinese ? '开户银行' : 'Bank Branch'} value={form.bank_branch} onChange={v => update('bank_branch', v)} />
+                    </div>
+                )}
 
-                {/* ── Notes ── */}
-                <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
-                    <h4 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {isChinese ? '备注' : 'Notes'}
-                    </h4>
-                    <textarea value={form.notes} onChange={e => update('notes', e.target.value)} rows={3} style={{ ...inputStyle, width: '100%', resize: 'vertical' }} />
-                </div>
+                {/* ── Tab: Contacts (edit mode only) ── */}
+                {formTab === 'contacts' && isEdit && (
+                    <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 6, overflow: 'hidden' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ background: 'var(--bg-secondary)' }}>
+                                    <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '姓名' : 'Name'} *</th>
+                                    <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '职位' : 'Position'}</th>
+                                    <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '邮箱' : 'Email'}</th>
+                                    <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '电话' : 'Phone'}</th>
+                                    <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '备注' : 'Notes'}</th>
+                                    <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 50 }}>{isChinese ? '默认' : 'Default'}</th>
+                                    <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 50 }} />
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {contacts.map(ct => (
+                                    <tr key={ct.id} style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                                        <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{ct.name}</td>
+                                        <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{ct.position || '-'}</td>
+                                        <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{ct.email || '-'}</td>
+                                        <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{ct.phone || '-'}</td>
+                                        <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{ct.notes || '-'}</td>
+                                        <td style={{ ...tdStyle, padding: '6px 8px', textAlign: 'center' }}>
+                                            <input
+                                                type="radio"
+                                                name="default-contact"
+                                                checked={ct.is_default}
+                                                onChange={() => { if (!ct.is_default) handleSetDefault(ct.id); }}
+                                                style={{ cursor: 'pointer' }}
+                                            />
+                                        </td>
+                                        <td style={{ ...tdStyle, padding: '6px 8px', textAlign: 'center' }}>
+                                            <button onClick={() => handleDeleteContact(ct.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 2 }}>
+                                                <IconTrash size={13} stroke={1.5} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {/* New contact input row */}
+                                <tr style={{ borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}>
+                                    <td style={{ padding: '4px 4px' }}>
+                                        <input value={newContact.name} onChange={e => setNewContact(p => ({ ...p, name: e.target.value }))} placeholder={isChinese ? '姓名 *' : 'Name *'} style={cellInputStyle} />
+                                    </td>
+                                    <td style={{ padding: '4px 4px' }}>
+                                        <input value={newContact.position} onChange={e => setNewContact(p => ({ ...p, position: e.target.value }))} placeholder={isChinese ? '职位' : 'Position'} style={cellInputStyle} />
+                                    </td>
+                                    <td style={{ padding: '4px 4px' }}>
+                                        <input value={newContact.email} onChange={e => setNewContact(p => ({ ...p, email: e.target.value }))} placeholder={isChinese ? '邮箱' : 'Email'} style={cellInputStyle} />
+                                    </td>
+                                    <td style={{ padding: '4px 4px' }}>
+                                        <input value={newContact.phone} onChange={e => setNewContact(p => ({ ...p, phone: e.target.value }))} placeholder={isChinese ? '电话' : 'Phone'} style={cellInputStyle} />
+                                    </td>
+                                    <td style={{ padding: '4px 4px' }}>
+                                        <input value={newContact.notes} onChange={e => setNewContact(p => ({ ...p, notes: e.target.value }))} placeholder={isChinese ? '备注' : 'Notes'} style={cellInputStyle} />
+                                    </td>
+                                    <td style={{ padding: '4px 4px' }} />
+                                    <td style={{ padding: '4px 8px', textAlign: 'center' }}>
+                                        <button onClick={handleAddContact} disabled={savingContact || !newContact.name.trim()} style={{ ...btnPrimary, padding: '3px 10px', fontSize: 11, opacity: (!newContact.name.trim() || savingContact) ? 0.5 : 1 }}>
+                                            {savingContact ? '...' : (isChinese ? '添加' : 'Add')}
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* ── Tab: Attachments (edit mode only) ── */}
+                {formTab === 'attachments' && isEdit && (
+                    <div>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            multiple
+                            style={{ display: 'none' }}
+                            onChange={e => {
+                                const files = e.target.files;
+                                if (files) {
+                                    Array.from(files).forEach(file => uploadAttachment(file));
+                                }
+                                if (fileInputRef.current) fileInputRef.current.value = '';
+                            }}
+                        />
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            style={{ ...btnPrimary, marginBottom: 12 }}
+                        >
+                            <IconUpload size={14} stroke={2} />
+                            {isChinese ? '上传附件' : 'Upload Attachment'}
+                        </button>
+                        {attachments.length > 0 ? (
+                            <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 6, overflow: 'hidden' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr style={{ background: 'var(--bg-secondary)' }}>
+                                            <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '文件名' : 'File Name'}</th>
+                                            <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '大小' : 'Size'}</th>
+                                            <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '上传时间' : 'Upload Time'}</th>
+                                            <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 80 }}>{isChinese ? '操作' : 'Actions'}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {attachments.map((att: any) => (
+                                            <tr key={att.id} style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                                                <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{att.file_name || att.name || '-'}</td>
+                                                <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{att.file_size != null ? formatFileSize(att.file_size) : '-'}</td>
+                                                <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{att.created_at ? new Date(att.created_at).toLocaleString() : '-'}</td>
+                                                <td style={{ ...tdStyle, padding: '6px 8px', textAlign: 'center' }}>
+                                                    <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                                                        <button onClick={() => downloadAttachment(att.id)} style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', padding: 2 }} title={isChinese ? '下载' : 'Download'}>
+                                                            <IconDownload size={13} stroke={1.5} />
+                                                        </button>
+                                                        <button onClick={() => deleteAttachment(att.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 2 }} title={isChinese ? '删除' : 'Delete'}>
+                                                            <IconTrash size={13} stroke={1.5} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div style={{ textAlign: 'center', padding: 24, color: 'var(--text-tertiary)', fontSize: 13 }}>
+                                {isChinese ? '暂无附件' : 'No attachments yet'}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {error && <div style={{ marginTop: 12, fontSize: 12, color: '#ef4444' }}>{error}</div>}
 
