@@ -2876,8 +2876,13 @@ class CategoryOut(BaseModel):
     type: str
     name: str
     created_at: str | None = None
-    class Config:
-        from_attributes = True
+
+
+def _category_to_out(c):
+    return CategoryOut(
+        id=str(c.id), type=c.type, name=c.name,
+        created_at=c.created_at.isoformat() if c.created_at else None,
+    )
 
 
 @router.get("/categories")
@@ -2892,7 +2897,7 @@ async def list_categories(
             .where(ERPCategory.tenant_id == user.tenant_id, ERPCategory.type == type)
             .order_by(ERPCategory.created_at.asc())
         )
-        return [CategoryOut.model_validate(c) for c in result.scalars().all()]
+        return [_category_to_out(c) for c in result.scalars().all()]
 
 
 @router.post("/categories")
@@ -2903,7 +2908,7 @@ async def create_category(body: CategoryCreate, type: str = "customer", user=Dep
         db.add(obj)
         await db.commit()
         await db.refresh(obj)
-        return CategoryOut.model_validate(obj)
+        return _category_to_out(obj)
 
 
 @router.patch("/categories/{category_id}")
@@ -2922,7 +2927,7 @@ async def update_category(category_id: str, body: CategoryCreate, user=Depends(g
         cat.name = body.name
         await db.commit()
         await db.refresh(cat)
-        return CategoryOut.model_validate(cat)
+        return _category_to_out(cat)
 
 
 @router.delete("/categories/{category_id}")
