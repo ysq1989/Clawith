@@ -13,7 +13,7 @@ import { useDialog } from '../../components/Dialog/DialogProvider';
 interface Supplier {
     id: string;
     name: string;
-    contact_person: string;
+    contact_name: string;
     email: string;
     phone: string;
     address: string;
@@ -71,7 +71,7 @@ function SupplierForm({
     const queryClient = useQueryClient();
     const [form, setForm] = useState({
         name: supplier?.name ?? '',
-        contact_person: supplier?.contact_person ?? '',
+        contact_name: supplier?.contact_name ?? '',
         email: supplier?.email ?? '',
         phone: supplier?.phone ?? '',
         address: supplier?.address ?? '',
@@ -110,7 +110,7 @@ function SupplierForm({
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                     <FormField label={isChinese ? '供应商名称 *' : 'Supplier Name *'} value={form.name} onChange={v => update('name', v)} />
-                    <FormField label={isChinese ? '联系人' : 'Contact Person'} value={form.contact_person} onChange={v => update('contact_person', v)} />
+                    <FormField label={isChinese ? '联系人' : 'Contact Person'} value={form.contact_name} onChange={v => update('contact_name', v)} />
                     <FormField label={isChinese ? '邮箱' : 'Email'} type="email" value={form.email} onChange={v => update('email', v)} />
                     <FormField label={isChinese ? '电话' : 'Phone'} value={form.phone} onChange={v => update('phone', v)} />
                     <FormField label={isChinese ? '地址' : 'Address'} value={form.address} onChange={v => update('address', v)} />
@@ -244,7 +244,7 @@ export default function Suppliers() {
                             ) : suppliers.map(s => (
                                 <tr key={s.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                                     <td style={tdStyle}>{s.name}</td>
-                                    <td style={tdStyle}>{s.contact_person}</td>
+                                    <td style={tdStyle}>{s.contact_name}</td>
                                     <td style={tdStyle}>{s.email}</td>
                                     <td style={tdStyle}>{s.phone}</td>
                                     <td style={tdStyle}>

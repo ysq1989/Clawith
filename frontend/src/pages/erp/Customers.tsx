@@ -13,7 +13,7 @@ import { useDialog } from '../../components/Dialog/DialogProvider';
 interface Customer {
     id: string;
     name: string;
-    contact_person: string;
+    contact_name: string;
     email: string;
     phone: string;
     address: string;
@@ -71,7 +71,7 @@ function CustomerForm({
     const queryClient = useQueryClient();
     const [form, setForm] = useState({
         name: customer?.name ?? '',
-        contact_person: customer?.contact_person ?? '',
+        contact_name: customer?.contact_name ?? '',
         email: customer?.email ?? '',
         phone: customer?.phone ?? '',
         address: customer?.address ?? '',
@@ -110,7 +110,7 @@ function CustomerForm({
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                     <FormField label={isChinese ? '客户名称 *' : 'Customer Name *'} value={form.name} onChange={v => update('name', v)} />
-                    <FormField label={isChinese ? '联系人' : 'Contact Person'} value={form.contact_person} onChange={v => update('contact_person', v)} />
+                    <FormField label={isChinese ? '联系人' : 'Contact Person'} value={form.contact_name} onChange={v => update('contact_name', v)} />
                     <FormField label={isChinese ? '邮箱' : 'Email'} type="email" value={form.email} onChange={v => update('email', v)} />
                     <FormField label={isChinese ? '电话' : 'Phone'} value={form.phone} onChange={v => update('phone', v)} />
                     <FormField label={isChinese ? '地址' : 'Address'} value={form.address} onChange={v => update('address', v)} />
@@ -247,7 +247,7 @@ export default function Customers() {
                             ) : customers.map(c => (
                                 <tr key={c.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                                     <td style={tdStyle}>{c.name}</td>
-                                    <td style={tdStyle}>{c.contact_person}</td>
+                                    <td style={tdStyle}>{c.contact_name}</td>
                                     <td style={tdStyle}>{c.email}</td>
                                     <td style={tdStyle}>{c.phone}</td>
                                     <td style={tdStyle}>
