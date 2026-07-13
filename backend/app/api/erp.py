@@ -128,6 +128,7 @@ class PaginatedResponse(BaseModel):
 
 class CustomerCreate(BaseModel):
     name: str
+    category_id: str | None = None
     contact_name: str | None = None
     phone: str | None = None
     email: str | None = None
@@ -138,6 +139,7 @@ class CustomerCreate(BaseModel):
 
 class CustomerUpdate(BaseModel):
     name: str | None = None
+    category_id: str | None = None
     contact_name: str | None = None
     phone: str | None = None
     email: str | None = None
@@ -150,6 +152,8 @@ class CustomerUpdate(BaseModel):
 class CustomerOut(BaseModel):
     id: str
     name: str
+    category_id: str | None = None
+    category_name: str | None = None
     contact_name: str | None = None
     phone: str | None = None
     email: str | None = None
@@ -169,6 +173,7 @@ class CustomerOut(BaseModel):
 
 class SupplierCreate(BaseModel):
     name: str
+    category_id: str | None = None
     contact_name: str | None = None
     phone: str | None = None
     email: str | None = None
@@ -180,6 +185,7 @@ class SupplierCreate(BaseModel):
 
 class SupplierUpdate(BaseModel):
     name: str | None = None
+    category_id: str | None = None
     contact_name: str | None = None
     phone: str | None = None
     email: str | None = None
@@ -193,6 +199,8 @@ class SupplierUpdate(BaseModel):
 class SupplierOut(BaseModel):
     id: str
     name: str
+    category_id: str | None = None
+    category_name: str | None = None
     contact_name: str | None = None
     phone: str | None = None
     email: str | None = None
@@ -615,9 +623,11 @@ class AttachmentOut(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def _customer_to_out(c):
+def _customer_to_out(c, category_name=None):
     return CustomerOut(
         id=str(c.id), name=c.name,
+        category_id=str(c.category_id) if c.category_id else None,
+        category_name=category_name,
         contact_name=c.contact_name, phone=c.phone,
         email=c.email, address=c.address, tax_id=c.tax_id,
         notes=c.notes, status=c.status,
@@ -657,8 +667,9 @@ async def list_customers(
             .offset((page - 1) * page_size).limit(page_size)
         )
         items_raw = result.scalars().all()
-        # Fetch default contacts for all customers in this page
         customer_ids = [c.id for c in items_raw]
+        category_ids = [c.category_id for c in items_raw if c.category_id]
+        # Fetch default contacts
         contacts_q = select(ERPContact).where(
             ERPContact.tenant_id == user.tenant_id,
             ERPContact.parent_type == "customer",
@@ -667,9 +678,15 @@ async def list_customers(
         )
         contacts_result = await db.execute(contacts_q)
         default_contacts = {c.parent_id: c for c in contacts_result.scalars().all()}
+        # Fetch category names
+        categories_map = {}
+        if category_ids:
+            cats_q = select(ERPCategory).where(ERPCategory.id.in_(category_ids))
+            cats_result = await db.execute(cats_q)
+            categories_map = {c.id: c.name for c in cats_result.scalars().all()}
         items = []
         for c in items_raw:
-            out = _customer_to_out(c)
+            out = _customer_to_out(c, category_name=categories_map.get(c.category_id))
             dc = default_contacts.get(c.id)
             if dc:
                 out["default_contact_name"] = dc.name
@@ -682,7 +699,21 @@ async def list_customers(
 @router.post("/customers", response_model=CustomerOut)
 async def create_customer(body: CustomerCreate, user=Depends(get_current_user)):
     async with async_session() as db:
-        obj = ERPCustomer(tenant_id=user.tenant_id, **body.model_dump())
+        data = body.model_dump()
+        # Auto-assign default category if not provided
+        if not data.get("category_id"):
+            default_cat = await db.execute(
+                select(ERPCategory).where(
+                    ERPCategory.tenant_id == user.tenant_id,
+                    ERPCategory.type == "customer",
+                ).order_by(ERPCategory.created_at.asc()).limit(1)
+            )
+            cat_obj = default_cat.scalar_one_or_none()
+            if cat_obj:
+                data["category_id"] = cat_obj.id
+        elif data.get("category_id"):
+            data["category_id"] = uuid.UUID(data["category_id"])
+        obj = ERPCustomer(tenant_id=user.tenant_id, **data)
         db.add(obj)
         await db.commit()
         await db.refresh(obj)
@@ -748,9 +779,11 @@ async def delete_customer(customer_id: str, user=Depends(get_current_user)):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def _supplier_to_out(s):
+def _supplier_to_out(s, category_name=None):
     return SupplierOut(
         id=str(s.id), name=s.name,
+        category_id=str(s.category_id) if s.category_id else None,
+        category_name=category_name,
         contact_name=s.contact_name, phone=s.phone,
         email=s.email, address=s.address, tax_id=s.tax_id,
         payment_terms=s.payment_terms, notes=s.notes, status=s.status,
@@ -789,6 +822,7 @@ async def list_suppliers(
         )
         items_raw = result.scalars().all()
         supplier_ids = [s.id for s in items_raw]
+        category_ids = [s.category_id for s in items_raw if s.category_id]
         contacts_q = select(ERPContact).where(
             ERPContact.tenant_id == user.tenant_id,
             ERPContact.parent_type == "supplier",
@@ -797,9 +831,14 @@ async def list_suppliers(
         )
         contacts_result = await db.execute(contacts_q)
         default_contacts = {c.parent_id: c for c in contacts_result.scalars().all()}
+        categories_map = {}
+        if category_ids:
+            cats_q = select(ERPCategory).where(ERPCategory.id.in_(category_ids))
+            cats_result = await db.execute(cats_q)
+            categories_map = {c.id: c.name for c in cats_result.scalars().all()}
         items = []
         for s in items_raw:
-            out = _supplier_to_out(s)
+            out = _supplier_to_out(s, category_name=categories_map.get(s.category_id))
             dc = default_contacts.get(s.id)
             if dc:
                 out["default_contact_name"] = dc.name
@@ -812,7 +851,20 @@ async def list_suppliers(
 @router.post("/suppliers", response_model=SupplierOut)
 async def create_supplier(body: SupplierCreate, user=Depends(get_current_user)):
     async with async_session() as db:
-        obj = ERPSupplier(tenant_id=user.tenant_id, **body.model_dump())
+        data = body.model_dump()
+        if not data.get("category_id"):
+            default_cat = await db.execute(
+                select(ERPCategory).where(
+                    ERPCategory.tenant_id == user.tenant_id,
+                    ERPCategory.type == "supplier",
+                ).order_by(ERPCategory.created_at.asc()).limit(1)
+            )
+            cat_obj = default_cat.scalar_one_or_none()
+            if cat_obj:
+                data["category_id"] = cat_obj.id
+        elif data.get("category_id"):
+            data["category_id"] = uuid.UUID(data["category_id"])
+        obj = ERPSupplier(tenant_id=user.tenant_id, **data)
         db.add(obj)
         await db.commit()
         await db.refresh(obj)

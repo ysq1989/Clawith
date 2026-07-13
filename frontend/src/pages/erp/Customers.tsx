@@ -83,9 +83,10 @@ function CustomerForm({
     const queryClient = useQueryClient();
     const isEdit = !!customer;
 
-    // Customer form fields (no contact_name, email, phone)
+    // Customer form fields
     const [form, setForm] = useState({
         name: customer?.name ?? '',
+        category_id: customer?.category_id ?? '',
         address: customer?.address ?? '',
         status: customer?.status ?? 'active',
         notes: customer?.notes ?? '',
@@ -105,6 +106,15 @@ function CustomerForm({
         queryFn: () => fetchJson<Contact[]>(`/erp/contacts?parent_type=customer&parent_id=${customer!.id}`),
         enabled: isEdit,
     });
+
+    // Fetch categories and set default
+    const { data: categories = [] } = useQuery<any[]>({
+        queryKey: ['erp-categories', 'customer'],
+        queryFn: () => fetchJson<any[]>(`/erp/categories?type=customer`),
+    });
+    // Auto-set default category on new customer
+    const defaultCategoryId = categories.length > 0 ? categories[0].id : '';
+    const effectiveCategoryId = form.category_id || defaultCategoryId;
 
     // Add new contact
     const handleAddContact = async () => {
@@ -145,8 +155,9 @@ function CustomerForm({
         if (!form.name.trim()) { setError(isChinese ? '请输入客户名称' : 'Please enter customer name'); return; }
         setSaving(true); setError('');
         try {
+            const submitData = { ...form, category_id: effectiveCategoryId || null };
             if (customer) {
-                await fetchJson(`/erp/customers/${customer.id}`, { method: 'PATCH', body: JSON.stringify(form) });
+                await fetchJson(`/erp/customers/${customer.id}`, { method: 'PATCH', body: JSON.stringify(submitData) });
             } else {
                 await fetchJson('/erp/customers', { method: 'POST', body: JSON.stringify(form) });
             }
@@ -171,6 +182,21 @@ function CustomerForm({
                 {/* ── Basic Info ── */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: isEdit ? 24 : 0 }}>
                     <FormField label={isChinese ? '客户名称 *' : 'Customer Name *'} value={form.name} onChange={v => update('name', v)} />
+                    <div>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                            {isChinese ? '客户分类' : 'Category'}
+                        </label>
+                        <select
+                            value={effectiveCategoryId}
+                            onChange={e => update('category_id', e.target.value)}
+                            style={{ ...inputStyle, width: '100%' }}
+                        >
+                            {categories.length === 0 && <option value="">{isChinese ? '暂无分类' : 'No categories'}</option>}
+                            {categories.map((cat: any) => (
+                                <option key={cat.id} value={cat.id}>{cat.name}</option>
+                            ))}
+                        </select>
+                    </div>
                     <FormField label={isChinese ? '地址' : 'Address'} value={form.address} onChange={v => update('address', v)} />
                     <div>
                         <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>

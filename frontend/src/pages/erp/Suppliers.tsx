@@ -83,9 +83,10 @@ function SupplierForm({
     const queryClient = useQueryClient();
     const isEdit = !!supplier;
 
-    // Supplier form fields (no contact_name, email, phone)
+    // Supplier form fields
     const [form, setForm] = useState({
         name: supplier?.name ?? '',
+        category_id: supplier?.category_id ?? '',
         address: supplier?.address ?? '',
         status: supplier?.status ?? 'active',
         notes: supplier?.notes ?? '',
@@ -105,6 +106,14 @@ function SupplierForm({
         queryFn: () => fetchJson<Contact[]>(`/erp/contacts?parent_type=supplier&parent_id=${supplier!.id}`),
         enabled: isEdit,
     });
+
+    // Fetch categories and set default
+    const { data: categories = [] } = useQuery<any[]>({
+        queryKey: ['erp-categories', 'supplier'],
+        queryFn: () => fetchJson<any[]>(`/erp/categories?type=supplier`),
+    });
+    const defaultCategoryId = categories.length > 0 ? categories[0].id : '';
+    const effectiveCategoryId = form.category_id || defaultCategoryId;
 
     // Add new contact
     const handleAddContact = async () => {
@@ -145,10 +154,11 @@ function SupplierForm({
         if (!form.name.trim()) { setError(isChinese ? '请输入供应商名称' : 'Please enter supplier name'); return; }
         setSaving(true); setError('');
         try {
+            const submitData = { ...form, category_id: effectiveCategoryId || null };
             if (supplier) {
-                await fetchJson(`/erp/suppliers/${supplier.id}`, { method: 'PATCH', body: JSON.stringify(form) });
+                await fetchJson(`/erp/suppliers/${supplier.id}`, { method: 'PATCH', body: JSON.stringify(submitData) });
             } else {
-                await fetchJson('/erp/suppliers', { method: 'POST', body: JSON.stringify(form) });
+                await fetchJson('/erp/suppliers', { method: 'POST', body: JSON.stringify(submitData) });
             }
             queryClient.invalidateQueries({ queryKey: ['erp-suppliers'] });
             onClose(true);
@@ -171,6 +181,21 @@ function SupplierForm({
                 {/* ── Basic Info ── */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: isEdit ? 24 : 0 }}>
                     <FormField label={isChinese ? '供应商名称 *' : 'Supplier Name *'} value={form.name} onChange={v => update('name', v)} />
+                    <div>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                            {isChinese ? '供应商分类' : 'Category'}
+                        </label>
+                        <select
+                            value={effectiveCategoryId}
+                            onChange={e => update('category_id', e.target.value)}
+                            style={{ ...inputStyle, width: '100%' }}
+                        >
+                            {categories.length === 0 && <option value="">{isChinese ? '暂无分类' : 'No categories'}</option>}
+                            {categories.map((cat: any) => (
+                                <option key={cat.id} value={cat.id}>{cat.name}</option>
+                            ))}
+                        </select>
+                    </div>
                     <FormField label={isChinese ? '地址' : 'Address'} value={form.address} onChange={v => update('address', v)} />
                     <div>
                         <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
