@@ -318,52 +318,53 @@ function NewOrderDialog({
                             <IconPlus size={14} stroke={2} /> {isChinese ? '添加行' : 'Add Line'}
                         </button>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {/* Header row */}
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', paddingBottom: 4 }}>
-                            <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)' }}>{isChinese ? '产品名称' : 'Product'}</span>
-                            <span style={{ minWidth: 30, fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)' }}>{isChinese ? '单位' : 'Unit'}</span>
-                            <span style={{ width: 80, fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)' }}>{isChinese ? '数量' : 'Qty'}</span>
-                            <span style={{ width: 100, fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)' }}>{isChinese ? '单价' : 'Price'}</span>
-                            <span style={{ minWidth: 80, fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textAlign: 'right' }}>{isChinese ? '金额' : 'Amount'}</span>
-                            <span style={{ width: 22 }} />
-                        </div>
-                        {lines.map((line, idx) => (
-                            <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                <SearchableSelect
-                                    value={line.product_id}
-                                    onChange={(id, item) => selectProduct(idx, id, item)}
-                                    placeholder={isChinese ? '搜索选择产品...' : 'Search product...'}
-                                    apiPath="/erp/products"
-                                    isChinese={isChinese}
-                                    labelKey="name_sku"
-                                />
-                                {line.unit && <span style={{ fontSize: 12, color: 'var(--text-tertiary)', minWidth: 30 }}>{line.unit}</span>}
-                                <input
-                                    type="number"
-                                    min={1}
-                                    value={line.quantity}
-                                    onChange={e => updateLine(idx, 'quantity', parseInt(e.target.value) || 0)}
-                                    style={{ ...inputStyle, width: 80 }}
-                                    placeholder={isChinese ? '数量' : 'Qty'}
-                                />
-                                <input
-                                    type="number"
-                                    value={line.unit_price}
-                                    onChange={e => updateLine(idx, 'unit_price', parseFloat(e.target.value) || 0)}
-                                    style={{ ...inputStyle, width: 100 }}
-                                    placeholder={isChinese ? '单价' : 'Price'}
-                                />
-                                <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 80, textAlign: 'right' }}>
-                                    {line.subtotal.toFixed(2)}
-                                </span>
-                                {lines.length > 1 && (
-                                    <button onClick={() => removeLine(idx)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 4, display: 'flex' }}>
-                                        <IconTrash size={14} stroke={1.5} />
-                                    </button>
-                                )}
-                            </div>
-                        ))}
+                    <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ background: 'var(--bg-tertiary)' }}>
+                                    <th style={{ ...thStyle, width: '35%' }}>{isChinese ? '产品名称' : 'Product'}</th>
+                                    <th style={{ ...thStyle, width: '15%' }}>{isChinese ? '单价' : 'Price'}</th>
+                                    <th style={{ ...thStyle, width: '20%' }}>{isChinese ? '数量' : 'Qty'}</th>
+                                    <th style={{ ...thStyle, width: '15%', textAlign: 'right' }}>{isChinese ? '金额' : 'Amount'}</th>
+                                    <th style={{ ...thStyle, width: '15%' }}></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {lines.map((line, idx) => (
+                                    <tr key={idx} style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                                        <td style={{ ...tdStyle, padding: '6px 8px' }}>
+                                            <SearchableSelect
+                                                value={line.product_id}
+                                                onChange={(id, item) => selectProduct(idx, id, item)}
+                                                placeholder={isChinese ? '搜索产品...' : 'Search...'}
+                                                apiPath="/erp/products"
+                                                isChinese={isChinese}
+                                                labelKey="name_sku"
+                                            />
+                                        </td>
+                                        <td style={{ ...tdStyle, padding: '6px 8px' }}>
+                                            <input type="number" value={line.unit_price} onChange={e => updateLine(idx, 'unit_price', parseFloat(e.target.value) || 0)} style={{ ...inputStyle, width: '100%' }} />
+                                        </td>
+                                        <td style={{ ...tdStyle, padding: '6px 8px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                <input type="number" min={1} value={line.quantity} onChange={e => updateLine(idx, 'quantity', parseInt(e.target.value) || 0)} style={{ ...inputStyle, width: 60 }} />
+                                                {line.unit && <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>({line.unit})</span>}
+                                            </div>
+                                        </td>
+                                        <td style={{ ...tdStyle, padding: '6px 8px', textAlign: 'right', fontWeight: 500 }}>
+                                            {line.subtotal.toFixed(2)}
+                                        </td>
+                                        <td style={{ ...tdStyle, padding: '6px 8px', textAlign: 'center' }}>
+                                            {lines.length > 1 && (
+                                                <button onClick={() => removeLine(idx)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 4, display: 'inline-flex' }}>
+                                                    <IconTrash size={14} stroke={1.5} />
+                                                </button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                     <div style={{ textAlign: 'right', marginTop: 10, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
                         {isChinese ? '合计: ' : 'Total: '}{total.toFixed(2)}
