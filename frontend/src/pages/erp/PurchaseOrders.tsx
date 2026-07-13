@@ -485,8 +485,8 @@ export default function PurchaseOrders() {
             {showNewOrder && (
                 <NewOrderDialog
                     isChinese={isChinese}
-                    supplierOptions={suppliersData?.items ?? []}
-                    materialOptions={materialsData?.items ?? []}
+                    supplierOptions={Array.isArray(suppliersData) ? suppliersData : (suppliersData?.items ?? [])}
+                    materialOptions={Array.isArray(materialsData) ? materialsData : (materialsData?.items ?? [])}
                     onClose={() => setShowNewOrder(false)}
                 />
             )}

@@ -510,8 +510,8 @@ export default function SalesOrders() {
             {showNewOrder && (
                 <NewOrderDialog
                     isChinese={isChinese}
-                    customerOptions={customersData?.items ?? []}
-                    productOptions={productsData?.items ?? []}
+                    customerOptions={Array.isArray(customersData) ? customersData : (customersData?.items ?? [])}
+                    productOptions={Array.isArray(productsData) ? productsData : (productsData?.items ?? [])}
                     onClose={() => setShowNewOrder(false)}
                 />
             )}

@@ -235,15 +235,15 @@ export default function Inventory() {
     });
 
     const stockOptions = stockType === 'material'
-        ? (materialsData?.items ?? [])
-        : (productsData?.items ?? []);
+        ? (Array.isArray(materialsData) ? materialsData : (materialsData?.items ?? []))
+        : (Array.isArray(productsData) ? productsData : (productsData?.items ?? []));
 
-    const overviewItems = overviewData?.items ?? [];
+    const overviewItems = Array.isArray(overviewData) ? overviewData : (overviewData?.items ?? []);
     const overviewTotal = overviewData?.total ?? 0;
     const overviewPageSize = overviewData?.page_size ?? 20;
     const overviewTotalPages = Math.max(1, Math.ceil(overviewTotal / overviewPageSize));
 
-    const movementItems = movementsData?.items ?? [];
+    const movementItems = Array.isArray(movementsData) ? movementsData : (movementsData?.items ?? []);
     const movementTotal = movementsData?.total ?? 0;
     const movementPageSize = movementsData?.page_size ?? 20;
     const movementTotalPages = Math.max(1, Math.ceil(movementTotal / movementPageSize));
