@@ -241,6 +241,8 @@ function CustomerForm({
     // Contact management state
     const [newContact, setNewContact] = useState({ name: '', position: '', email: '', phone: '', notes: '' });
     const [savingContact, setSavingContact] = useState(false);
+    const [editingContactId, setEditingContactId] = useState<string | null>(null);
+    const [editContact, setEditContact] = useState({ name: '', position: '', email: '', phone: '', notes: '' });
 
     const update = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
 
@@ -288,6 +290,22 @@ function CustomerForm({
         if (!customer) return;
         await fetchJson(`/erp/contacts/${id}`, { method: 'DELETE' });
         queryClient.invalidateQueries({ queryKey: ['erp-contacts', 'customer', customer.id] });
+    };
+
+    // Update a contact
+    const handleUpdateContact = async (id: string) => {
+        if (!customer || !editContact.name.trim()) return;
+        setSavingContact(true);
+        try {
+            await fetchJson(`/erp/contacts/${id}`, {
+                method: 'PATCH',
+                body: JSON.stringify(editContact),
+            });
+            queryClient.invalidateQueries({ queryKey: ['erp-contacts', 'customer', customer.id] });
+            setEditingContactId(null);
+        } finally {
+            setSavingContact(false);
+        }
     };
 
     // Set a contact as default
@@ -383,61 +401,6 @@ function CustomerForm({
                 {/* ── Tab: Basic Info ── */}
                 {formTab === 'basic' && (
                     <div>
-                        {/* Contacts (edit mode) */}
-                        {isEdit && (
-                            <div style={{ marginBottom: 16 }}>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>
-                                    {isChinese ? '联系人' : 'Contacts'}
-                                </div>
-                                <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 6, overflow: 'hidden' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                        <thead>
-                                            <tr style={{ background: 'var(--bg-secondary)' }}>
-                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '姓名' : 'Name'} *</th>
-                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '职位' : 'Position'}</th>
-                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '邮箱' : 'Email'}</th>
-                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '电话' : 'Phone'}</th>
-                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '备注' : 'Notes'}</th>
-                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 50 }}>{isChinese ? '默认' : 'Default'}</th>
-                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 50 }} />
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {contacts.map(c => (
-                                                <tr key={c.id} style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                                                    <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{c.name}</td>
-                                                    <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{c.position}</td>
-                                                    <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{c.email}</td>
-                                                    <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{c.phone}</td>
-                                                    <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{c.notes}</td>
-                                                    <td style={{ ...tdStyle, padding: '6px 8px', textAlign: 'center' }}>
-                                                        <input type="radio" name="defaultContact" checked={c.is_default} onChange={() => handleSetDefault(c.id)} style={{ cursor: 'pointer', accentColor: 'var(--accent-primary)' }} />
-                                                    </td>
-                                                    <td style={{ ...tdStyle, padding: '6px 8px', textAlign: 'center' }}>
-                                                        <button onClick={() => handleDeleteContact(c.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 2, display: 'inline-flex' }}>
-                                                            <IconTrash size={13} stroke={1.5} />
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                            <tr style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                                                <td style={{ padding: '4px 8px' }}><input value={newContact.name} onChange={e => setNewContact({ ...newContact, name: e.target.value })} placeholder={isChinese ? '姓名' : 'Name'} style={cellInputStyle} /></td>
-                                                <td style={{ padding: '4px 8px' }}><input value={newContact.position} onChange={e => setNewContact({ ...newContact, position: e.target.value })} placeholder={isChinese ? '职位' : 'Position'} style={cellInputStyle} /></td>
-                                                <td style={{ padding: '4px 8px' }}><input value={newContact.email} onChange={e => setNewContact({ ...newContact, email: e.target.value })} placeholder={isChinese ? '邮箱' : 'Email'} style={cellInputStyle} /></td>
-                                                <td style={{ padding: '4px 8px' }}><input value={newContact.phone} onChange={e => setNewContact({ ...newContact, phone: e.target.value })} placeholder={isChinese ? '电话' : 'Phone'} style={cellInputStyle} /></td>
-                                                <td style={{ padding: '4px 8px' }}><input value={newContact.notes} onChange={e => setNewContact({ ...newContact, notes: e.target.value })} placeholder={isChinese ? '备注' : 'Notes'} style={cellInputStyle} /></td>
-                                                <td style={{ padding: '4px 8px' }} />
-                                                <td style={{ padding: '4px 8px', textAlign: 'center' }}>
-                                                    <button onClick={handleAddContact} disabled={savingContact || !newContact.name.trim()} style={{ ...btnPrimary, padding: '3px 8px', fontSize: 11, opacity: savingContact ? 0.6 : 1 }}>
-                                                        <IconPlus size={12} stroke={2} /> {isChinese ? '添加' : 'Add'}
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
                         {/* Basic info fields */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         {/* Code (read-only, auto-generated for new) */}
@@ -492,6 +455,96 @@ function CustomerForm({
                         </div>
                         {/* Address */}
                         <FormField label={isChinese ? '地址' : 'Address'} value={form.address} onChange={v => update('address', v)} />
+                        {/* Contacts (edit mode) — spans both columns */}
+                        {isEdit && (
+                            <div style={{ gridColumn: '1 / -1' }}>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>
+                                    {isChinese ? '联系人' : 'Contacts'}
+                                </div>
+                                <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 6, overflow: 'hidden' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                        <thead>
+                                            <tr style={{ background: 'var(--bg-secondary)' }}>
+                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '姓名' : 'Name'} *</th>
+                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '职位' : 'Position'}</th>
+                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '邮箱' : 'Email'}</th>
+                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '电话' : 'Phone'}</th>
+                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '备注' : 'Notes'}</th>
+                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 50 }}>{isChinese ? '默认' : 'Default'}</th>
+                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 80 }} />
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {contacts.map(c => (
+                                                editingContactId === c.id ? (
+                                                    <tr key={c.id} style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                                                        <td style={{ padding: '4px 8px' }}><input value={editContact.name} onChange={e => setEditContact({ ...editContact, name: e.target.value })} placeholder={isChinese ? '姓名' : 'Name'} style={cellInputStyle} /></td>
+                                                        <td style={{ padding: '4px 8px' }}><input value={editContact.position} onChange={e => setEditContact({ ...editContact, position: e.target.value })} placeholder={isChinese ? '职位' : 'Position'} style={cellInputStyle} /></td>
+                                                        <td style={{ padding: '4px 8px' }}><input value={editContact.email} onChange={e => setEditContact({ ...editContact, email: e.target.value })} placeholder={isChinese ? '邮箱' : 'Email'} style={cellInputStyle} /></td>
+                                                        <td style={{ padding: '4px 8px' }}><input value={editContact.phone} onChange={e => setEditContact({ ...editContact, phone: e.target.value })} placeholder={isChinese ? '电话' : 'Phone'} style={cellInputStyle} /></td>
+                                                        <td style={{ padding: '4px 8px' }}><input value={editContact.notes} onChange={e => setEditContact({ ...editContact, notes: e.target.value })} placeholder={isChinese ? '备注' : 'Notes'} style={cellInputStyle} /></td>
+                                                        <td style={{ padding: '4px 8px' }} />
+                                                        <td style={{ padding: '4px 8px', textAlign: 'center' }}>
+                                                            <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                                                                <button onClick={() => handleUpdateContact(c.id)} disabled={savingContact || !editContact.name.trim()} style={{ ...btnPrimary, padding: '3px 8px', fontSize: 11, opacity: savingContact ? 0.6 : 1 }}>
+                                                                    {isChinese ? '保存' : 'Save'}
+                                                                </button>
+                                                                <button onClick={() => setEditingContactId(null)} style={{ ...btnSecondary, padding: '3px 8px', fontSize: 11 }}>
+                                                                    {isChinese ? '取消' : 'Cancel'}
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    <tr key={c.id} style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                                                        <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{c.name}</td>
+                                                        <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{c.position}</td>
+                                                        <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{c.email}</td>
+                                                        <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{c.phone}</td>
+                                                        <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{c.notes}</td>
+                                                        <td style={{ ...tdStyle, padding: '6px 8px', textAlign: 'center' }}>
+                                                            <div
+                                                                onClick={() => handleSetDefault(c.id)}
+                                                                style={{
+                                                                    width: 16, height: 16, borderRadius: '50%', cursor: 'pointer',
+                                                                    border: `2px solid ${c.is_default ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                }}
+                                                            >
+                                                                {c.is_default && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-primary)' }} />}
+                                                            </div>
+                                                        </td>
+                                                        <td style={{ ...tdStyle, padding: '6px 8px', textAlign: 'center' }}>
+                                                            <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                                                                <button onClick={() => { setEditingContactId(c.id); setEditContact({ name: c.name, position: c.position, email: c.email, phone: c.phone, notes: c.notes }); }} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 2, display: 'inline-flex' }}>
+                                                                    <IconEdit size={13} stroke={1.5} />
+                                                                </button>
+                                                                <button onClick={() => handleDeleteContact(c.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 2, display: 'inline-flex' }}>
+                                                                    <IconTrash size={13} stroke={1.5} />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            ))}
+                                            <tr style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                                                <td style={{ padding: '4px 8px' }}><input value={newContact.name} onChange={e => setNewContact({ ...newContact, name: e.target.value })} placeholder={isChinese ? '姓名' : 'Name'} style={cellInputStyle} /></td>
+                                                <td style={{ padding: '4px 8px' }}><input value={newContact.position} onChange={e => setNewContact({ ...newContact, position: e.target.value })} placeholder={isChinese ? '职位' : 'Position'} style={cellInputStyle} /></td>
+                                                <td style={{ padding: '4px 8px' }}><input value={newContact.email} onChange={e => setNewContact({ ...newContact, email: e.target.value })} placeholder={isChinese ? '邮箱' : 'Email'} style={cellInputStyle} /></td>
+                                                <td style={{ padding: '4px 8px' }}><input value={newContact.phone} onChange={e => setNewContact({ ...newContact, phone: e.target.value })} placeholder={isChinese ? '电话' : 'Phone'} style={cellInputStyle} /></td>
+                                                <td style={{ padding: '4px 8px' }}><input value={newContact.notes} onChange={e => setNewContact({ ...newContact, notes: e.target.value })} placeholder={isChinese ? '备注' : 'Notes'} style={cellInputStyle} /></td>
+                                                <td style={{ padding: '4px 8px' }} />
+                                                <td style={{ padding: '4px 8px', textAlign: 'center' }}>
+                                                    <button onClick={handleAddContact} disabled={savingContact || !newContact.name.trim()} style={{ ...btnPrimary, padding: '3px 8px', fontSize: 11, opacity: savingContact ? 0.6 : 1 }}>
+                                                        <IconPlus size={12} stroke={2} /> {isChinese ? '添加' : 'Add'}
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
                         {/* Notes — spans both columns */}
                         <div style={{ gridColumn: '1 / -1' }}>
                             <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
