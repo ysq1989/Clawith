@@ -322,11 +322,10 @@ function SupplierForm({
     const cellInputStyle: React.CSSProperties = { ...inputStyle, width: '100%', padding: '4px 6px', fontSize: 12 };
 
     // Tab state
-    const [formTab, setFormTab] = useState<'basic' | 'financial' | 'contacts' | 'attachments'>('basic');
+    const [formTab, setFormTab] = useState<'basic' | 'financial' | 'attachments'>('basic');
     const tabs = [
         { key: 'basic' as const, label: isChinese ? '基础信息' : 'Basic Info' },
         { key: 'financial' as const, label: isChinese ? '财务信息' : 'Financial' },
-        ...(isEdit ? [{ key: 'contacts' as const, label: isChinese ? '联系人' : 'Contacts' }] : []),
         ...(isEdit ? [{ key: 'attachments' as const, label: isChinese ? '附件' : 'Attachments' }] : []),
     ];
 
@@ -382,7 +381,64 @@ function SupplierForm({
 
                 {/* ── Tab: Basic Info ── */}
                 {formTab === 'basic' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div>
+                        {/* Contacts (edit mode) */}
+                        {isEdit && (
+                            <div style={{ marginBottom: 16 }}>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>
+                                    {isChinese ? '联系人' : 'Contacts'}
+                                </div>
+                                <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 6, overflow: 'hidden' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                        <thead>
+                                            <tr style={{ background: 'var(--bg-secondary)' }}>
+                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '姓名' : 'Name'} *</th>
+                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '职位' : 'Position'}</th>
+                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '邮箱' : 'Email'}</th>
+                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '电话' : 'Phone'}</th>
+                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '备注' : 'Notes'}</th>
+                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 50 }}>{isChinese ? '默认' : 'Default'}</th>
+                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 50 }} />
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {contacts.map(c => (
+                                                <tr key={c.id} style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                                                    <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{c.name}</td>
+                                                    <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{c.position}</td>
+                                                    <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{c.email}</td>
+                                                    <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{c.phone}</td>
+                                                    <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{c.notes}</td>
+                                                    <td style={{ ...tdStyle, padding: '6px 8px', textAlign: 'center' }}>
+                                                        <input type="radio" name="defaultContact" checked={c.is_default} onChange={() => handleSetDefault(c.id)} style={{ cursor: 'pointer', accentColor: 'var(--accent-primary)' }} />
+                                                    </td>
+                                                    <td style={{ ...tdStyle, padding: '6px 8px', textAlign: 'center' }}>
+                                                        <button onClick={() => handleDeleteContact(c.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 2, display: 'inline-flex' }}>
+                                                            <IconTrash size={13} stroke={1.5} />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            <tr style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                                                <td style={{ padding: '4px 8px' }}><input value={newContact.name} onChange={e => setNewContact({ ...newContact, name: e.target.value })} placeholder={isChinese ? '姓名' : 'Name'} style={cellInputStyle} /></td>
+                                                <td style={{ padding: '4px 8px' }}><input value={newContact.position} onChange={e => setNewContact({ ...newContact, position: e.target.value })} placeholder={isChinese ? '职位' : 'Position'} style={cellInputStyle} /></td>
+                                                <td style={{ padding: '4px 8px' }}><input value={newContact.email} onChange={e => setNewContact({ ...newContact, email: e.target.value })} placeholder={isChinese ? '邮箱' : 'Email'} style={cellInputStyle} /></td>
+                                                <td style={{ padding: '4px 8px' }}><input value={newContact.phone} onChange={e => setNewContact({ ...newContact, phone: e.target.value })} placeholder={isChinese ? '电话' : 'Phone'} style={cellInputStyle} /></td>
+                                                <td style={{ padding: '4px 8px' }}><input value={newContact.notes} onChange={e => setNewContact({ ...newContact, notes: e.target.value })} placeholder={isChinese ? '备注' : 'Notes'} style={cellInputStyle} /></td>
+                                                <td style={{ padding: '4px 8px' }} />
+                                                <td style={{ padding: '4px 8px', textAlign: 'center' }}>
+                                                    <button onClick={handleAddContact} disabled={savingContact || !newContact.name.trim()} style={{ ...btnPrimary, padding: '3px 8px', fontSize: 11, opacity: savingContact ? 0.6 : 1 }}>
+                                                        <IconPlus size={12} stroke={2} /> {isChinese ? '添加' : 'Add'}
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                        {/* Basic info fields */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         {/* Code (read-only, auto-generated for new) */}
                         <div>
                             <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
@@ -435,16 +491,6 @@ function SupplierForm({
                         </div>
                         {/* Address */}
                         <FormField label={isChinese ? '地址' : 'Address'} value={form.address} onChange={v => update('address', v)} />
-                        {/* Status */}
-                        <div>
-                            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                                {isChinese ? '状态' : 'Status'}
-                            </label>
-                            <select value={form.status} onChange={e => update('status', e.target.value)} style={{ ...inputStyle, width: '100%' }}>
-                                <option value="active">{isChinese ? '活跃' : 'Active'}</option>
-                                <option value="inactive">{isChinese ? '停用' : 'Inactive'}</option>
-                            </select>
-                        </div>
                         {/* Notes — spans both columns */}
                         <div style={{ gridColumn: '1 / -1' }}>
                             <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
@@ -452,6 +498,7 @@ function SupplierForm({
                             </label>
                             <textarea value={form.notes} onChange={e => update('notes', e.target.value)} rows={3} style={{ ...inputStyle, width: '100%', resize: 'vertical' }} />
                         </div>
+                    </div>
                     </div>
                 )}
 
@@ -466,74 +513,6 @@ function SupplierForm({
                         <FormField label={isChinese ? '银行账号' : 'Bank Account Number'} value={form.bank_account_number} onChange={v => update('bank_account_number', v)} />
                         <FormField label={isChinese ? '银行名称' : 'Bank Name'} value={form.bank_name} onChange={v => update('bank_name', v)} />
                         <FormField label={isChinese ? '开户银行' : 'Bank Branch'} value={form.bank_branch} onChange={v => update('bank_branch', v)} />
-                    </div>
-                )}
-
-                {/* ── Tab: Contacts (edit mode only) ── */}
-                {formTab === 'contacts' && isEdit && (
-                    <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 6, overflow: 'hidden' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ background: 'var(--bg-secondary)' }}>
-                                    <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '姓名' : 'Name'} *</th>
-                                    <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '职位' : 'Position'}</th>
-                                    <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '邮箱' : 'Email'}</th>
-                                    <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '电话' : 'Phone'}</th>
-                                    <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '备注' : 'Notes'}</th>
-                                    <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 50 }}>{isChinese ? '默认' : 'Default'}</th>
-                                    <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 50 }} />
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {contacts.map(ct => (
-                                    <tr key={ct.id} style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                                        <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{ct.name}</td>
-                                        <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{ct.position || '-'}</td>
-                                        <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{ct.email || '-'}</td>
-                                        <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{ct.phone || '-'}</td>
-                                        <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{ct.notes || '-'}</td>
-                                        <td style={{ ...tdStyle, padding: '6px 8px', textAlign: 'center' }}>
-                                            <input
-                                                type="radio"
-                                                name="default-contact"
-                                                checked={ct.is_default}
-                                                onChange={() => { if (!ct.is_default) handleSetDefault(ct.id); }}
-                                                style={{ cursor: 'pointer' }}
-                                            />
-                                        </td>
-                                        <td style={{ ...tdStyle, padding: '6px 8px', textAlign: 'center' }}>
-                                            <button onClick={() => handleDeleteContact(ct.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 2 }}>
-                                                <IconTrash size={13} stroke={1.5} />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {/* New contact input row */}
-                                <tr style={{ borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}>
-                                    <td style={{ padding: '4px 4px' }}>
-                                        <input value={newContact.name} onChange={e => setNewContact(p => ({ ...p, name: e.target.value }))} placeholder={isChinese ? '姓名 *' : 'Name *'} style={cellInputStyle} />
-                                    </td>
-                                    <td style={{ padding: '4px 4px' }}>
-                                        <input value={newContact.position} onChange={e => setNewContact(p => ({ ...p, position: e.target.value }))} placeholder={isChinese ? '职位' : 'Position'} style={cellInputStyle} />
-                                    </td>
-                                    <td style={{ padding: '4px 4px' }}>
-                                        <input value={newContact.email} onChange={e => setNewContact(p => ({ ...p, email: e.target.value }))} placeholder={isChinese ? '邮箱' : 'Email'} style={cellInputStyle} />
-                                    </td>
-                                    <td style={{ padding: '4px 4px' }}>
-                                        <input value={newContact.phone} onChange={e => setNewContact(p => ({ ...p, phone: e.target.value }))} placeholder={isChinese ? '电话' : 'Phone'} style={cellInputStyle} />
-                                    </td>
-                                    <td style={{ padding: '4px 4px' }}>
-                                        <input value={newContact.notes} onChange={e => setNewContact(p => ({ ...p, notes: e.target.value }))} placeholder={isChinese ? '备注' : 'Notes'} style={cellInputStyle} />
-                                    </td>
-                                    <td style={{ padding: '4px 4px' }} />
-                                    <td style={{ padding: '4px 8px', textAlign: 'center' }}>
-                                        <button onClick={handleAddContact} disabled={savingContact || !newContact.name.trim()} style={{ ...btnPrimary, padding: '3px 10px', fontSize: 11, opacity: (!newContact.name.trim() || savingContact) ? 0.5 : 1 }}>
-                                            {savingContact ? '...' : (isChinese ? '添加' : 'Add')}
-                                        </button>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
                     </div>
                 )}
 
@@ -716,15 +695,24 @@ export default function Suppliers() {
                                     <td style={tdStyle}>{s.default_contact_name || '-'}</td>
                                     <td style={tdStyle}>{s.default_contact_phone || '-'}</td>
                                     <td style={tdStyle}>
-                                        <span style={{
-                                            display: 'inline-flex', alignItems: 'center', gap: 4,
-                                            padding: '2px 8px', borderRadius: 100, fontSize: 11, fontWeight: 500,
-                                            background: s.status === 'active' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
-                                            border: `1px solid ${s.status === 'active' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
-                                            color: s.status === 'active' ? '#22c55e' : '#ef4444',
-                                        }}>
-                                            {s.status === 'active' ? (isChinese ? '活跃' : 'Active') : (isChinese ? '停用' : 'Inactive')}
-                                        </span>
+                                        <button
+                                            onClick={async () => {
+                                                const newStatus = s.status === 'active' ? 'inactive' : 'active';
+                                                await fetchJson(`/erp/suppliers/${s.id}`, { method: 'PATCH', body: JSON.stringify({ status: newStatus }) });
+                                                queryClient.invalidateQueries({ queryKey: ['erp-suppliers'] });
+                                            }}
+                                            style={{
+                                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                padding: '2px 10px', borderRadius: 100, fontSize: 11, fontWeight: 500, cursor: 'pointer',
+                                                background: s.status === 'active' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+                                                border: `1px solid ${s.status === 'active' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                                                color: s.status === 'active' ? '#22c55e' : '#ef4444',
+                                            }}
+                                            title={s.status === 'active' ? (isChinese ? '点击停用' : 'Click to disable') : (isChinese ? '点击启用' : 'Click to enable')}
+                                        >
+                                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.status === 'active' ? '#22c55e' : '#ef4444', flexShrink: 0 }} />
+                                            {s.status === 'active' ? (isChinese ? '启用' : 'Active') : (isChinese ? '停用' : 'Inactive')}
+                                        </button>
                                     </td>
                                     <td style={tdStyle}>{s.created_at ? new Date(s.created_at).toLocaleString() : '-'}</td>
                                     <td style={{ ...tdStyle, textAlign: 'center' }}>
