@@ -61,6 +61,7 @@ class ERPCustomer(Base):
     address: Mapped[str | None] = mapped_column(Text)
     tax_id: Mapped[str | None] = mapped_column(String(50))
     salesperson_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)  # 业务员
+    company_name: Mapped[str | None] = mapped_column(String(200))  # 公司名称
     bank_name: Mapped[str | None] = mapped_column(String(200))  # 银行名称
     bank_account_name: Mapped[str | None] = mapped_column(String(200))  # 银行账户名
     bank_account_number: Mapped[str | None] = mapped_column(String(100))  # 银行账号
@@ -106,6 +107,7 @@ class ERPSupplier(Base):
     tax_id: Mapped[str | None] = mapped_column(String(50))
     payment_terms: Mapped[str | None] = mapped_column(String(100))
     salesperson_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)  # 业务员
+    company_name: Mapped[str | None] = mapped_column(String(200))  # 公司名称
     bank_name: Mapped[str | None] = mapped_column(String(200))  # 银行名称
     bank_account_name: Mapped[str | None] = mapped_column(String(200))  # 银行账户名
     bank_account_number: Mapped[str | None] = mapped_column(String(100))  # 银行账号

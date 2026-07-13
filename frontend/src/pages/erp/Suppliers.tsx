@@ -23,6 +23,7 @@ interface Supplier {
     status: string;
     notes: string;
     bank_name?: string;
+    company_name?: string;
     bank_account_name?: string;
     bank_account_number?: string;
     bank_branch?: string;
@@ -223,6 +224,7 @@ function SupplierForm({
         salesperson_id: supplier?.salesperson_id ?? user?.id ?? '',
         address: supplier?.address ?? '',
         status: supplier?.status ?? 'active',
+        company_name: supplier?.company_name ?? '',
         bank_name: supplier?.bank_name ?? '',
         bank_account_name: supplier?.bank_account_name ?? '',
         bank_account_number: supplier?.bank_account_number ?? '',
@@ -466,13 +468,14 @@ function SupplierForm({
 
                 {/* ── Section 3: Financial Info ── */}
                 <SectionCard title={isChinese ? '财务信息' : 'Financial Info'}>
-                    <FormField label={isChinese ? '银行名称' : 'Bank Name'} value={form.bank_name} onChange={v => update('bank_name', v)} />
-                    <FormField label={isChinese ? '银行账户' : 'Bank Account Name'} value={form.bank_account_name} onChange={v => update('bank_account_name', v)} />
-                    <FormField label={isChinese ? '银行账号' : 'Bank Account Number'} value={form.bank_account_number} onChange={v => update('bank_account_number', v)} />
-                    <FormField label={isChinese ? '开户银行' : 'Bank Branch'} value={form.bank_branch} onChange={v => update('bank_branch', v)} />
+                    <FormField label={isChinese ? '公司名称' : 'Company Name'} value={form.company_name} onChange={v => update('company_name', v)} />
                     <FormField label={isChinese ? '统一社会信用代码' : 'Credit Code'} value={form.credit_code} onChange={v => update('credit_code', v)} />
                     <FormField label={isChinese ? '法人代表' : 'Legal Representative'} value={form.legal_representative} onChange={v => update('legal_representative', v)} />
                     <FormField label={isChinese ? '法人电话' : 'Legal Rep Phone'} value={form.legal_rep_phone} onChange={v => update('legal_rep_phone', v)} />
+                    <FormField label={isChinese ? '银行账户' : 'Bank Account Name'} value={form.bank_account_name} onChange={v => update('bank_account_name', v)} />
+                    <FormField label={isChinese ? '银行账号' : 'Bank Account Number'} value={form.bank_account_number} onChange={v => update('bank_account_number', v)} />
+                    <FormField label={isChinese ? '银行名称' : 'Bank Name'} value={form.bank_name} onChange={v => update('bank_name', v)} />
+                    <FormField label={isChinese ? '开户银行' : 'Bank Branch'} value={form.bank_branch} onChange={v => update('bank_branch', v)} />
                 </SectionCard>
 
                 {/* ── Notes ── */}

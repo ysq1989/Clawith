@@ -138,6 +138,7 @@ class CustomerCreate(BaseModel):
     address: str | None = None
     tax_id: str | None = None
     salesperson_id: str | None = None  # 业务员
+    company_name: str | None = None
     bank_name: str | None = None
     bank_account_name: str | None = None
     bank_account_number: str | None = None
@@ -159,6 +160,7 @@ class CustomerUpdate(BaseModel):
     address: str | None = None
     tax_id: str | None = None
     salesperson_id: str | None = None
+    company_name: str | None = None
     bank_name: str | None = None
     bank_account_name: str | None = None
     bank_account_number: str | None = None
@@ -184,6 +186,7 @@ class CustomerOut(BaseModel):
     tax_id: str | None = None
     salesperson_id: str | None = None
     salesperson_name: str | None = None  # 业务员姓名
+    company_name: str | None = None
     bank_name: str | None = None
     bank_account_name: str | None = None
     bank_account_number: str | None = None
@@ -215,6 +218,7 @@ class SupplierCreate(BaseModel):
     tax_id: str | None = None
     payment_terms: str | None = None
     salesperson_id: str | None = None  # 业务员
+    company_name: str | None = None
     bank_name: str | None = None
     bank_account_name: str | None = None
     bank_account_number: str | None = None
@@ -237,6 +241,7 @@ class SupplierUpdate(BaseModel):
     tax_id: str | None = None
     payment_terms: str | None = None
     salesperson_id: str | None = None
+    company_name: str | None = None
     bank_name: str | None = None
     bank_account_name: str | None = None
     bank_account_number: str | None = None
@@ -263,6 +268,7 @@ class SupplierOut(BaseModel):
     payment_terms: str | None = None
     salesperson_id: str | None = None
     salesperson_name: str | None = None  # 业务员姓名
+    company_name: str | None = None
     bank_name: str | None = None
     bank_account_name: str | None = None
     bank_account_number: str | None = None
@@ -705,6 +711,7 @@ def _customer_to_out(c, category_name=None, salesperson_name=None):
         email=c.email, address=c.address, tax_id=c.tax_id,
         salesperson_id=str(c.salesperson_id) if c.salesperson_id else None,
         salesperson_name=salesperson_name,
+        company_name=c.company_name,
         bank_name=c.bank_name,
         bank_account_name=c.bank_account_name,
         bank_account_number=c.bank_account_number,
@@ -926,6 +933,7 @@ def _supplier_to_out(s, category_name=None, salesperson_name=None):
         payment_terms=s.payment_terms,
         salesperson_id=str(s.salesperson_id) if s.salesperson_id else None,
         salesperson_name=salesperson_name,
+        company_name=s.company_name,
         bank_name=s.bank_name,
         bank_account_name=s.bank_account_name,
         bank_account_number=s.bank_account_number,
