@@ -386,9 +386,9 @@ export default function PurchaseOrders() {
         enabled: showNewOrder,
     });
 
-    const orders = data?.items ?? [];
-    const total = data?.total ?? 0;
-    const pageSize = data?.page_size ?? 20;
+    const orders = Array.isArray(data) ? data : (data?.items ?? []);
+    const total = Array.isArray(data) ? data.length : (data?.total ?? 0);
+    const pageSize = Array.isArray(data) ? data.length : (data?.page_size ?? 20);
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
     return (

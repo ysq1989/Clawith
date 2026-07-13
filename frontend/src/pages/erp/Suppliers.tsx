@@ -180,9 +180,9 @@ export default function Suppliers() {
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['erp-suppliers'] }),
     });
 
-    const suppliers = data?.items ?? [];
-    const total = data?.total ?? 0;
-    const pageSize = data?.page_size ?? 20;
+    const suppliers = Array.isArray(data) ? data : (data?.items ?? []);
+    const total = Array.isArray(data) ? data.length : (data?.total ?? 0);
+    const pageSize = Array.isArray(data) ? data.length : (data?.page_size ?? 20);
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
     const handleDelete = async (id: string) => {

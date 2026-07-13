@@ -229,10 +229,10 @@ export default function Products() {
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['erp-products'] }),
     });
 
-    const products = data?.items ?? [];
+    const products = Array.isArray(data) ? data : (data?.items ?? []);
     const categories = data?.categories ?? [];
-    const total = data?.total ?? 0;
-    const pageSize = data?.page_size ?? 20;
+    const total = Array.isArray(data) ? data.length : (data?.total ?? 0);
+    const pageSize = Array.isArray(data) ? data.length : (data?.page_size ?? 20);
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
     const handleDelete = async (id: string) => {

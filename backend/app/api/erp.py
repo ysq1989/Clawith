@@ -111,6 +111,12 @@ async def _get_or_create_settings(db, tenant_id: uuid.UUID) -> ERPSettings:
 
 # ─── Pydantic Schemas ────────────────────────────────────────────────────────
 
+class PaginatedResponse(BaseModel):
+    items: list
+    total: int
+    page: int
+    page_size: int
+
 
 class CustomerCreate(BaseModel):
     name: str
@@ -515,10 +521,12 @@ def _customer_to_out(c):
     )
 
 
-@router.get("/customers", response_model=list[CustomerOut])
+@router.get("/customers")
 async def list_customers(
     search: str | None = None,
     status: str | None = None,
+    page: int = 1,
+    page_size: int = 20,
     user=Depends(get_current_user),
 ):
     async with async_session() as db:
@@ -534,8 +542,17 @@ async def list_customers(
             )
         if status:
             q = q.where(ERPCustomer.status == status)
-        result = await db.execute(q.order_by(ERPCustomer.created_at.desc()))
-        return [_customer_to_out(c) for c in result.scalars().all()]
+        # Total count
+        from sqlalchemy import func as sqlfunc
+        count_q = select(sqlfunc.count()).select_from(q.subquery())
+        total = (await db.execute(count_q)).scalar() or 0
+        # Paginated results
+        result = await db.execute(
+            q.order_by(ERPCustomer.created_at.desc())
+            .offset((page - 1) * page_size).limit(page_size)
+        )
+        items = [_customer_to_out(c) for c in result.scalars().all()]
+        return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
 @router.post("/customers", response_model=CustomerOut)
