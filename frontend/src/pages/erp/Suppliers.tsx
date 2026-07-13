@@ -72,6 +72,55 @@ const tdStyle: React.CSSProperties = {
     padding: '10px 12px', color: 'var(--text-primary)', fontSize: 13,
 };
 
+/* ─── Category Select (searchable dropdown) ─── */
+function CategorySelect({ value, onChange, categories, isChinese }: {
+    value: string; onChange: (id: string) => void; categories: any[]; isChinese: boolean;
+}) {
+    const [open, setOpen] = useState(false);
+    const [search, setSearch] = useState('');
+    const selected = categories.find((c: any) => c.id === value);
+    const filtered = search
+        ? categories.filter((c: any) => c.name.toLowerCase().includes(search.toLowerCase()))
+        : categories;
+    return (
+        <div style={{ position: 'relative' }}>
+            <div
+                onClick={() => setOpen(!open)}
+                style={{ ...inputStyle, width: '100%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 34 }}
+            >
+                <span style={{ color: selected ? 'var(--text-primary)' : 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {selected?.name || (isChinese ? '-- 请选择分类 --' : '-- Select Category --')}
+                </span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginLeft: 4, transition: 'transform 0.15s', transform: open ? 'rotate(180deg)' : 'none' }}><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            {open && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 1001, overflow: 'hidden' }}>
+                    {categories.length > 5 && (
+                        <div style={{ padding: 8, borderBottom: '1px solid #e2e8f0' }}>
+                            <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder={isChinese ? '搜索分类...' : 'Search...'} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', color: '#1e293b', background: '#f8fafc' }} />
+                        </div>
+                    )}
+                    <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                        {filtered.length === 0 ? (
+                            <div style={{ padding: 12, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>{isChinese ? '无匹配结果' : 'No results'}</div>
+                        ) : filtered.map((cat: any) => (
+                            <div
+                                key={cat.id}
+                                onClick={() => { onChange(cat.id); setOpen(false); setSearch(''); }}
+                                style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, color: '#1e293b', background: cat.id === value ? '#eff6ff' : 'transparent', transition: 'background 0.1s' }}
+                                onMouseEnter={e => { if (cat.id !== value) (e.currentTarget as HTMLElement).style.background = '#f8fafc'; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = cat.id === value ? '#eff6ff' : 'transparent'; }}
+                            >
+                                {cat.name}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 /* ─── Supplier Form Dialog ─── */
 function SupplierForm({
     supplier, onClose, isChinese,
@@ -185,16 +234,12 @@ function SupplierForm({
                         <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
                             {isChinese ? '供应商分类' : 'Category'}
                         </label>
-                        <select
+                        <CategorySelect
                             value={effectiveCategoryId}
-                            onChange={e => update('category_id', e.target.value)}
-                            style={{ ...inputStyle, width: '100%' }}
-                        >
-                            {categories.length === 0 && <option value="">{isChinese ? '暂无分类' : 'No categories'}</option>}
-                            {categories.map((cat: any) => (
-                                <option key={cat.id} value={cat.id}>{cat.name}</option>
-                            ))}
-                        </select>
+                            onChange={(id: string) => update('category_id', id)}
+                            categories={categories}
+                            isChinese={isChinese}
+                        />
                     </div>
                     <FormField label={isChinese ? '地址' : 'Address'} value={form.address} onChange={v => update('address', v)} />
                     <div>
