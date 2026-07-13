@@ -701,28 +701,28 @@ class AttachmentOut(BaseModel):
 
 
 def _customer_to_out(c, category_name=None, salesperson_name=None):
-    return CustomerOut(
-        id=str(c.id), name=c.name,
-        code=c.code,
-        short_name=c.short_name,
-        category_id=str(c.category_id) if c.category_id else None,
-        category_name=category_name,
-        contact_name=c.contact_name, phone=c.phone,
-        email=c.email, address=c.address, tax_id=c.tax_id,
-        salesperson_id=str(c.salesperson_id) if c.salesperson_id else None,
-        salesperson_name=salesperson_name,
-        company_name=c.company_name,
-        bank_name=c.bank_name,
-        bank_account_name=c.bank_account_name,
-        bank_account_number=c.bank_account_number,
-        bank_branch=c.bank_branch,
-        credit_code=c.credit_code,
-        legal_representative=c.legal_representative,
-        legal_rep_phone=c.legal_rep_phone,
-        notes=c.notes, status=c.status,
-        created_at=c.created_at.isoformat() if c.created_at else None,
-        updated_at=c.updated_at.isoformat() if c.updated_at else None,
-    )
+    return {
+        "id": str(c.id), "name": c.name,
+        "code": c.code,
+        "short_name": c.short_name,
+        "category_id": str(c.category_id) if c.category_id else None,
+        "category_name": category_name,
+        "contact_name": c.contact_name, "phone": c.phone,
+        "email": c.email, "address": c.address, "tax_id": c.tax_id,
+        "salesperson_id": str(c.salesperson_id) if c.salesperson_id else None,
+        "salesperson_name": salesperson_name,
+        "company_name": c.company_name,
+        "bank_name": c.bank_name,
+        "bank_account_name": c.bank_account_name,
+        "bank_account_number": c.bank_account_number,
+        "bank_branch": c.bank_branch,
+        "credit_code": c.credit_code,
+        "legal_representative": c.legal_representative,
+        "legal_rep_phone": c.legal_rep_phone,
+        "notes": c.notes, "status": c.status,
+        "created_at": c.created_at.isoformat() if c.created_at else None,
+        "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+    }
 
 
 @router.get("/customers")
@@ -922,29 +922,29 @@ async def delete_customer(customer_id: str, user=Depends(get_current_user)):
 
 
 def _supplier_to_out(s, category_name=None, salesperson_name=None):
-    return SupplierOut(
-        id=str(s.id), name=s.name,
-        code=s.code,
-        short_name=s.short_name,
-        category_id=str(s.category_id) if s.category_id else None,
-        category_name=category_name,
-        contact_name=s.contact_name, phone=s.phone,
-        email=s.email, address=s.address, tax_id=s.tax_id,
-        payment_terms=s.payment_terms,
-        salesperson_id=str(s.salesperson_id) if s.salesperson_id else None,
-        salesperson_name=salesperson_name,
-        company_name=s.company_name,
-        bank_name=s.bank_name,
-        bank_account_name=s.bank_account_name,
-        bank_account_number=s.bank_account_number,
-        bank_branch=s.bank_branch,
-        credit_code=s.credit_code,
-        legal_representative=s.legal_representative,
-        legal_rep_phone=s.legal_rep_phone,
-        notes=s.notes, status=s.status,
-        created_at=s.created_at.isoformat() if s.created_at else None,
-        updated_at=s.updated_at.isoformat() if s.updated_at else None,
-    )
+    return {
+        "id": str(s.id), "name": s.name,
+        "code": s.code,
+        "short_name": s.short_name,
+        "category_id": str(s.category_id) if s.category_id else None,
+        "category_name": category_name,
+        "contact_name": s.contact_name, "phone": s.phone,
+        "email": s.email, "address": s.address, "tax_id": s.tax_id,
+        "payment_terms": s.payment_terms,
+        "salesperson_id": str(s.salesperson_id) if s.salesperson_id else None,
+        "salesperson_name": salesperson_name,
+        "company_name": s.company_name,
+        "bank_name": s.bank_name,
+        "bank_account_name": s.bank_account_name,
+        "bank_account_number": s.bank_account_number,
+        "bank_branch": s.bank_branch,
+        "credit_code": s.credit_code,
+        "legal_representative": s.legal_representative,
+        "legal_rep_phone": s.legal_rep_phone,
+        "notes": s.notes, "status": s.status,
+        "created_at": s.created_at.isoformat() if s.created_at else None,
+        "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+    }
 
 
 @router.get("/suppliers", response_model=list[SupplierOut])
