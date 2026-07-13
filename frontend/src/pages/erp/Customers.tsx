@@ -2,10 +2,10 @@
  * Customers — Customer management page with search, filter, CRUD, and pagination.
  */
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { IconPlus, IconSearch, IconEdit, IconTrash } from '@tabler/icons-react';
+import { IconPlus, IconSearch, IconEdit, IconTrash, IconEye, IconDownload, IconUpload } from '@tabler/icons-react';
 import { fetchJson } from '../../services/api';
 import { useDialog } from '../../components/Dialog/DialogProvider';
 
@@ -29,6 +29,24 @@ interface CustomersResponse {
     page: number;
     page_size: number;
 }
+
+interface Contact {
+    id: string;
+    name: string;
+    position: string;
+    phone: string;
+    notes: string;
+    created_at: string;
+}
+
+interface Attachment {
+    id: string;
+    filename: string;
+    file_size: number;
+    created_at: string;
+}
+
+const API_BASE = '/api';
 
 /* ─── Styles ─── */
 const inputStyle: React.CSSProperties = {
@@ -155,6 +173,204 @@ function FormField({ label, value, onChange, type = 'text' }: { label: string; v
     );
 }
 
+/* ─── Helpers ─── */
+function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+/* ─── Customer Detail Dialog ─── */
+function CustomerDetailDialog({ customer, onClose, isChinese }: {
+    customer: Customer;
+    onClose: () => void;
+    isChinese: boolean;
+}) {
+    const queryClient = useQueryClient();
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [newContact, setNewContact] = useState({ name: '', position: '', phone: '', notes: '' });
+    const [savingContact, setSavingContact] = useState(false);
+    const [uploading, setUploading] = useState(false);
+
+    const { data: contacts = [] } = useQuery<Contact[]>({
+        queryKey: ['erp-contacts', 'customer', customer.id],
+        queryFn: () => fetchJson<Contact[]>(`/erp/contacts?parent_type=customer&parent_id=${customer.id}`),
+    });
+
+    const { data: attachments = [] } = useQuery<Attachment[]>({
+        queryKey: ['erp-attachments', 'customer', customer.id],
+        queryFn: () => fetchJson<Attachment[]>(`/erp/attachments?parent_type=customer&parent_id=${customer.id}`),
+    });
+
+    const createContactMutation = useMutation({
+        mutationFn: (data: { name: string; position: string; phone: string; notes: string }) =>
+            fetchJson(`/erp/contacts?parent_type=customer&parent_id=${customer.id}`, { method: 'POST', body: JSON.stringify(data) }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['erp-contacts', 'customer', customer.id] });
+            setNewContact({ name: '', position: '', phone: '', notes: '' });
+        },
+    });
+
+    const deleteContactMutation = useMutation({
+        mutationFn: (id: string) => fetchJson(`/erp/contacts/${id}`, { method: 'DELETE' }),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['erp-contacts', 'customer', customer.id] }),
+    });
+
+    const deleteAttachmentMutation = useMutation({
+        mutationFn: (id: string) => fetchJson(`/erp/attachments/${id}`, { method: 'DELETE' }),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['erp-attachments', 'customer', customer.id] }),
+    });
+
+    const handleAddContact = async () => {
+        if (!newContact.name.trim()) return;
+        setSavingContact(true);
+        try {
+            await createContactMutation.mutateAsync(newContact);
+        } finally {
+            setSavingContact(false);
+        }
+    };
+
+    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploading(true);
+        try {
+            const token = localStorage.getItem('token');
+            const formData = new FormData();
+            formData.append('file', file);
+            await fetch(`${API_BASE}/erp/attachments?parent_type=customer&parent_id=${customer.id}`, {
+                method: 'POST',
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                body: formData,
+            });
+            queryClient.invalidateQueries({ queryKey: ['erp-attachments', 'customer', customer.id] });
+        } finally {
+            setUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handleDownload = (attachment: Attachment) => {
+        const token = localStorage.getItem('token');
+        const url = `${API_BASE}/erp/attachments/${attachment.id}/download?token=${encodeURIComponent(token || '')}`;
+        window.open(url, '_blank');
+    };
+
+    return (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
+            <div style={{ background: 'var(--bg-primary)', borderRadius: 12, border: '1px solid var(--border-subtle)', width: 600, maxHeight: '90vh', overflow: 'auto', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
+                <h3 style={{ margin: '0 0 20px', fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {isChinese ? '客户详情' : 'Customer Details'}
+                </h3>
+
+                {/* Basic Info */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', marginBottom: 20, padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: 8 }}>
+                    <div><span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{isChinese ? '名称' : 'Name'}: </span><span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{customer.name}</span></div>
+                    <div><span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{isChinese ? '联系人' : 'Contact'}: </span><span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{customer.contact_name || '-'}</span></div>
+                    <div><span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{isChinese ? '邮箱' : 'Email'}: </span><span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{customer.email || '-'}</span></div>
+                    <div><span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{isChinese ? '电话' : 'Phone'}: </span><span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{customer.phone || '-'}</span></div>
+                </div>
+
+                {/* Contacts Section */}
+                <div style={{ marginBottom: 20 }}>
+                    <h4 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {isChinese ? '联系人列表' : 'Contacts'}
+                    </h4>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--border-subtle)', borderRadius: 6, overflow: 'hidden' }}>
+                        <thead>
+                            <tr style={{ background: 'var(--bg-secondary)' }}>
+                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '姓名' : 'Name'}</th>
+                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '职位' : 'Position'}</th>
+                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '电话' : 'Phone'}</th>
+                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '备注' : 'Notes'}</th>
+                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 60 }}>{isChinese ? '操作' : 'Actions'}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {contacts.map(ct => (
+                                <tr key={ct.id} style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                                    <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{ct.name}</td>
+                                    <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{ct.position || '-'}</td>
+                                    <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{ct.phone || '-'}</td>
+                                    <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{ct.notes || '-'}</td>
+                                    <td style={{ ...tdStyle, padding: '6px 8px', textAlign: 'center' }}>
+                                        <button onClick={() => deleteContactMutation.mutate(ct.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 2 }}>
+                                            <IconTrash size={13} stroke={1.5} />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {/* New contact row */}
+                            <tr style={{ borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}>
+                                <td style={{ padding: '4px 4px' }}>
+                                    <input value={newContact.name} onChange={e => setNewContact(p => ({ ...p, name: e.target.value }))} placeholder={isChinese ? '姓名 *' : 'Name *'} style={{ ...inputStyle, width: '100%', padding: '4px 6px', fontSize: 12 }} />
+                                </td>
+                                <td style={{ padding: '4px 4px' }}>
+                                    <input value={newContact.position} onChange={e => setNewContact(p => ({ ...p, position: e.target.value }))} placeholder={isChinese ? '职位' : 'Position'} style={{ ...inputStyle, width: '100%', padding: '4px 6px', fontSize: 12 }} />
+                                </td>
+                                <td style={{ padding: '4px 4px' }}>
+                                    <input value={newContact.phone} onChange={e => setNewContact(p => ({ ...p, phone: e.target.value }))} placeholder={isChinese ? '电话' : 'Phone'} style={{ ...inputStyle, width: '100%', padding: '4px 6px', fontSize: 12 }} />
+                                </td>
+                                <td style={{ padding: '4px 4px' }}>
+                                    <input value={newContact.notes} onChange={e => setNewContact(p => ({ ...p, notes: e.target.value }))} placeholder={isChinese ? '备注' : 'Notes'} style={{ ...inputStyle, width: '100%', padding: '4px 6px', fontSize: 12 }} />
+                                </td>
+                                <td style={{ padding: '4px 8px', textAlign: 'center' }}>
+                                    <button onClick={handleAddContact} disabled={savingContact || !newContact.name.trim()} style={{ ...btnPrimary, padding: '3px 10px', fontSize: 11, opacity: (!newContact.name.trim() || savingContact) ? 0.5 : 1 }}>
+                                        {savingContact ? '...' : (isChinese ? '添加' : 'Add')}
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Attachments Section */}
+                <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {isChinese ? '附件列表' : 'Attachments'}
+                        </h4>
+                        <button onClick={() => fileInputRef.current?.click()} disabled={uploading} style={{ ...btnPrimary, padding: '4px 12px', fontSize: 12, opacity: uploading ? 0.6 : 1 }}>
+                            <IconUpload size={14} stroke={1.5} />
+                            {uploading ? (isChinese ? '上传中...' : 'Uploading...') : (isChinese ? '上传文件' : 'Upload')}
+                        </button>
+                        <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={handleUpload} />
+                    </div>
+                    <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 6, overflow: 'hidden' }}>
+                        {attachments.length === 0 ? (
+                            <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 12 }}>{isChinese ? '暂无附件' : 'No attachments'}</div>
+                        ) : attachments.map(att => (
+                            <div key={att.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: 13, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.filename}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                                        {formatFileSize(att.file_size)} &middot; {att.created_at ? new Date(att.created_at).toLocaleDateString() : ''}
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                                    <button onClick={() => handleDownload(att)} style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', padding: 2 }} title={isChinese ? '下载' : 'Download'}>
+                                        <IconDownload size={14} stroke={1.5} />
+                                    </button>
+                                    <button onClick={() => deleteAttachmentMutation.mutate(att.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 2 }} title={isChinese ? '删除' : 'Delete'}>
+                                        <IconTrash size={14} stroke={1.5} />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
+                    <button style={btnSecondary} onClick={onClose}>
+                        {isChinese ? '关闭' : 'Close'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 /* ─── Main component ─── */
 export default function Customers() {
     const { t, i18n } = useTranslation();
@@ -167,6 +383,7 @@ export default function Customers() {
     const [page, setPage] = useState(1);
     const [showForm, setShowForm] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState<Customer | undefined>(undefined);
+    const [viewingCustomer, setViewingCustomer] = useState<Customer | undefined>(undefined);
 
     const { data, isLoading } = useQuery({
         queryKey: ['erp-customers', search, statusFilter, page],
@@ -264,6 +481,13 @@ export default function Customers() {
                                     <td style={{ ...tdStyle, textAlign: 'center' }}>
                                         <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
                                             <button
+                                                onClick={() => setViewingCustomer(c)}
+                                                style={{ background: 'none', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '3px 6px', color: 'var(--text-tertiary)', cursor: 'pointer', display: 'flex' }}
+                                                title={isChinese ? '详情' : 'Details'}
+                                            >
+                                                <IconEye size={14} stroke={1.5} />
+                                            </button>
+                                            <button
                                                 onClick={() => { setEditingCustomer(c); setShowForm(true); }}
                                                 style={{ background: 'none', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '3px 6px', color: 'var(--text-tertiary)', cursor: 'pointer', display: 'flex' }}
                                                 title={isChinese ? '编辑' : 'Edit'}
@@ -307,6 +531,15 @@ export default function Customers() {
                     customer={editingCustomer}
                     isChinese={isChinese}
                     onClose={(saved) => { setShowForm(false); setEditingCustomer(undefined); }}
+                />
+            )}
+
+            {/* ── Detail dialog ── */}
+            {viewingCustomer && (
+                <CustomerDetailDialog
+                    customer={viewingCustomer}
+                    isChinese={isChinese}
+                    onClose={() => setViewingCustomer(undefined)}
                 />
             )}
         </div>

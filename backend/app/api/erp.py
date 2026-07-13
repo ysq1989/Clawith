@@ -21,16 +21,21 @@ Reports        GET /reports/{sales,purchase,inventory,customers,profit-loss}
 Settings       GET/PUT /settings
 """
 
+import os
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import String, select, func, or_
+import aiofiles
 
 from app.api.auth import get_current_user
 from app.database import async_session
 from app.models.erp import (
+    ERPAttachment,
+    ERPContact,
     ERPCustomer,
     ERPFinancialRecord,
     ERPMaterial,
@@ -550,6 +555,45 @@ class ERPSettingsOut(BaseModel):
     fiscal_year_start: int
     auto_stock_deduct: bool
     default_payment_terms: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+# ─── 联系人 Schemas ──────────────────────────────────────────────────────────
+
+class ContactCreate(BaseModel):
+    name: str
+    position: str | None = None
+    phone: str | None = None
+    notes: str | None = None
+
+
+class ContactOut(BaseModel):
+    id: str
+    parent_type: str
+    parent_id: str
+    name: str
+    position: str | None = None
+    phone: str | None = None
+    notes: str | None = None
+    created_at: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+# ─── 附件 Schemas ────────────────────────────────────────────────────────────
+
+class AttachmentOut(BaseModel):
+    id: str
+    parent_type: str
+    parent_id: str
+    file_name: str
+    file_path: str
+    file_size: int
+    mime_type: str | None = None
+    created_at: str | None = None
 
     class Config:
         from_attributes = True
@@ -2489,4 +2533,236 @@ async def update_erp_settings(body: ERPSettingsUpdate, user=Depends(get_current_
             fiscal_year_start=settings.fiscal_year_start,
             auto_stock_deduct=settings.auto_stock_deduct,
             default_payment_terms=settings.default_payment_terms,
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  CONTACTS（联系人 CRUD，通用，通过 parent_type 和 parent_id 区分客户/供应商）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@router.get("/contacts", response_model=list[ContactOut])
+async def list_contacts(
+    parent_type: str, parent_id: str, user=Depends(get_current_user)
+):
+    """获取指定客户/供应商的联系人列表。"""
+    if parent_type not in ("customer", "supplier"):
+        raise HTTPException(400, "parent_type must be 'customer' or 'supplier'")
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPContact)
+            .where(
+                ERPContact.tenant_id == user.tenant_id,
+                ERPContact.parent_type == parent_type,
+                ERPContact.parent_id == uuid.UUID(parent_id),
+            )
+            .order_by(ERPContact.created_at.desc())
+        )
+        contacts = result.scalars().all()
+        return [
+            ContactOut(
+                id=str(c.id),
+                parent_type=c.parent_type,
+                parent_id=str(c.parent_id),
+                name=c.name,
+                position=c.position,
+                phone=c.phone,
+                notes=c.notes,
+                created_at=str(c.created_at) if c.created_at else None,
+            )
+            for c in contacts
+        ]
+
+
+@router.post("/contacts", response_model=ContactOut)
+async def create_contact(
+    body: ContactCreate,
+    parent_type: str,
+    parent_id: str,
+    user=Depends(get_current_user),
+):
+    """为指定客户/供应商创建联系人。"""
+    if parent_type not in ("customer", "supplier"):
+        raise HTTPException(400, "parent_type must be 'customer' or 'supplier'")
+    async with async_session() as db:
+        contact = ERPContact(
+            tenant_id=user.tenant_id,
+            parent_type=parent_type,
+            parent_id=uuid.UUID(parent_id),
+            name=body.name,
+            position=body.position,
+            phone=body.phone,
+            notes=body.notes,
+        )
+        db.add(contact)
+        await db.commit()
+        await db.refresh(contact)
+        return ContactOut(
+            id=str(contact.id),
+            parent_type=contact.parent_type,
+            parent_id=str(contact.parent_id),
+            name=contact.name,
+            position=contact.position,
+            phone=contact.phone,
+            notes=contact.notes,
+            created_at=str(contact.created_at) if contact.created_at else None,
+        )
+
+
+@router.delete("/contacts/{contact_id}")
+async def delete_contact(contact_id: str, user=Depends(get_current_user)):
+    """删除指定联系人。"""
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPContact).where(
+                ERPContact.id == uuid.UUID(contact_id),
+                ERPContact.tenant_id == user.tenant_id,
+            )
+        )
+        contact = result.scalar_one_or_none()
+        if not contact:
+            raise HTTPException(404, "联系人不存在")
+        await db.delete(contact)
+        await db.commit()
+        return {"ok": True}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  ATTACHMENTS（附件上传/列表/下载/删除）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# 附件保存根目录（即 backend/ 目录，file_path 以 agent_data/erp_attachments/ 开头）
+_BACKEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+_ATTACHMENTS_DIR = os.path.join(_BACKEND_DIR, "agent_data", "erp_attachments")
+
+
+@router.post("/attachments", response_model=AttachmentOut)
+async def upload_attachment(
+    parent_type: str,
+    parent_id: str,
+    file: UploadFile = File(...),
+    user=Depends(get_current_user),
+):
+    """上传附件到指定客户/供应商。文件保存到 agent_data/erp_attachments/{tenant_id}/{uuid}_{filename}。"""
+    if parent_type not in ("customer", "supplier"):
+        raise HTTPException(400, "parent_type must be 'customer' or 'supplier")
+
+    tenant_dir = os.path.join(_ATTACHMENTS_DIR, str(user.tenant_id))
+    os.makedirs(tenant_dir, exist_ok=True)
+
+    # 用 UUID 前缀防止文件名冲突
+    file_uuid = uuid.uuid4()
+    safe_name = file.filename or "unnamed"
+    saved_name = f"{file_uuid}_{safe_name}"
+    file_path = os.path.join(tenant_dir, saved_name)
+
+    # 异步写入文件
+    file_size = 0
+    async with aiofiles.open(file_path, "wb") as f:
+        while chunk := await file.read(8192):
+            file_size += len(chunk)
+            await f.write(chunk)
+
+    async with async_session() as db:
+        attachment = ERPAttachment(
+            tenant_id=user.tenant_id,
+            parent_type=parent_type,
+            parent_id=uuid.UUID(parent_id),
+            file_name=safe_name,
+            file_path=os.path.relpath(file_path, _BACKEND_DIR),
+            file_size=file_size,
+            mime_type=file.content_type,
+        )
+        db.add(attachment)
+        await db.commit()
+        await db.refresh(attachment)
+        return AttachmentOut(
+            id=str(attachment.id),
+            parent_type=attachment.parent_type,
+            parent_id=str(attachment.parent_id),
+            file_name=attachment.file_name,
+            file_path=attachment.file_path,
+            file_size=attachment.file_size,
+            mime_type=attachment.mime_type,
+            created_at=str(attachment.created_at) if attachment.created_at else None,
+        )
+
+
+@router.get("/attachments", response_model=list[AttachmentOut])
+async def list_attachments(
+    parent_type: str, parent_id: str, user=Depends(get_current_user)
+):
+    """获取指定客户/供应商的附件列表。"""
+    if parent_type not in ("customer", "supplier"):
+        raise HTTPException(400, "parent_type must be 'customer' or 'supplier'")
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPAttachment)
+            .where(
+                ERPAttachment.tenant_id == user.tenant_id,
+                ERPAttachment.parent_type == parent_type,
+                ERPAttachment.parent_id == uuid.UUID(parent_id),
+            )
+            .order_by(ERPAttachment.created_at.desc())
+        )
+        attachments = result.scalars().all()
+        return [
+            AttachmentOut(
+                id=str(a.id),
+                parent_type=a.parent_type,
+                parent_id=str(a.parent_id),
+                file_name=a.file_name,
+                file_path=a.file_path,
+                file_size=a.file_size,
+                mime_type=a.mime_type,
+                created_at=str(a.created_at) if a.created_at else None,
+            )
+            for a in attachments
+        ]
+
+
+@router.delete("/attachments/{attachment_id}")
+async def delete_attachment(attachment_id: str, user=Depends(get_current_user)):
+    """删除指定附件（同时删除磁盘文件）。"""
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPAttachment).where(
+                ERPAttachment.id == uuid.UUID(attachment_id),
+                ERPAttachment.tenant_id == user.tenant_id,
+            )
+        )
+        attachment = result.scalar_one_or_none()
+        if not attachment:
+            raise HTTPException(404, "附件不存在")
+        # 删除磁盘文件（不因文件删除失败而阻塞数据库记录删除）
+        abs_path = os.path.join(_BACKEND_DIR, attachment.file_path)
+        try:
+            os.remove(abs_path)
+        except OSError:
+            pass
+        await db.delete(attachment)
+        await db.commit()
+        return {"ok": True}
+
+
+@router.get("/attachments/{attachment_id}/download")
+async def download_attachment(attachment_id: str, user=Depends(get_current_user)):
+    """下载指定附件。"""
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPAttachment).where(
+                ERPAttachment.id == uuid.UUID(attachment_id),
+                ERPAttachment.tenant_id == user.tenant_id,
+            )
+        )
+        attachment = result.scalar_one_or_none()
+        if not attachment:
+            raise HTTPException(404, "附件不存在")
+        abs_path = os.path.join(_BACKEND_DIR, attachment.file_path)
+        if not os.path.isfile(abs_path):
+            raise HTTPException(404, "文件不存在")
+        return FileResponse(
+            path=abs_path,
+            filename=attachment.file_name,
+            media_type=attachment.mime_type or "application/octet-stream",
         )
