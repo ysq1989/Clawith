@@ -50,6 +50,7 @@ from app.models.erp import (
     ERPWarehouse,
     ERPCategory,
 )
+from app.models.user import User
 
 router = APIRouter(prefix="/api/erp", tags=["erp"])
 
@@ -128,23 +129,43 @@ class PaginatedResponse(BaseModel):
 
 class CustomerCreate(BaseModel):
     name: str
+    code: str | None = None  # 客户编码（可选，不传则自动生成）
+    short_name: str | None = None
     category_id: str | None = None
     contact_name: str | None = None
     phone: str | None = None
     email: str | None = None
     address: str | None = None
     tax_id: str | None = None
+    salesperson_id: str | None = None  # 业务员
+    bank_name: str | None = None
+    bank_account_name: str | None = None
+    bank_account_number: str | None = None
+    bank_branch: str | None = None
+    credit_code: str | None = None
+    legal_representative: str | None = None
+    legal_rep_phone: str | None = None
     notes: str | None = None
 
 
 class CustomerUpdate(BaseModel):
     name: str | None = None
+    code: str | None = None
+    short_name: str | None = None
     category_id: str | None = None
     contact_name: str | None = None
     phone: str | None = None
     email: str | None = None
     address: str | None = None
     tax_id: str | None = None
+    salesperson_id: str | None = None
+    bank_name: str | None = None
+    bank_account_name: str | None = None
+    bank_account_number: str | None = None
+    bank_branch: str | None = None
+    credit_code: str | None = None
+    legal_representative: str | None = None
+    legal_rep_phone: str | None = None
     notes: str | None = None
     status: str | None = None
 
@@ -152,6 +173,8 @@ class CustomerUpdate(BaseModel):
 class CustomerOut(BaseModel):
     id: str
     name: str
+    code: str | None = None  # 客户编码
+    short_name: str | None = None
     category_id: str | None = None
     category_name: str | None = None
     contact_name: str | None = None
@@ -159,6 +182,15 @@ class CustomerOut(BaseModel):
     email: str | None = None
     address: str | None = None
     tax_id: str | None = None
+    salesperson_id: str | None = None
+    salesperson_name: str | None = None  # 业务员姓名
+    bank_name: str | None = None
+    bank_account_name: str | None = None
+    bank_account_number: str | None = None
+    bank_branch: str | None = None
+    credit_code: str | None = None
+    legal_representative: str | None = None
+    legal_rep_phone: str | None = None
     notes: str | None = None
     status: str
     default_contact_name: str | None = None
@@ -173,6 +205,8 @@ class CustomerOut(BaseModel):
 
 class SupplierCreate(BaseModel):
     name: str
+    code: str | None = None  # 供应商编码（可选，不传则自动生成）
+    short_name: str | None = None
     category_id: str | None = None
     contact_name: str | None = None
     phone: str | None = None
@@ -180,11 +214,21 @@ class SupplierCreate(BaseModel):
     address: str | None = None
     tax_id: str | None = None
     payment_terms: str | None = None
+    salesperson_id: str | None = None  # 业务员
+    bank_name: str | None = None
+    bank_account_name: str | None = None
+    bank_account_number: str | None = None
+    bank_branch: str | None = None
+    credit_code: str | None = None
+    legal_representative: str | None = None
+    legal_rep_phone: str | None = None
     notes: str | None = None
 
 
 class SupplierUpdate(BaseModel):
     name: str | None = None
+    code: str | None = None
+    short_name: str | None = None
     category_id: str | None = None
     contact_name: str | None = None
     phone: str | None = None
@@ -192,6 +236,14 @@ class SupplierUpdate(BaseModel):
     address: str | None = None
     tax_id: str | None = None
     payment_terms: str | None = None
+    salesperson_id: str | None = None
+    bank_name: str | None = None
+    bank_account_name: str | None = None
+    bank_account_number: str | None = None
+    bank_branch: str | None = None
+    credit_code: str | None = None
+    legal_representative: str | None = None
+    legal_rep_phone: str | None = None
     notes: str | None = None
     status: str | None = None
 
@@ -199,6 +251,8 @@ class SupplierUpdate(BaseModel):
 class SupplierOut(BaseModel):
     id: str
     name: str
+    code: str | None = None  # 供应商编码
+    short_name: str | None = None
     category_id: str | None = None
     category_name: str | None = None
     contact_name: str | None = None
@@ -207,6 +261,15 @@ class SupplierOut(BaseModel):
     address: str | None = None
     tax_id: str | None = None
     payment_terms: str | None = None
+    salesperson_id: str | None = None
+    salesperson_name: str | None = None  # 业务员姓名
+    bank_name: str | None = None
+    bank_account_name: str | None = None
+    bank_account_number: str | None = None
+    bank_branch: str | None = None
+    credit_code: str | None = None
+    legal_representative: str | None = None
+    legal_rep_phone: str | None = None
     notes: str | None = None
     status: str
     default_contact_name: str | None = None
@@ -561,6 +624,10 @@ class ERPSettingsUpdate(BaseModel):
     fiscal_year_start: int | None = None
     auto_stock_deduct: bool | None = None
     default_payment_terms: str | None = None
+    customer_code_prefix: str | None = None
+    customer_code_digits: int | None = None
+    supplier_code_prefix: str | None = None
+    supplier_code_digits: int | None = None
 
 
 class ERPSettingsOut(BaseModel):
@@ -570,6 +637,10 @@ class ERPSettingsOut(BaseModel):
     fiscal_year_start: int
     auto_stock_deduct: bool
     default_payment_terms: str | None = None
+    customer_code_prefix: str = "K"
+    customer_code_digits: int = 3
+    supplier_code_prefix: str = "G"
+    supplier_code_digits: int = 3
 
     class Config:
         from_attributes = True
@@ -623,13 +694,24 @@ class AttachmentOut(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def _customer_to_out(c, category_name=None):
+def _customer_to_out(c, category_name=None, salesperson_name=None):
     return CustomerOut(
         id=str(c.id), name=c.name,
+        code=c.code,
+        short_name=c.short_name,
         category_id=str(c.category_id) if c.category_id else None,
         category_name=category_name,
         contact_name=c.contact_name, phone=c.phone,
         email=c.email, address=c.address, tax_id=c.tax_id,
+        salesperson_id=str(c.salesperson_id) if c.salesperson_id else None,
+        salesperson_name=salesperson_name,
+        bank_name=c.bank_name,
+        bank_account_name=c.bank_account_name,
+        bank_account_number=c.bank_account_number,
+        bank_branch=c.bank_branch,
+        credit_code=c.credit_code,
+        legal_representative=c.legal_representative,
+        legal_rep_phone=c.legal_rep_phone,
         notes=c.notes, status=c.status,
         created_at=c.created_at.isoformat() if c.created_at else None,
         updated_at=c.updated_at.isoformat() if c.updated_at else None,
@@ -669,6 +751,13 @@ async def list_customers(
         items_raw = result.scalars().all()
         customer_ids = [c.id for c in items_raw]
         category_ids = [c.category_id for c in items_raw if c.category_id]
+        # 查询业务员姓名
+        salesperson_ids = [c.salesperson_id for c in items_raw if c.salesperson_id]
+        salesperson_map = {}
+        if salesperson_ids:
+            sp_q = select(User).where(User.id.in_(salesperson_ids))
+            sp_result = await db.execute(sp_q)
+            salesperson_map = {u.id: u.display_name for u in sp_result.scalars().all()}
         # Fetch default contacts
         contacts_q = select(ERPContact).where(
             ERPContact.tenant_id == user.tenant_id,
@@ -686,7 +775,11 @@ async def list_customers(
             categories_map = {c.id: c.name for c in cats_result.scalars().all()}
         items = []
         for c in items_raw:
-            out = _customer_to_out(c, category_name=categories_map.get(c.category_id))
+            out = _customer_to_out(
+                c,
+                category_name=categories_map.get(c.category_id),
+                salesperson_name=salesperson_map.get(c.salesperson_id),
+            )
             dc = default_contacts.get(c.id)
             if dc:
                 out["default_contact_name"] = dc.name
@@ -723,6 +816,31 @@ async def create_customer(body: CustomerCreate, user=Depends(get_current_user)):
                 data["category_id"] = cat_obj.id
         elif data.get("category_id"):
             data["category_id"] = uuid.UUID(data["category_id"])
+        # 处理 salesperson_id 转换
+        if data.get("salesperson_id"):
+            data["salesperson_id"] = uuid.UUID(data["salesperson_id"])
+        # 自动编码逻辑：如果未传 code，根据 ERPSettings 自动生成
+        if not data.get("code"):
+            settings = await _get_or_create_settings(db, user.tenant_id)
+            prefix = settings.customer_code_prefix or "K"
+            digits = settings.customer_code_digits or 3
+            # 查询当前租户下客户最大编码
+            max_code_q = await db.execute(
+                select(ERPCustomer.code).where(
+                    ERPCustomer.tenant_id == user.tenant_id,
+                    ERPCustomer.code.like(f"{prefix}%"),
+                    ERPCustomer.code.isnot(None),
+                ).order_by(ERPCustomer.code.desc()).limit(1)
+            )
+            max_code = max_code_q.scalar_one_or_none()
+            if max_code and max_code.startswith(prefix):
+                try:
+                    seq = int(max_code[len(prefix):]) + 1
+                except ValueError:
+                    seq = 1
+            else:
+                seq = 1
+            data["code"] = f"{prefix}{str(seq).zfill(digits)}"
         obj = ERPCustomer(tenant_id=user.tenant_id, **data)
         db.add(obj)
         await db.commit()
@@ -742,7 +860,14 @@ async def get_customer(customer_id: str, user=Depends(get_current_user)):
         c = result.scalar_one_or_none()
         if not c:
             raise HTTPException(404, "Customer not found")
-        return _customer_to_out(c)
+        # 查询业务员姓名
+        salesperson_name = None
+        if c.salesperson_id:
+            sp_result = await db.execute(select(User).where(User.id == c.salesperson_id))
+            sp = sp_result.scalar_one_or_none()
+            if sp:
+                salesperson_name = sp.display_name
+        return _customer_to_out(c, salesperson_name=salesperson_name)
 
 
 @router.patch("/customers/{customer_id}", response_model=CustomerOut)
@@ -789,14 +914,26 @@ async def delete_customer(customer_id: str, user=Depends(get_current_user)):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def _supplier_to_out(s, category_name=None):
+def _supplier_to_out(s, category_name=None, salesperson_name=None):
     return SupplierOut(
         id=str(s.id), name=s.name,
+        code=s.code,
+        short_name=s.short_name,
         category_id=str(s.category_id) if s.category_id else None,
         category_name=category_name,
         contact_name=s.contact_name, phone=s.phone,
         email=s.email, address=s.address, tax_id=s.tax_id,
-        payment_terms=s.payment_terms, notes=s.notes, status=s.status,
+        payment_terms=s.payment_terms,
+        salesperson_id=str(s.salesperson_id) if s.salesperson_id else None,
+        salesperson_name=salesperson_name,
+        bank_name=s.bank_name,
+        bank_account_name=s.bank_account_name,
+        bank_account_number=s.bank_account_number,
+        bank_branch=s.bank_branch,
+        credit_code=s.credit_code,
+        legal_representative=s.legal_representative,
+        legal_rep_phone=s.legal_rep_phone,
+        notes=s.notes, status=s.status,
         created_at=s.created_at.isoformat() if s.created_at else None,
         updated_at=s.updated_at.isoformat() if s.updated_at else None,
     )
@@ -833,6 +970,13 @@ async def list_suppliers(
         items_raw = result.scalars().all()
         supplier_ids = [s.id for s in items_raw]
         category_ids = [s.category_id for s in items_raw if s.category_id]
+        # 查询业务员姓名
+        salesperson_ids = [s.salesperson_id for s in items_raw if s.salesperson_id]
+        salesperson_map = {}
+        if salesperson_ids:
+            sp_q = select(User).where(User.id.in_(salesperson_ids))
+            sp_result = await db.execute(sp_q)
+            salesperson_map = {u.id: u.display_name for u in sp_result.scalars().all()}
         contacts_q = select(ERPContact).where(
             ERPContact.tenant_id == user.tenant_id,
             ERPContact.parent_type == "supplier",
@@ -848,7 +992,11 @@ async def list_suppliers(
             categories_map = {c.id: c.name for c in cats_result.scalars().all()}
         items = []
         for s in items_raw:
-            out = _supplier_to_out(s, category_name=categories_map.get(s.category_id))
+            out = _supplier_to_out(
+                s,
+                category_name=categories_map.get(s.category_id),
+                salesperson_name=salesperson_map.get(s.salesperson_id),
+            )
             dc = default_contacts.get(s.id)
             if dc:
                 out["default_contact_name"] = dc.name
@@ -883,6 +1031,31 @@ async def create_supplier(body: SupplierCreate, user=Depends(get_current_user)):
                 data["category_id"] = cat_obj.id
         elif data.get("category_id"):
             data["category_id"] = uuid.UUID(data["category_id"])
+        # 处理 salesperson_id 转换
+        if data.get("salesperson_id"):
+            data["salesperson_id"] = uuid.UUID(data["salesperson_id"])
+        # 自动编码逻辑：如果未传 code，根据 ERPSettings 自动生成
+        if not data.get("code"):
+            settings = await _get_or_create_settings(db, user.tenant_id)
+            prefix = settings.supplier_code_prefix or "G"
+            digits = settings.supplier_code_digits or 3
+            # 查询当前租户下供应商最大编码
+            max_code_q = await db.execute(
+                select(ERPSupplier.code).where(
+                    ERPSupplier.tenant_id == user.tenant_id,
+                    ERPSupplier.code.like(f"{prefix}%"),
+                    ERPSupplier.code.isnot(None),
+                ).order_by(ERPSupplier.code.desc()).limit(1)
+            )
+            max_code = max_code_q.scalar_one_or_none()
+            if max_code and max_code.startswith(prefix):
+                try:
+                    seq = int(max_code[len(prefix):]) + 1
+                except ValueError:
+                    seq = 1
+            else:
+                seq = 1
+            data["code"] = f"{prefix}{str(seq).zfill(digits)}"
         obj = ERPSupplier(tenant_id=user.tenant_id, **data)
         db.add(obj)
         await db.commit()
@@ -902,7 +1075,14 @@ async def get_supplier(supplier_id: str, user=Depends(get_current_user)):
         s = result.scalar_one_or_none()
         if not s:
             raise HTTPException(404, "Supplier not found")
-        return _supplier_to_out(s)
+        # 查询业务员姓名
+        salesperson_name = None
+        if s.salesperson_id:
+            sp_result = await db.execute(select(User).where(User.id == s.salesperson_id))
+            sp = sp_result.scalar_one_or_none()
+            if sp:
+                salesperson_name = sp.display_name
+        return _supplier_to_out(s, salesperson_name=salesperson_name)
 
 
 @router.patch("/suppliers/{supplier_id}", response_model=SupplierOut)
@@ -2635,6 +2815,10 @@ async def get_erp_settings(user=Depends(get_current_user)):
             fiscal_year_start=settings.fiscal_year_start,
             auto_stock_deduct=settings.auto_stock_deduct,
             default_payment_terms=settings.default_payment_terms,
+            customer_code_prefix=settings.customer_code_prefix,
+            customer_code_digits=settings.customer_code_digits,
+            supplier_code_prefix=settings.supplier_code_prefix,
+            supplier_code_digits=settings.supplier_code_digits,
         )
 
 
@@ -2652,6 +2836,14 @@ async def update_erp_settings(body: ERPSettingsUpdate, user=Depends(get_current_
             settings.auto_stock_deduct = body.auto_stock_deduct
         if body.default_payment_terms is not None:
             settings.default_payment_terms = body.default_payment_terms
+        if body.customer_code_prefix is not None:
+            settings.customer_code_prefix = body.customer_code_prefix
+        if body.customer_code_digits is not None:
+            settings.customer_code_digits = body.customer_code_digits
+        if body.supplier_code_prefix is not None:
+            settings.supplier_code_prefix = body.supplier_code_prefix
+        if body.supplier_code_digits is not None:
+            settings.supplier_code_digits = body.supplier_code_digits
         await db.commit()
         await db.refresh(settings)
         return ERPSettingsOut(
@@ -2661,7 +2853,37 @@ async def update_erp_settings(body: ERPSettingsUpdate, user=Depends(get_current_
             fiscal_year_start=settings.fiscal_year_start,
             auto_stock_deduct=settings.auto_stock_deduct,
             default_payment_terms=settings.default_payment_terms,
+            customer_code_prefix=settings.customer_code_prefix,
+            customer_code_digits=settings.customer_code_digits,
+            supplier_code_prefix=settings.supplier_code_prefix,
+            supplier_code_digits=settings.supplier_code_digits,
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  EMPLOYEES（员工列表，用于业务员选择）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@router.get("/employees")
+async def list_employees(user=Depends(get_current_user)):
+    """获取当前租户下的所有员工列表（用于业务员选择）。"""
+    async with async_session() as db:
+        result = await db.execute(
+            select(User).where(
+                User.tenant_id == user.tenant_id,
+                User.is_active == True,
+            ).order_by(User.display_name.asc())
+        )
+        employees = result.scalars().all()
+        return [
+            {
+                "id": str(e.id),
+                "name": e.display_name,
+                "email": e.identity.email if e.identity else None,
+            }
+            for e in employees
+        ]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

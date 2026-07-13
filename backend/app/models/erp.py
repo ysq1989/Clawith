@@ -52,12 +52,22 @@ class ERPCustomer(Base):
         index=True,
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    code: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)  # 客户编码，如 K001
+    short_name: Mapped[str | None] = mapped_column(String(100))  # 简称
     category_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
     contact_name: Mapped[str | None] = mapped_column(String(100))
     phone: Mapped[str | None] = mapped_column(String(50))
     email: Mapped[str | None] = mapped_column(String(200))
     address: Mapped[str | None] = mapped_column(Text)
     tax_id: Mapped[str | None] = mapped_column(String(50))
+    salesperson_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)  # 业务员
+    bank_name: Mapped[str | None] = mapped_column(String(200))  # 银行名称
+    bank_account_name: Mapped[str | None] = mapped_column(String(200))  # 银行账户名
+    bank_account_number: Mapped[str | None] = mapped_column(String(100))  # 银行账号
+    bank_branch: Mapped[str | None] = mapped_column(String(200))  # 开户银行
+    credit_code: Mapped[str | None] = mapped_column(String(50))  # 统一社会信用代码
+    legal_representative: Mapped[str | None] = mapped_column(String(100))  # 法人代表
+    legal_rep_phone: Mapped[str | None] = mapped_column(String(50))  # 法人电话
     notes: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="active"
@@ -86,6 +96,8 @@ class ERPSupplier(Base):
         index=True,
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    code: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)  # 供应商编码，如 G001
+    short_name: Mapped[str | None] = mapped_column(String(100))  # 简称
     category_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
     contact_name: Mapped[str | None] = mapped_column(String(100))
     phone: Mapped[str | None] = mapped_column(String(50))
@@ -93,6 +105,14 @@ class ERPSupplier(Base):
     address: Mapped[str | None] = mapped_column(Text)
     tax_id: Mapped[str | None] = mapped_column(String(50))
     payment_terms: Mapped[str | None] = mapped_column(String(100))
+    salesperson_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)  # 业务员
+    bank_name: Mapped[str | None] = mapped_column(String(200))  # 银行名称
+    bank_account_name: Mapped[str | None] = mapped_column(String(200))  # 银行账户名
+    bank_account_number: Mapped[str | None] = mapped_column(String(100))  # 银行账号
+    bank_branch: Mapped[str | None] = mapped_column(String(200))  # 开户银行
+    credit_code: Mapped[str | None] = mapped_column(String(50))  # 统一社会信用代码
+    legal_representative: Mapped[str | None] = mapped_column(String(100))  # 法人代表
+    legal_rep_phone: Mapped[str | None] = mapped_column(String(50))  # 法人电话
     notes: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="active"
@@ -455,6 +475,10 @@ class ERPSettings(Base):
     fiscal_year_start: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     auto_stock_deduct: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     default_payment_terms: Mapped[str | None] = mapped_column(String(200))
+    customer_code_prefix: Mapped[str] = mapped_column(String(10), nullable=False, default="K")  # 客户编码前缀
+    customer_code_digits: Mapped[int] = mapped_column(Integer, nullable=False, default=3)  # 客户流水号位数
+    supplier_code_prefix: Mapped[str] = mapped_column(String(10), nullable=False, default="G")  # 供应商编码前缀
+    supplier_code_digits: Mapped[int] = mapped_column(Integer, nullable=False, default=3)  # 供应商流水号位数
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(),

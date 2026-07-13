@@ -9,14 +9,26 @@ import { useTranslation } from 'react-i18next';
 import { IconPlus, IconSearch, IconEdit, IconTrash } from '@tabler/icons-react';
 import { fetchJson } from '../../services/api';
 import { useDialog } from '../../components/Dialog/DialogProvider';
+import { useAuthStore } from '../../stores';
 
 /* ─── Types ─── */
 interface Supplier {
     id: string;
     name: string;
+    code?: string;
+    short_name?: string;
+    category_id?: string;
+    salesperson_id?: string;
     address: string;
     status: string;
     notes: string;
+    bank_name?: string;
+    bank_account_name?: string;
+    bank_account_number?: string;
+    bank_branch?: string;
+    credit_code?: string;
+    legal_representative?: string;
+    legal_rep_phone?: string;
     created_at: string;
     updated_at: string;
     default_contact_name?: string;
@@ -40,6 +52,12 @@ interface Contact {
     is_default: boolean;
     notes: string;
     created_at: string;
+}
+
+interface Employee {
+    id: string;
+    name: string;
+    email?: string;
 }
 
 /* ─── Styles ─── */
@@ -121,6 +139,69 @@ function CategorySelect({ value, onChange, categories, isChinese }: {
     );
 }
 
+/* ─── Employee Select (searchable dropdown) ─── */
+function EmployeeSelect({ value, onChange, employees, isChinese }: {
+    value: string; onChange: (id: string) => void; employees: Employee[]; isChinese: boolean;
+}) {
+    const [open, setOpen] = useState(false);
+    const [search, setSearch] = useState('');
+    const selected = employees.find(e => e.id === value);
+    const filtered = search
+        ? employees.filter(e => e.name.toLowerCase().includes(search.toLowerCase()) || (e.email && e.email.toLowerCase().includes(search.toLowerCase())))
+        : employees;
+    return (
+        <div style={{ position: 'relative' }}>
+            <div
+                onClick={() => setOpen(!open)}
+                style={{ ...inputStyle, width: '100%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 34 }}
+            >
+                <span style={{ color: selected ? 'var(--text-primary)' : 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {selected ? `${selected.name}${selected.email ? ` (${selected.email})` : ''}` : (isChinese ? '-- 请选择业务员 --' : '-- Select Salesperson --')}
+                </span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginLeft: 4, transition: 'transform 0.15s', transform: open ? 'rotate(180deg)' : 'none' }}><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            {open && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 1001, overflow: 'hidden' }}>
+                    {employees.length > 5 && (
+                        <div style={{ padding: 8, borderBottom: '1px solid #e2e8f0' }}>
+                            <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder={isChinese ? '搜索员工...' : 'Search...'} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', color: '#1e293b', background: '#f8fafc' }} />
+                        </div>
+                    )}
+                    <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                        {filtered.length === 0 ? (
+                            <div style={{ padding: 12, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>{isChinese ? '无匹配结果' : 'No results'}</div>
+                        ) : filtered.map(emp => (
+                            <div
+                                key={emp.id}
+                                onClick={() => { onChange(emp.id); setOpen(false); setSearch(''); }}
+                                style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, color: '#1e293b', background: emp.id === value ? '#eff6ff' : 'transparent', transition: 'background 0.1s' }}
+                                onMouseEnter={e => { if (emp.id !== value) (e.currentTarget as HTMLElement).style.background = '#f8fafc'; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = emp.id === value ? '#eff6ff' : 'transparent'; }}
+                            >
+                                {emp.name}{emp.email ? ` (${emp.email})` : ''}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+/* ─── Section Card ─── */
+function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+    return (
+        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+            <h4 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                {title}
+            </h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {children}
+            </div>
+        </div>
+    );
+}
+
 /* ─── Supplier Form Dialog ─── */
 function SupplierForm({
     supplier, onClose, isChinese,
@@ -131,13 +212,24 @@ function SupplierForm({
 }) {
     const queryClient = useQueryClient();
     const isEdit = !!supplier;
+    const user = useAuthStore(s => s.user);
 
     // Supplier form fields
     const [form, setForm] = useState({
         name: supplier?.name ?? '',
+        short_name: supplier?.short_name ?? '',
+        code: supplier?.code ?? '',
         category_id: supplier?.category_id ?? '',
+        salesperson_id: supplier?.salesperson_id ?? user?.id ?? '',
         address: supplier?.address ?? '',
         status: supplier?.status ?? 'active',
+        bank_name: supplier?.bank_name ?? '',
+        bank_account_name: supplier?.bank_account_name ?? '',
+        bank_account_number: supplier?.bank_account_number ?? '',
+        bank_branch: supplier?.bank_branch ?? '',
+        credit_code: supplier?.credit_code ?? '',
+        legal_representative: supplier?.legal_representative ?? '',
+        legal_rep_phone: supplier?.legal_rep_phone ?? '',
         notes: supplier?.notes ?? '',
     });
     const [saving, setSaving] = useState(false);
@@ -163,6 +255,12 @@ function SupplierForm({
     });
     const defaultCategoryId = (categories.find((c: any) => c.is_default) || categories[0])?.id || "";
     const effectiveCategoryId = form.category_id || defaultCategoryId;
+
+    // Fetch employees for salesperson selector
+    const { data: employees = [] } = useQuery<Employee[]>({
+        queryKey: ['erp-employees'],
+        queryFn: () => fetchJson<Employee[]>('/erp/employees'),
+    });
 
     // Add new contact
     const handleAddContact = async () => {
@@ -203,7 +301,7 @@ function SupplierForm({
         if (!form.name.trim()) { setError(isChinese ? '请输入供应商名称' : 'Please enter supplier name'); return; }
         setSaving(true); setError('');
         try {
-            const submitData = { ...form, category_id: effectiveCategoryId || null };
+            const submitData = { ...form, category_id: effectiveCategoryId || null, salesperson_id: form.salesperson_id || null };
             if (supplier) {
                 await fetchJson(`/erp/suppliers/${supplier.id}`, { method: 'PATCH', body: JSON.stringify(submitData) });
             } else {
@@ -222,14 +320,40 @@ function SupplierForm({
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => onClose(false)}>
-            <div style={{ background: 'var(--bg-primary)', borderRadius: 12, border: '1px solid var(--border-subtle)', width: 700, maxHeight: '90vh', overflow: 'auto', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ background: 'var(--bg-primary)', borderRadius: 12, border: '1px solid var(--border-subtle)', width: 800, maxHeight: '90vh', overflow: 'auto', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
                 <h3 style={{ margin: '0 0 20px', fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
                     {supplier ? (isChinese ? '编辑供应商' : 'Edit Supplier') : (isChinese ? '新建供应商' : 'New Supplier')}
                 </h3>
 
-                {/* ── Basic Info ── */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: isEdit ? 24 : 0 }}>
-                    <FormField label={isChinese ? '供应商名称 *' : 'Supplier Name *'} value={form.name} onChange={v => update('name', v)} />
+                {/* ── Section 1: Basic Info ── */}
+                <SectionCard title={isChinese ? '基础信息' : 'Basic Info'}>
+                    {/* Code (read-only, auto-generated for new) */}
+                    <div>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                            {isChinese ? '供应商编码' : 'Supplier Code'}
+                        </label>
+                        <input
+                            type="text"
+                            value={isEdit ? form.code : (isChinese ? '自动生成' : 'Auto-generated')}
+                            readOnly
+                            style={{ ...inputStyle, width: '100%', background: 'var(--bg-secondary)', color: 'var(--text-tertiary)' }}
+                        />
+                    </div>
+                    {/* Name (required) */}
+                    <div>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                            {isChinese ? '供应商名称 *' : 'Supplier Name *'}
+                        </label>
+                        <input
+                            type="text"
+                            value={form.name}
+                            onChange={e => update('name', e.target.value)}
+                            style={{ ...inputStyle, width: '100%' }}
+                        />
+                    </div>
+                    {/* Short name */}
+                    <FormField label={isChinese ? '简称' : 'Short Name'} value={form.short_name} onChange={v => update('short_name', v)} />
+                    {/* Category */}
                     <div>
                         <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
                             {isChinese ? '供应商分类' : 'Category'}
@@ -241,7 +365,21 @@ function SupplierForm({
                             isChinese={isChinese}
                         />
                     </div>
+                    {/* Salesperson */}
+                    <div>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                            {isChinese ? '业务员' : 'Salesperson'}
+                        </label>
+                        <EmployeeSelect
+                            value={form.salesperson_id}
+                            onChange={(id: string) => update('salesperson_id', id)}
+                            employees={employees}
+                            isChinese={isChinese}
+                        />
+                    </div>
+                    {/* Address */}
                     <FormField label={isChinese ? '地址' : 'Address'} value={form.address} onChange={v => update('address', v)} />
+                    {/* Status */}
                     <div>
                         <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
                             {isChinese ? '状态' : 'Status'}
@@ -251,18 +389,12 @@ function SupplierForm({
                             <option value="inactive">{isChinese ? '停用' : 'Inactive'}</option>
                         </select>
                     </div>
-                    <div>
-                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                            {isChinese ? '备注' : 'Notes'}
-                        </label>
-                        <textarea value={form.notes} onChange={e => update('notes', e.target.value)} rows={3} style={{ ...inputStyle, width: '100%', resize: 'vertical' }} />
-                    </div>
-                </div>
+                </SectionCard>
 
-                {/* ── Contacts Section (edit mode only) ── */}
+                {/* ── Section 2: Contacts (edit mode only) ── */}
                 {isEdit && (
-                    <div style={{ marginBottom: 20 }}>
-                        <h4 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                    <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+                        <h4 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
                             {isChinese ? '联系人列表' : 'Contacts'}
                         </h4>
                         <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 6, overflow: 'hidden' }}>
@@ -332,6 +464,25 @@ function SupplierForm({
                     </div>
                 )}
 
+                {/* ── Section 3: Financial Info ── */}
+                <SectionCard title={isChinese ? '财务信息' : 'Financial Info'}>
+                    <FormField label={isChinese ? '银行名称' : 'Bank Name'} value={form.bank_name} onChange={v => update('bank_name', v)} />
+                    <FormField label={isChinese ? '银行账户' : 'Bank Account Name'} value={form.bank_account_name} onChange={v => update('bank_account_name', v)} />
+                    <FormField label={isChinese ? '银行账号' : 'Bank Account Number'} value={form.bank_account_number} onChange={v => update('bank_account_number', v)} />
+                    <FormField label={isChinese ? '开户银行' : 'Bank Branch'} value={form.bank_branch} onChange={v => update('bank_branch', v)} />
+                    <FormField label={isChinese ? '统一社会信用代码' : 'Credit Code'} value={form.credit_code} onChange={v => update('credit_code', v)} />
+                    <FormField label={isChinese ? '法人代表' : 'Legal Representative'} value={form.legal_representative} onChange={v => update('legal_representative', v)} />
+                    <FormField label={isChinese ? '法人电话' : 'Legal Rep Phone'} value={form.legal_rep_phone} onChange={v => update('legal_rep_phone', v)} />
+                </SectionCard>
+
+                {/* ── Notes ── */}
+                <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+                    <h4 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {isChinese ? '备注' : 'Notes'}
+                    </h4>
+                    <textarea value={form.notes} onChange={e => update('notes', e.target.value)} rows={3} style={{ ...inputStyle, width: '100%', resize: 'vertical' }} />
+                </div>
+
                 {error && <div style={{ marginTop: 12, fontSize: 12, color: '#ef4444' }}>{error}</div>}
 
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
@@ -347,11 +498,11 @@ function SupplierForm({
     );
 }
 
-function FormField({ label, value, onChange, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; type?: string }) {
+function FormField({ label, value, onChange, type = 'text', readOnly = false }: { label: string; value: string; onChange: (v: string) => void; type?: string; readOnly?: boolean }) {
     return (
         <div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>{label}</label>
-            <input type={type} value={value} onChange={e => onChange(e.target.value)} style={{ ...inputStyle, width: '100%' }} />
+            <input type={type} value={value} onChange={e => onChange(e.target.value)} readOnly={readOnly} style={{ ...inputStyle, width: '100%', ...(readOnly ? { background: 'var(--bg-secondary)', color: 'var(--text-tertiary)' } : {}) }} />
         </div>
     );
 }
