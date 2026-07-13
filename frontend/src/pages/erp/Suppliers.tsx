@@ -161,7 +161,7 @@ function SupplierForm({
         queryKey: ['erp-categories', 'supplier'],
         queryFn: () => fetchJson<any[]>(`/erp/categories?type=supplier`),
     });
-    const defaultCategoryId = categories.length > 0 ? categories[0].id : '';
+    const defaultCategoryId = (categories.find((c: any) => c.is_default) || categories[0])?.id || "";
     const effectiveCategoryId = form.category_id || defaultCategoryId;
 
     // Add new contact

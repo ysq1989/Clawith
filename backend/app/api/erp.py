@@ -706,9 +706,19 @@ async def create_customer(body: CustomerCreate, user=Depends(get_current_user)):
                 select(ERPCategory).where(
                     ERPCategory.tenant_id == user.tenant_id,
                     ERPCategory.type == "customer",
-                ).order_by(ERPCategory.created_at.asc()).limit(1)
+                    ERPCategory.is_default == True,
+                ).limit(1)
             )
             cat_obj = default_cat.scalar_one_or_none()
+            if not cat_obj:
+                # Fallback: first by created_at
+                fallback = await db.execute(
+                    select(ERPCategory).where(
+                        ERPCategory.tenant_id == user.tenant_id,
+                        ERPCategory.type == "customer",
+                    ).order_by(ERPCategory.created_at.asc()).limit(1)
+                )
+                cat_obj = fallback.scalar_one_or_none()
             if cat_obj:
                 data["category_id"] = cat_obj.id
         elif data.get("category_id"):
@@ -857,9 +867,18 @@ async def create_supplier(body: SupplierCreate, user=Depends(get_current_user)):
                 select(ERPCategory).where(
                     ERPCategory.tenant_id == user.tenant_id,
                     ERPCategory.type == "supplier",
-                ).order_by(ERPCategory.created_at.asc()).limit(1)
+                    ERPCategory.is_default == True,
+                ).limit(1)
             )
             cat_obj = default_cat.scalar_one_or_none()
+            if not cat_obj:
+                fallback = await db.execute(
+                    select(ERPCategory).where(
+                        ERPCategory.tenant_id == user.tenant_id,
+                        ERPCategory.type == "supplier",
+                    ).order_by(ERPCategory.created_at.asc()).limit(1)
+                )
+                cat_obj = fallback.scalar_one_or_none()
             if cat_obj:
                 data["category_id"] = cat_obj.id
         elif data.get("category_id"):
@@ -2927,12 +2946,14 @@ class CategoryOut(BaseModel):
     id: str
     type: str
     name: str
+    is_default: bool = False
     created_at: str | None = None
 
 
 def _category_to_out(c):
     return CategoryOut(
         id=str(c.id), type=c.type, name=c.name,
+        is_default=c.is_default if hasattr(c, 'is_default') else False,
         created_at=c.created_at.isoformat() if c.created_at else None,
     )
 
@@ -2942,14 +2963,40 @@ async def list_categories(
     type: str = "customer",
     user=Depends(get_current_user),
 ):
-    """获取分类列表（type=customer 或 supplier）。"""
+    """获取分类列表（默认分类排第一）。"""
     async with async_session() as db:
         result = await db.execute(
             select(ERPCategory)
             .where(ERPCategory.tenant_id == user.tenant_id, ERPCategory.type == type)
-            .order_by(ERPCategory.created_at.asc())
+            .order_by(ERPCategory.is_default.desc(), ERPCategory.created_at.asc())
         )
         return [_category_to_out(c) for c in result.scalars().all()]
+
+
+@router.post("/categories/{category_id}/set-default")
+async def set_default_category(category_id: str, user=Depends(get_current_user)):
+    """设置某分类为默认（同类型其他分类取消默认）。"""
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPCategory).where(
+                ERPCategory.id == uuid.UUID(category_id),
+                ERPCategory.tenant_id == user.tenant_id,
+            )
+        )
+        cat = result.scalar_one_or_none()
+        if not cat:
+            raise HTTPException(404, "分类不存在")
+        # Clear other defaults of same type
+        await db.execute(
+            ERPCategory.__table__.update().where(
+                ERPCategory.tenant_id == user.tenant_id,
+                ERPCategory.type == cat.type,
+                ERPCategory.is_default == True,
+            ).values(is_default=False)
+        )
+        cat.is_default = True
+        await db.commit()
+        return {"ok": True}
 
 
 @router.post("/categories")

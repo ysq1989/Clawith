@@ -14,6 +14,7 @@ interface Category {
     id: string;
     type: string;
     name: string;
+    is_default: boolean;
     created_at: string;
 }
 
@@ -104,6 +105,11 @@ function CategoryTab({ type, isChinese }: { type: 'customer' | 'supplier'; isChi
         }
     };
 
+    const setDefaultMutation = useMutation({
+        mutationFn: (id: string) => fetchJson(`/erp/categories/${id}/set-default`, { method: 'POST' }),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    });
+
     const handleAdd = () => {
         if (!newName.trim()) return;
         createMutation.mutate(newName.trim());
@@ -138,15 +144,16 @@ function CategoryTab({ type, isChinese }: { type: 'customer' | 'supplier'; isChi
                         <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                             <th style={{ ...thStyle, width: 60 }}>{isChinese ? '序号' : '#'}</th>
                             <th style={thStyle}>{isChinese ? '分类名称' : 'Category Name'}</th>
+                            <th style={{ ...thStyle, width: 70, textAlign: 'center' }}>{isChinese ? '默认' : 'Default'}</th>
                             <th style={{ ...thStyle, width: 160 }}>{isChinese ? '创建时间' : 'Created'}</th>
                             <th style={{ ...thStyle, width: 120, textAlign: 'center' }}>{isChinese ? '操作' : 'Actions'}</th>
                         </tr>
                     </thead>
                     <tbody>
                         {isLoading ? (
-                            <tr><td colSpan={4} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{isChinese ? '加载中...' : 'Loading...'}</td></tr>
+                            <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{isChinese ? '加载中...' : 'Loading...'}</td></tr>
                         ) : categories.length === 0 ? (
-                            <tr><td colSpan={4} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{isChinese ? '暂无分类' : 'No categories'}</td></tr>
+                            <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{isChinese ? '暂无分类' : 'No categories'}</td></tr>
                         ) : categories.map((cat, idx) => (
                             <tr key={cat.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                                 <td style={tdStyle}>{idx + 1}</td>
@@ -166,6 +173,15 @@ function CategoryTab({ type, isChinese }: { type: 'customer' | 'supplier'; isChi
                                     ) : (
                                         cat.name
                                     )}
+                                </td>
+                                <td style={{ ...tdStyle, textAlign: 'center' }}>
+                                    <input
+                                        type="radio"
+                                        name={`default-${type}`}
+                                        checked={cat.is_default}
+                                        onChange={() => { if (!cat.is_default) setDefaultMutation.mutate(cat.id); }}
+                                        style={{ cursor: 'pointer', width: 16, height: 16, accentColor: 'var(--accent-primary)' }}
+                                    />
                                 </td>
                                 <td style={{ ...tdStyle, color: 'var(--text-tertiary)', fontSize: 12 }}>
                                     {cat.created_at ? new Date(cat.created_at).toLocaleString() : ''}

@@ -162,7 +162,7 @@ function CustomerForm({
         queryFn: () => fetchJson<any[]>(`/erp/categories?type=customer`),
     });
     // Auto-set default category on new customer
-    const defaultCategoryId = categories.length > 0 ? categories[0].id : '';
+    const defaultCategoryId = (categories.find((c: any) => c.is_default) || categories[0])?.id || "";
     const effectiveCategoryId = form.category_id || defaultCategoryId;
 
     // Add new contact

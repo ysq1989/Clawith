@@ -541,6 +541,7 @@ class ERPCategory(Base):
     )
     type: Mapped[str] = mapped_column(String(20), nullable=False)  # 'customer' or 'supplier'
     name: Mapped[str] = mapped_column(String(100), nullable=False)
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
