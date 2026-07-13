@@ -142,7 +142,10 @@ function NewOrderDialog({
             const updated = { ...line, [field]: value };
             if (field === 'material_id') {
                 const mat = materialOptions.find(m => m.id === value);
-                if (mat) updated.unit_price = mat.cost_price;
+                if (mat) {
+                    updated.unit_price = mat.cost_price ?? 0;
+                    updated.unit = mat.unit ?? '';
+                }
             }
             updated.subtotal = updated.quantity * updated.unit_price;
             return updated;

@@ -15,6 +15,7 @@ interface OrderLine {
     id?: string;
     product_id: string;
     product_name?: string;
+    unit?: string;
     quantity: number;
     unit_price: number;
     subtotal: number;
@@ -49,7 +50,8 @@ interface ProductOption {
     id: string;
     name: string;
     sku: string;
-    selling_price: number;
+    unit_price: number;
+    unit?: string;
 }
 
 /* ─── Constants ─── */
@@ -144,7 +146,10 @@ function NewOrderDialog({
             const updated = { ...line, [field]: value };
             if (field === 'product_id') {
                 const prod = productOptions.find(p => p.id === value);
-                if (prod) updated.unit_price = prod.selling_price;
+                if (prod) {
+                    updated.unit_price = prod.unit_price ?? 0;
+                    updated.unit = prod.unit ?? '';
+                }
             }
             updated.subtotal = updated.quantity * updated.unit_price;
             return updated;
