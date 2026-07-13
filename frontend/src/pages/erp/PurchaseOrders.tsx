@@ -115,14 +115,73 @@ function StatusBadge({ status, isChinese }: { status: string; isChinese: boolean
     );
 }
 
+/* ─── Searchable Select Component ─── */
+function SearchableSelect({
+    value, onChange, placeholder, apiPath, isChinese, labelKey,
+}: {
+    value: string;
+    onChange: (id: string, item: any) => void;
+    placeholder: string;
+    apiPath: string;
+    isChinese: boolean;
+    labelKey: 'name' | 'name_sku';
+}) {
+    const [open, setOpen] = useState(false);
+    const [search, setSearch] = useState('');
+    const [page, setPage] = useState(1);
+    const { data, isLoading } = useQuery({
+        queryKey: ['searchable-select', apiPath, search, page],
+        queryFn: () => fetchJson<any>(`${apiPath}?search=${encodeURIComponent(search)}&page=${page}&page_size=10`),
+        enabled: open,
+    });
+    const items = Array.isArray(data) ? data : (data?.items ?? []);
+    const total = Array.isArray(data) ? data.length : (data?.total ?? 0);
+    const totalPages = Math.max(1, Math.ceil(total / (Array.isArray(data) ? data.length : (data?.page_size ?? 10))));
+    const selectedItem = items.find((i: any) => i.id === value);
+    const displayLabel = selectedItem ? (labelKey === 'name_sku' ? `${selectedItem.name} (${selectedItem.sku})` : selectedItem.name) : '';
+    return (
+        <div style={{ position: 'relative', flex: 1 }}>
+            <div onClick={() => setOpen(!open)} style={{ ...inputStyle, width: '100%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 34 }}>
+                <span style={{ color: value ? 'var(--text-primary)' : 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayLabel || placeholder}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginLeft: 4, transition: 'transform 0.15s', transform: open ? 'rotate(180deg)' : 'none' }}><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            {open && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 1001, overflow: 'hidden' }}>
+                    <div style={{ padding: 8, borderBottom: '1px solid #e2e8f0' }}>
+                        <div style={{ position: 'relative' }}>
+                            <IconSearch size={14} stroke={1.5} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                            <input autoFocus value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder={isChinese ? '输入关键词搜索...' : 'Search...'} style={{ width: '100%', padding: '6px 8px 6px 28px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', color: '#1e293b', background: '#f8fafc' }} />
+                        </div>
+                    </div>
+                    <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+                        {isLoading ? <div style={{ padding: 16, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>{isChinese ? '加载中...' : 'Loading...'}</div>
+                        : items.length === 0 ? <div style={{ padding: 16, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>{isChinese ? '无匹配结果' : 'No results'}</div>
+                        : items.map((item: any) => (
+                            <div key={item.id} onClick={() => { onChange(item.id, item); setOpen(false); setSearch(''); }} style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, color: '#1e293b', borderBottom: '1px solid #f1f5f9', background: item.id === value ? '#eff6ff' : 'transparent', transition: 'background 0.1s' }} onMouseEnter={e => { if (item.id !== value) (e.currentTarget as HTMLElement).style.background = '#f8fafc'; }} onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = item.id === value ? '#eff6ff' : 'transparent'; }}>
+                                <div style={{ fontWeight: item.id === value ? 600 : 400 }}>{item.name}</div>
+                                {item.sku && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>SKU: {item.sku}</div>}
+                            </div>
+                        ))}
+                    </div>
+                    {totalPages > 1 && (
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid #e2e8f0' }}>
+                            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} style={{ ...btnSecondary, padding: '3px 8px', fontSize: 11 }}>{isChinese ? '上一页' : 'Prev'}</button>
+                            <span style={{ fontSize: 11, color: '#94a3b8', lineHeight: '24px' }}>{page}/{totalPages}</span>
+                            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} style={{ ...btnSecondary, padding: '3px 8px', fontSize: 11 }}>{isChinese ? '下一页' : 'Next'}</button>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
 /* ─── New Purchase Order Dialog ─── */
 function NewOrderDialog({
-    onClose, isChinese, supplierOptions, materialOptions,
+    onClose, isChinese,
 }: {
     onClose: (saved: boolean) => void;
     isChinese: boolean;
-    supplierOptions: SupplierOption[];
-    materialOptions: MaterialOption[];
 }) {
     const queryClient = useQueryClient();
     const [supplierId, setSupplierId] = useState('');
@@ -140,15 +199,22 @@ function NewOrderDialog({
         setLines(prev => prev.map((line, i) => {
             if (i !== idx) return line;
             const updated = { ...line, [field]: value };
-            if (field === 'material_id') {
-                const mat = materialOptions.find(m => m.id === value);
-                if (mat) {
-                    updated.unit_price = mat.cost_price ?? 0;
-                    updated.unit = mat.unit ?? '';
-                }
-            }
             updated.subtotal = updated.quantity * updated.unit_price;
             return updated;
+        }));
+    };
+
+    const selectMaterial = (idx: number, id: string, item: any) => {
+        setLines(prev => prev.map((line, i) => {
+            if (i !== idx) return line;
+            return {
+                ...line,
+                material_id: id,
+                material_name: item.name,
+                unit_price: item.cost_price ?? 0,
+                unit: item.unit ?? '',
+                subtotal: (item.cost_price ?? 0) * line.quantity,
+            };
         }));
     };
 
@@ -187,10 +253,14 @@ function NewOrderDialog({
                     <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
                         {isChinese ? '选择供应商 *' : 'Select Supplier *'}
                     </label>
-                    <select value={supplierId} onChange={e => setSupplierId(e.target.value)} style={{ ...inputStyle, width: '100%' }}>
-                        <option value="">{isChinese ? '-- 请选择 --' : '-- Select --'}</option>
-                        {supplierOptions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
+                    <SearchableSelect
+                        value={supplierId}
+                        onChange={(id) => setSupplierId(id)}
+                        placeholder={isChinese ? '-- 请选择供应商 --' : '-- Select Supplier --'}
+                        apiPath="/erp/suppliers"
+                        isChinese={isChinese}
+                        labelKey="name"
+                    />
                 </div>
 
                 <div style={{ marginBottom: 16 }}>
@@ -205,14 +275,15 @@ function NewOrderDialog({
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {lines.map((line, idx) => (
                             <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                <select
+                                <SearchableSelect
                                     value={line.material_id}
-                                    onChange={e => updateLine(idx, 'material_id', e.target.value)}
-                                    style={{ ...inputStyle, flex: 2 }}
-                                >
-                                    <option value="">{isChinese ? '选择物料' : 'Select Material'}</option>
-                                    {materialOptions.map(m => <option key={m.id} value={m.id}>{m.name} ({m.sku})</option>)}
-                                </select>
+                                    onChange={(id, item) => selectMaterial(idx, id, item)}
+                                    placeholder={isChinese ? '搜索选择物料...' : 'Search material...'}
+                                    apiPath="/erp/materials"
+                                    isChinese={isChinese}
+                                    labelKey="name_sku"
+                                />
+                                {line.unit && <span style={{ fontSize: 12, color: 'var(--text-tertiary)', minWidth: 30 }}>{line.unit}</span>}
                                 <input type="number" min={1} value={line.quantity} onChange={e => updateLine(idx, 'quantity', parseInt(e.target.value) || 0)} style={{ ...inputStyle, width: 80 }} placeholder={isChinese ? '数量' : 'Qty'} />
                                 <input type="number" value={line.unit_price} onChange={e => updateLine(idx, 'unit_price', parseFloat(e.target.value) || 0)} style={{ ...inputStyle, width: 100 }} placeholder={isChinese ? '单价' : 'Price'} />
                                 <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 80, textAlign: 'right' }}>{line.subtotal.toFixed(2)}</span>
@@ -377,18 +448,6 @@ export default function PurchaseOrders() {
         ),
     });
 
-    const { data: suppliersData } = useQuery({
-        queryKey: ['erp-suppliers-options'],
-        queryFn: () => fetchJson<{ items: SupplierOption[] }>('/erp/suppliers?page_size=999'),
-        enabled: showNewOrder,
-    });
-
-    const { data: materialsData } = useQuery({
-        queryKey: ['erp-materials-options'],
-        queryFn: () => fetchJson<{ items: MaterialOption[] }>('/erp/materials?page_size=999'),
-        enabled: showNewOrder,
-    });
-
     const orders = Array.isArray(data) ? data : (data?.items ?? []);
     const total = Array.isArray(data) ? data.length : (data?.total ?? 0);
     const pageSize = Array.isArray(data) ? data.length : (data?.page_size ?? 20);
@@ -488,8 +547,6 @@ export default function PurchaseOrders() {
             {showNewOrder && (
                 <NewOrderDialog
                     isChinese={isChinese}
-                    supplierOptions={Array.isArray(suppliersData) ? suppliersData : (suppliersData?.items ?? [])}
-                    materialOptions={Array.isArray(materialsData) ? materialsData : (materialsData?.items ?? [])}
                     onClose={() => setShowNewOrder(false)}
                 />
             )}
