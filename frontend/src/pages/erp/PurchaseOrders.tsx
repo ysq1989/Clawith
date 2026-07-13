@@ -273,6 +273,15 @@ function NewOrderDialog({
                         </button>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {/* Header row */}
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', paddingBottom: 4 }}>
+                            <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)' }}>{isChinese ? '物料名称' : 'Material'}</span>
+                            <span style={{ minWidth: 30, fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)' }}>{isChinese ? '单位' : 'Unit'}</span>
+                            <span style={{ width: 80, fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)' }}>{isChinese ? '数量' : 'Qty'}</span>
+                            <span style={{ width: 100, fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)' }}>{isChinese ? '成本价' : 'Cost'}</span>
+                            <span style={{ minWidth: 80, fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textAlign: 'right' }}>{isChinese ? '金额' : 'Amount'}</span>
+                            <span style={{ width: 22 }} />
+                        </div>
                         {lines.map((line, idx) => (
                             <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                 <SearchableSelect
