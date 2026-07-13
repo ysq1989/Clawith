@@ -69,6 +69,7 @@ def upgrade() -> None:
             unit VARCHAR(20),
             unit_price NUMERIC(14, 2),
             cost_price NUMERIC(14, 2),
+            stock_qty INTEGER NOT NULL DEFAULT 0,
             min_stock INTEGER DEFAULT 0,
             description TEXT,
             status VARCHAR(20) NOT NULL DEFAULT 'active',
