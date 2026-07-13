@@ -257,7 +257,7 @@ function OrderDetailDialog({
     const queryClient = useQueryClient();
     const statusMutation = useMutation({
         mutationFn: (newStatus: string) => fetchJson(`/erp/purchase-orders/${order.id}/status`, {
-            method: 'PUT', body: JSON.stringify({ status: newStatus }),
+            method: 'POST', body: JSON.stringify({ new_status: newStatus }),
         }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['erp-purchase-orders'] });

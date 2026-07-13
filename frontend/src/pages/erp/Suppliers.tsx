@@ -88,7 +88,7 @@ function SupplierForm({
         setSaving(true); setError('');
         try {
             if (supplier) {
-                await fetchJson(`/erp/suppliers/${supplier.id}`, { method: 'PUT', body: JSON.stringify(form) });
+                await fetchJson(`/erp/suppliers/${supplier.id}`, { method: 'PATCH', body: JSON.stringify(form) });
             } else {
                 await fetchJson('/erp/suppliers', { method: 'POST', body: JSON.stringify(form) });
             }

@@ -100,7 +100,7 @@ function ProductForm({
                 min_stock: parseInt(form.min_stock) || 0,
             };
             if (product) {
-                await fetchJson(`/erp/products/${product.id}`, { method: 'PUT', body: JSON.stringify(body) });
+                await fetchJson(`/erp/products/${product.id}`, { method: 'PATCH', body: JSON.stringify(body) });
             } else {
                 await fetchJson('/erp/products', { method: 'POST', body: JSON.stringify(body) });
             }
