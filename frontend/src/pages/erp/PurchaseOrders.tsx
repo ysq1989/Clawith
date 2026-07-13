@@ -272,7 +272,7 @@ function NewOrderDialog({
                             <IconPlus size={14} stroke={2} /> {isChinese ? '添加行' : 'Add Line'}
                         </button>
                     </div>
-                    <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden' }}>
+                    <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 8 }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                                 <tr style={{ background: 'var(--bg-tertiary)' }}>
