@@ -45,6 +45,7 @@ export default defineConfig({
         port: 3008,
         host: '0.0.0.0',
         hmr: false,
+        allowedHosts: ['ai.lingnanzhenxuan.com'],
         proxy: {
             '/api': {
                 target: `http://localhost:${backendPort}`,
