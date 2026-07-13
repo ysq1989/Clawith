@@ -23,7 +23,6 @@ import {
     IconUserCircle,
     IconCheck,
     IconBuilding,
-    IconPlus,
 } from '@tabler/icons-react';
 
 /* ─── Nav item definition ─── */
@@ -373,24 +372,6 @@ export default function ERPLayout() {
                                                 {isChinese ? '暂无公司' : 'No companies'}
                                             </div>
                                         )}
-                                    </div>
-                                    <div style={{ borderTop: '1px solid #e2e8f0', padding: 4 }}>
-                                        <button
-                                            onClick={() => { setShowMenu(false); navigate('/'); }}
-                                            style={{
-                                                display: 'flex', alignItems: 'center', gap: 8,
-                                                width: '100%', padding: '10px 14px',
-                                                background: 'transparent', border: 'none',
-                                                cursor: 'pointer', fontSize: 13, color: '#3b82f6',
-                                                fontWeight: 500, borderRadius: 6,
-                                                transition: 'background 0.1s',
-                                            }}
-                                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#f0f7ff'; }}
-                                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                                        >
-                                            <IconPlus size={16} stroke={1.6} />
-                                            <span>{isChinese ? '创建或加入新公司' : 'Create or join company'}</span>
-                                        </button>
                                     </div>
                                 </div>
                             )}
