@@ -24,6 +24,7 @@ import {
     IconUserCircle,
     IconCheck,
     IconBuilding,
+    IconSettings,
 } from '@tabler/icons-react';
 
 /* ─── Nav item definition ─── */
@@ -46,6 +47,7 @@ const NAV_ITEMS: NavItem[] = [
     { to: '/erp/inventory',    icon: <IconPackages size={18} stroke={1.5} />,       labelKey: 'erp.nav.inventory',       labelDefault: '库存管理' },
     { to: '/erp/finance',      icon: <IconCoin size={18} stroke={1.5} />,           labelKey: 'erp.nav.finance',         labelDefault: '财务管理' },
     { to: '/erp/reports',      icon: <IconChartBar size={18} stroke={1.5} />,       labelKey: 'erp.nav.reports',         labelDefault: '数据报表' },
+    { to: '/erp/settings',     icon: <IconSettings size={18} stroke={1.5} />,       labelKey: 'erp.nav.settings',        labelDefault: '系统设置' },
 ];
 
 /* ─── Route-to-title mapping for top bar ─── */
@@ -60,6 +62,7 @@ const ROUTE_TITLES: Record<string, { key: string; fallback: string }> = {
     '/erp/inventory':      { key: 'erp.nav.inventory',       fallback: '库存管理' },
     '/erp/finance':        { key: 'erp.nav.finance',         fallback: '财务管理' },
     '/erp/reports':        { key: 'erp.nav.reports',         fallback: '数据报表' },
+    '/erp/settings':       { key: 'erp.nav.settings',        fallback: '系统设置' },
 };
 
 function resolvePageTitle(pathname: string, t: (key: string, fallback: string) => string): string {

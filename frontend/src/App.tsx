@@ -33,6 +33,7 @@ const ERPPurchaseOrders = lazy(() => import('./pages/erp/PurchaseOrders'));
 const ERPInventory = lazy(() => import('./pages/erp/Inventory'));
 const ERPFinance = lazy(() => import('./pages/erp/Finance'));
 const ERPReports = lazy(() => import('./pages/erp/Reports'));
+const ERPSettings = lazy(() => import('./pages/erp/Settings'));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const token = useAuthStore((s) => s.token);
@@ -316,6 +317,7 @@ export default function App() {
                     <Route path="inventory" element={<ERPInventory />} />
                     <Route path="finance" element={<ERPFinance />} />
                     <Route path="reports" element={<ERPReports />} />
+                    <Route path="settings" element={<ERPSettings />} />
                 </Route>
             </Routes>
             </Suspense>

@@ -48,6 +48,7 @@ from app.models.erp import (
     ERPStockRecord,
     ERPSupplier,
     ERPWarehouse,
+    ERPCategory,
 )
 
 router = APIRouter(prefix="/api/erp", tags=["erp"])
@@ -2861,3 +2862,94 @@ async def download_attachment(attachment_id: str, user=Depends(get_current_user)
             filename=attachment.file_name,
             media_type=attachment.mime_type or "application/octet-stream",
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  CATEGORIES（分类管理）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class CategoryCreate(BaseModel):
+    name: str
+
+class CategoryOut(BaseModel):
+    id: str
+    type: str
+    name: str
+    created_at: str | None = None
+    class Config:
+        from_attributes = True
+
+
+@router.get("/categories")
+async def list_categories(
+    type: str = "customer",
+    user=Depends(get_current_user),
+):
+    """获取分类列表（type=customer 或 supplier）。"""
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPCategory)
+            .where(ERPCategory.tenant_id == user.tenant_id, ERPCategory.type == type)
+            .order_by(ERPCategory.created_at.asc())
+        )
+        return [CategoryOut.model_validate(c) for c in result.scalars().all()]
+
+
+@router.post("/categories")
+async def create_category(body: CategoryCreate, type: str = "customer", user=Depends(get_current_user)):
+    """创建分类。"""
+    async with async_session() as db:
+        obj = ERPCategory(tenant_id=user.tenant_id, type=type, name=body.name)
+        db.add(obj)
+        await db.commit()
+        await db.refresh(obj)
+        return CategoryOut.model_validate(obj)
+
+
+@router.patch("/categories/{category_id}")
+async def update_category(category_id: str, body: CategoryCreate, user=Depends(get_current_user)):
+    """修改分类名称。"""
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPCategory).where(
+                ERPCategory.id == uuid.UUID(category_id),
+                ERPCategory.tenant_id == user.tenant_id,
+            )
+        )
+        cat = result.scalar_one_or_none()
+        if not cat:
+            raise HTTPException(404, "分类不存在")
+        cat.name = body.name
+        await db.commit()
+        await db.refresh(cat)
+        return CategoryOut.model_validate(cat)
+
+
+@router.delete("/categories/{category_id}")
+async def delete_category(category_id: str, type: str = "customer", user=Depends(get_current_user)):
+    """删除分类（已使用的分类不能删除）。"""
+    from sqlalchemy import func as sqlfunc
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPCategory).where(
+                ERPCategory.id == uuid.UUID(category_id),
+                ERPCategory.tenant_id == user.tenant_id,
+            )
+        )
+        cat = result.scalar_one_or_none()
+        if not cat:
+            raise HTTPException(404, "分类不存在")
+        # Check if category is in use
+        if cat.type == "customer":
+            usage = await db.execute(
+                select(sqlfunc.count()).where(ERPCustomer.category_id == cat.id)
+            )
+        else:
+            usage = await db.execute(
+                select(sqlfunc.count()).where(ERPSupplier.category_id == cat.id)
+            )
+        if (usage.scalar() or 0) > 0:
+            raise HTTPException(400, "该分类已被使用，无法删除")
+        await db.delete(cat)
+        await db.commit()
+        return {"ok": True}

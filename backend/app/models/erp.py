@@ -52,6 +52,7 @@ class ERPCustomer(Base):
         index=True,
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    category_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
     contact_name: Mapped[str | None] = mapped_column(String(100))
     phone: Mapped[str | None] = mapped_column(String(50))
     email: Mapped[str | None] = mapped_column(String(200))
@@ -85,6 +86,7 @@ class ERPSupplier(Base):
         index=True,
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    category_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
     contact_name: Mapped[str | None] = mapped_column(String(100))
     phone: Mapped[str | None] = mapped_column(String(50))
     email: Mapped[str | None] = mapped_column(String(200))
@@ -518,6 +520,27 @@ class ERPAttachment(Base):
     file_size: Mapped[int] = mapped_column(Integer, default=0)
     mime_type: Mapped[str | None] = mapped_column(String(100))
 
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class ERPCategory(Base):
+    """客户/供应商分类，通过 type 区分。"""
+
+    __tablename__ = "erp_categories"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    type: Mapped[str] = mapped_column(String(20), nullable=False)  # 'customer' or 'supplier'
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
