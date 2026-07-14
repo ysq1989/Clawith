@@ -51,7 +51,7 @@ const NAV_GROUPS: NavGroup[] = [
         icon: <IconFolder size={18} stroke={1.5} />,
         children: [
             { to: '/erp/customers',   labelKey: 'erp.nav.customers',       labelDefault: '客户管理' },
-            { to: '/erp/suppliers',   labelKey: 'erp.nav.suppliers',       labelDefault: '供应商' },
+            { to: '/erp/suppliers',   labelKey: 'erp.nav.suppliers',       labelDefault: '供应商管理' },
             { to: '/erp/products',    labelKey: 'erp.nav.products',        labelDefault: '产品管理' },
             { to: '/erp/materials',   labelKey: 'erp.nav.materials',       labelDefault: '物料管理' },
             { to: '/erp/warehouse',   labelKey: 'erp.nav.warehouse',       labelDefault: '仓库管理' },
@@ -131,7 +131,7 @@ const NAV_GROUPS: NavGroup[] = [
 const ROUTE_TITLES: Record<string, { key: string; fallback: string }> = {
     '/erp':                         { key: 'erp.nav.dashboard',                   fallback: '首页概览' },
     '/erp/customers':               { key: 'erp.nav.customers',                   fallback: '客户管理' },
-    '/erp/suppliers':               { key: 'erp.nav.suppliers',                   fallback: '供应商' },
+    '/erp/suppliers':               { key: 'erp.nav.suppliers',                   fallback: '供应商管理' },
     '/erp/products':                { key: 'erp.nav.products',                    fallback: '产品管理' },
     '/erp/materials':               { key: 'erp.nav.materials',                   fallback: '物料管理' },
     '/erp/warehouse':               { key: 'erp.nav.warehouse',                   fallback: '仓库管理' },
@@ -513,17 +513,22 @@ export default function ERPLayout() {
                                         key={child.to}
                                         to={child.to}
                                         end={child.end}
-                                        style={({ isActive }) => isActive ? subLinkActive : subLinkBase}
+                                        style={({ isActive }) => {
+                                            if (isActive) return subLinkActive;
+                                            return subLinkBase;
+                                        }}
                                         onMouseEnter={e => {
-                                            if (!(e.currentTarget as HTMLElement).dataset.active) {
-                                                (e.currentTarget as HTMLElement).style.background = 'rgba(59, 130, 246, 0.08)';
-                                                (e.currentTarget as HTMLElement).style.color = '#ffffff';
+                                            const el = e.currentTarget as HTMLElement;
+                                            if (el.style.background !== 'rgba(59, 130, 246, 0.2)') {
+                                                el.style.background = 'rgba(59, 130, 246, 0.08)';
+                                                el.style.color = '#ffffff';
                                             }
                                         }}
                                         onMouseLeave={e => {
-                                            if (!(e.currentTarget as HTMLElement).dataset.active) {
-                                                (e.currentTarget as HTMLElement).style.background = 'transparent';
-                                                (e.currentTarget as HTMLElement).style.color = '#7ba7cc';
+                                            const el = e.currentTarget as HTMLElement;
+                                            if (el.style.background !== 'rgba(59, 130, 246, 0.2)') {
+                                                el.style.background = 'transparent';
+                                                el.style.color = '#7ba7cc';
                                             }
                                         }}
                                     >
