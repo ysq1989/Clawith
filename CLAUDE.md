@@ -117,6 +117,7 @@ docker compose up -d
 | `pages/` | Page components (19+ pages) |
 | `pages/agent-detail/` | Agent chat UI extracted sub-modules |
 | `pages/enterprise-settings/` | Enterprise config sub-modules |
+| `pages/erp/` | **ERP module** (15 page components, independent dashboard) |
 | `components/` | Reusable UI components |
 | `stores/` | Zustand global state (auth, permissions, i18n) |
 | `services/` | Axios API client |
@@ -251,3 +252,44 @@ ssh -i scripts/bt/8.134.178.82_id_ed25519 root@8.134.178.82 "cd /www/wwwroot/Cla
 - **Python Imports**: Place at file top. Avoid inline imports unless necessary (e.g., circular dependency prevention).
 - **Multi-tenant queries**: Always include `tenant_id` filter in database queries.
 - **No `.agents/` directory in this fork**: The upstream `AGENTS.md` references `.agents/rules/` and `.agents/workflows/` — these directories do not exist in the forked repo. Do not attempt to read them.
+
+## ERP Module
+
+The ERP module is an independent sub-application within Clawith, accessible at `/erp`. It has its own layout (`ERPLayout.tsx`) with a separate sidebar, independent from the main Clawith navigation.
+
+### Architecture
+
+- **Frontend**: `frontend/src/pages/erp/` — 15 page components, each a default export
+- **Backend**: `backend/app/api/erp.py` (~4000 lines, 48+ endpoints, Router prefix `/api/erp`)
+- **Models**: `backend/app/models/erp.py` — 15 SQLAlchemy models (customers, suppliers, products, materials, warehouses, orders, stock, financial, BOM, production, payments, categories, settings)
+- **Migrations**: `backend/alembic/versions/060-071_*.py`
+
+### Key Design Decisions
+
+- **Products vs Materials**: Products are finished goods (sales side), Materials are raw materials (purchase side). Separate tables, separate APIs, separate stock tracking.
+- **Auto-coding**: All entities support auto-generated codes (e.g. K001, SO0001). Prefix and digit count configurable in Settings → Code Settings.
+- **BOM is optional**: Production orders can work with or without a BOM. With BOM → deducts materials. Without BOM → only adds finished product.
+- **Module flags**: `ERPSettings` has `module_production` and `module_payments` (default off). Sidebar groups are filtered by these flags.
+- **Categories as JSON**: Warehouse/outbound/inbound categories stored as JSON arrays in `ERPSettings`, not separate tables.
+
+### ERP Helper Pattern
+
+All entity list/detail responses use `dict` (not Pydantic model) via `_xxx_to_out()` helpers:
+```python
+def _customer_to_out(c, category_name=None, salesperson_name=None):
+    return {"id": str(c.id), "name": c.name, ...}
+```
+This avoids Pydantic `model_validate()` UUID/datetime serialization issues.
+
+### ERP Frontend Patterns
+
+- `SearchableSelect` component: reusable dropdown with API-backed search + pagination (used in Customers, Suppliers, SalesOrders, PurchaseOrders)
+- `CategorySelect` component: simpler client-side filtered dropdown (used for categories in forms)
+- Status toggle: inline clickable badge in list tables (PATCH to toggle active/inactive)
+- Tab-based form dialogs: Basic Info / Financial / Contacts / Attachments tabs
+- All API calls use `fetchJson` from `../../services/api`
+- `Array.isArray(data) ? data : (data?.items ?? [])` pattern for list responses (backend returns plain arrays, frontend expects paginated)
+
+### User Manual
+
+Full user manual at `docs/ERP_USER_MANUAL.md` with business logic and case study.
