@@ -117,7 +117,7 @@ function StockOperationDialog({
         if (operationType === 'transfer' && !toWarehouse) { setError(isChinese ? '请输入目标仓库' : 'Please enter destination warehouse'); return; }
         setSaving(true); setError('');
         try {
-            await fetchJson('/erp/inventory/movements', {
+            await fetchJson(`/erp/stock/${operationType}`, {
                 method: 'POST',
                 body: JSON.stringify({
                     product_id: productId,
@@ -128,8 +128,8 @@ function StockOperationDialog({
                     reason,
                 }),
             });
-            queryClient.invalidateQueries({ queryKey: ['erp-inventory'] });
-            queryClient.invalidateQueries({ queryKey: ['erp-inventory-movements'] });
+            queryClient.invalidateQueries({ queryKey: ['erp-stock'] });
+            queryClient.invalidateQueries({ queryKey: ['erp-stock-records'] });
             onClose(true);
         } catch (e: any) {
             setError(e.message ?? 'Error');
@@ -210,14 +210,14 @@ export default function Inventory() {
     /* ── Overview query ── */
     const stockTypeParam = stockType === 'all' ? '' : `&type=${stockType}`;
     const { data: overviewData, isLoading: overviewLoading } = useQuery({
-        queryKey: ['erp-inventory', overviewPage, stockType],
-        queryFn: () => fetchJson<InventoryResponse>(`/erp/inventory?page=${overviewPage}&page_size=20${stockTypeParam}`),
+        queryKey: ['erp-stock', overviewPage, stockType],
+        queryFn: () => fetchJson<InventoryResponse>(`/erp/stock?page=${overviewPage}&page_size=20${stockTypeParam}`),
     });
 
     /* ── Movements query ── */
     const { data: movementsData, isLoading: movementsLoading } = useQuery({
-        queryKey: ['erp-inventory-movements', movementsPage, stockType],
-        queryFn: () => fetchJson<MovementsResponse>(`/erp/inventory/movements?page=${movementsPage}&page_size=20${stockTypeParam}`),
+        queryKey: ['erp-stock-records', movementsPage, stockType],
+        queryFn: () => fetchJson<MovementsResponse>(`/erp/stock/records?page=${movementsPage}&page_size=20${stockTypeParam}`),
         enabled: activeTab === 'movements',
     });
 

@@ -130,7 +130,7 @@ function NewRecordDialog({
         if (!category) { setError(isChinese ? '请选择分类' : 'Please select a category'); return; }
         setSaving(true); setError('');
         try {
-            await fetchJson('/erp/finance/records', {
+            await fetchJson('/erp/financials', {
                 method: 'POST',
                 body: JSON.stringify({
                     record_type: recordType,
@@ -248,7 +248,7 @@ export default function Finance() {
     const { data, isLoading } = useQuery({
         queryKey: ['erp-finance', page, typeFilter, dateFrom, dateTo],
         queryFn: () => fetchJson<FinanceResponse>(
-            `/erp/finance/records?page=${page}&page_size=20&type=${typeFilter === 'all' ? '' : typeFilter}&date_from=${dateFrom}&date_to=${dateTo}`,
+            `/erp/financials?page=${page}&page_size=20&type=${typeFilter === 'all' ? '' : typeFilter}&date_from=${dateFrom}&date_to=${dateTo}`,
         ),
     });
 

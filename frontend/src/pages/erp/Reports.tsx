@@ -119,7 +119,24 @@ export default function Reports() {
 
     const { data, isLoading } = useQuery({
         queryKey: ['erp-reports'],
-        queryFn: () => fetchJson<ReportsData>('/erp/reports'),
+        queryFn: async (): Promise<ReportsData> => {
+            const [salesRes, purchaseRes, inventoryRes, customersRes, pnlRes] = await Promise.all([
+                fetchJson<{ month: string; amount: number; orders: number }[]>('/erp/reports/sales'),
+                fetchJson<{ month: string; amount: number; orders: number }[]>('/erp/reports/purchase'),
+                fetchJson<{ name: string; sku: string; stock: number; min_stock: number }[]>('/erp/reports/inventory'),
+                fetchJson<{ name: string; value: number }[]>('/erp/reports/customers'),
+                fetchJson<{ months: string[]; income: number[]; expense: number[]; profit: number[] }>('/erp/reports/profit-loss'),
+            ]);
+            return {
+                sales_monthly: salesRes.map(r => ({ month: r.month, value: r.amount, count: r.orders })),
+                sales_table: salesRes,
+                purchase_monthly: purchaseRes.map(r => ({ month: r.month, value: r.amount, count: r.orders })),
+                purchase_table: purchaseRes,
+                inventory_chart: inventoryRes,
+                customer_ranking: customersRes,
+                pnl: pnlRes,
+            };
+        },
     });
 
     const tabs = [
