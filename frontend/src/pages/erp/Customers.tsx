@@ -211,7 +211,7 @@ function CustomerForm({
     customer, onClose, isChinese,
 }: {
     customer?: Customer;
-    onClose: (saved: boolean) => void;
+    onClose: (result: boolean | Customer) => void;
     isChinese: boolean;
 }) {
     const queryClient = useQueryClient();
@@ -328,11 +328,14 @@ function CustomerForm({
             const submitData = { ...form, category_id: effectiveCategoryId || null, salesperson_id: form.salesperson_id || null };
             if (customer) {
                 await fetchJson(`/erp/customers/${customer.id}`, { method: 'PATCH', body: JSON.stringify(submitData) });
+                queryClient.invalidateQueries({ queryKey: ['erp-customers'] });
+                onClose(true);
             } else {
-                await fetchJson('/erp/customers', { method: 'POST', body: JSON.stringify(submitData) });
+                const created = await fetchJson<any>('/erp/customers', { method: 'POST', body: JSON.stringify(submitData) });
+                queryClient.invalidateQueries({ queryKey: ['erp-customers'] });
+                // Return created customer so parent can reopen in edit mode
+                onClose(created);
             }
-            queryClient.invalidateQueries({ queryKey: ['erp-customers'] });
-            onClose(true);
         } catch (e: any) {
             setError(e.message ?? 'Error');
         } finally {
@@ -827,7 +830,15 @@ export default function Customers() {
                 <CustomerForm
                     customer={editingCustomer}
                     isChinese={isChinese}
-                    onClose={(saved) => { setShowForm(false); setEditingCustomer(undefined); }}
+                    onClose={(result) => {
+                        if (typeof result === 'object' && result !== null && 'id' in result) {
+                            // Created a new customer - reopen in edit mode
+                            setEditingCustomer(result as Customer);
+                        } else {
+                            setShowForm(false);
+                            setEditingCustomer(undefined);
+                        }
+                    }}
                 />
             )}
         </div>

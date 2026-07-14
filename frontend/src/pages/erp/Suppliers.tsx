@@ -209,7 +209,7 @@ function SupplierForm({
     supplier, onClose, isChinese,
 }: {
     supplier?: Supplier;
-    onClose: (saved: boolean) => void;
+    onClose: (result: boolean | Supplier) => void;
     isChinese: boolean;
 }) {
     const queryClient = useQueryClient();
@@ -325,11 +325,13 @@ function SupplierForm({
             const submitData = { ...form, category_id: effectiveCategoryId || null, salesperson_id: form.salesperson_id || null };
             if (supplier) {
                 await fetchJson(`/erp/suppliers/${supplier.id}`, { method: 'PATCH', body: JSON.stringify(submitData) });
+                queryClient.invalidateQueries({ queryKey: ['erp-suppliers'] });
+                onClose(true);
             } else {
-                await fetchJson('/erp/suppliers', { method: 'POST', body: JSON.stringify(submitData) });
+                const created = await fetchJson<any>('/erp/suppliers', { method: 'POST', body: JSON.stringify(submitData) });
+                queryClient.invalidateQueries({ queryKey: ['erp-suppliers'] });
+                onClose(created);
             }
-            queryClient.invalidateQueries({ queryKey: ['erp-suppliers'] });
-            onClose(true);
         } catch (e: any) {
             setError(e.message ?? 'Error');
         } finally {
@@ -813,7 +815,14 @@ export default function Suppliers() {
                 <SupplierForm
                     supplier={editingSupplier}
                     isChinese={isChinese}
-                    onClose={() => { setShowForm(false); setEditingSupplier(undefined); }}
+                    onClose={(result) => {
+                        if (typeof result === 'object' && result !== null && 'id' in result) {
+                            setEditingSupplier(result as Supplier);
+                        } else {
+                            setShowForm(false);
+                            setEditingSupplier(undefined);
+                        }
+                    }}
                 />
             )}
         </div>
