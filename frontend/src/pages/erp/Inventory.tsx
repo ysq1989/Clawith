@@ -15,11 +15,12 @@ interface InventoryItem {
     product_name: string;
     sku: string;
     warehouse: string;
-    current_stock: number;
+    stock_qty: number;
     min_stock: number;
-    cost_price: number;
-    stock_value: number;
+    unit?: string;
     item_type?: 'product' | 'material';
+    record_source?: string;
+    name?: string;
 }
 
 interface InventoryResponse {
@@ -315,7 +316,7 @@ export default function Inventory() {
                                         <th style={thStyle}>{t('erp.product.sku', 'SKU')}</th>
                                         <th style={thStyle}>{t('erp.inventory.currentStock', '当前库存')}</th>
                                         <th style={thStyle}>{t('erp.inventory.minStock', '最低库存')}</th>
-                                        <th style={thStyle}>{t('erp.inventory.stockValue', '库存价值')}</th>
+                                        <th style={thStyle}>{t('erp.inventory.unit', '单位')}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -324,7 +325,7 @@ export default function Inventory() {
                                     ) : overviewItems.length === 0 ? (
                                         <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.noData', '暂无数据')}</td></tr>
                                     ) : overviewItems.map(item => {
-                                        const isLow = item.current_stock < item.min_stock;
+                                        const isLow = item.stock_qty < item.min_stock;
                                         const rowBg = isLow ? 'rgba(239,68,68,0.06)' : 'transparent';
                                         const isMaterial = item.item_type === 'material';
                                         return (
@@ -343,11 +344,11 @@ export default function Inventory() {
                                                 <td style={tdStyle}>{item.product_name}</td>
                                                 <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 12 }}>{item.sku}</td>
                                                 <td style={{ ...tdStyle, color: isLow ? '#ef4444' : 'var(--text-primary)', fontWeight: isLow ? 600 : 400 }}>
-                                                    {item.current_stock}
+                                                    {item.stock_qty}
                                                     {isLow && <span style={{ fontSize: 11, marginLeft: 4 }}>({t('erp.product.lowStock', '低库存')})</span>}
                                                 </td>
                                                 <td style={tdStyle}>{item.min_stock}</td>
-                                                <td style={tdStyle}>{item.stock_value.toFixed(2)}</td>
+                                                <td style={tdStyle}>{item.unit || '-'}</td>
                                             </tr>
                                         );
                                     })}
