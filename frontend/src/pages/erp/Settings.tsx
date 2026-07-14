@@ -471,6 +471,7 @@ function ModuleConfigTab({ isChinese }: { isChinese: boolean }) {
     });
     const [saving, setSaving] = useState(false);
     const [modules, setModules] = useState<Record<string, boolean>>({});
+    const [defaultFulfillmentMode, setDefaultFulfillmentMode] = useState('mts');
 
     useEffect(() => {
         if (settings) {
@@ -484,6 +485,7 @@ function ModuleConfigTab({ isChinese }: { isChinese: boolean }) {
                 module_finance: settings.module_finance ?? true,
                 module_payments: settings.module_payments ?? false,
             });
+            setDefaultFulfillmentMode(settings.default_fulfillment_mode ?? 'mts');
         }
     }, [settings]);
 
@@ -492,7 +494,10 @@ function ModuleConfigTab({ isChinese }: { isChinese: boolean }) {
     const handleSave = async () => {
         setSaving(true);
         try {
-            await fetchJson('/erp/settings', { method: 'PUT', body: JSON.stringify(modules) });
+            await fetchJson('/erp/settings', {
+                method: 'PUT',
+                body: JSON.stringify({ ...modules, default_fulfillment_mode: defaultFulfillmentMode }),
+            });
             queryClient.invalidateQueries({ queryKey: ['erp-settings'] });
         } finally { setSaving(false); }
     };
@@ -512,6 +517,29 @@ function ModuleConfigTab({ isChinese }: { isChinese: boolean }) {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* ── 全局履约模式 ── */}
+            <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 10, padding: '16px 20px' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>
+                    {isChinese ? '全局履约模式' : 'Global Fulfillment Mode'}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <select
+                        value={defaultFulfillmentMode}
+                        onChange={e => setDefaultFulfillmentMode(e.target.value)}
+                        style={{ ...inputStyle, minWidth: 320 }}
+                    >
+                        <option value="mts">{isChinese ? '按计划生产 — 确认销售订单时自动扣减库存' : 'Make-to-Stock — Auto-deduct stock on order confirmation'}</option>
+                        <option value="mto">{isChinese ? '按订单生产 — 确认销售订单时不扣减库存' : 'Make-to-Order — No stock deduction on order confirmation'}</option>
+                    </select>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>
+                    {isChinese
+                        ? '此设置为所有新产品的默认履约模式。每个产品可在「产品管理」中单独覆盖。'
+                        : 'Default mode for all new products. Each product can override this in Products.'}
+                </div>
+            </div>
+
+            {/* ── 模块开关 ── */}
             <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 10 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead><tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>

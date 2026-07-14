@@ -150,6 +150,8 @@ class ERPProduct(Base):
     unit_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     stock_qty: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     min_stock: Mapped[int] = mapped_column(Integer, default=0)
+    fulfillment_mode: Mapped[str | None] = mapped_column(String(10), nullable=True, default=None)
+    # None = 继承全局默认, "mts" = 按计划生产, "mto" = 按订单生产
     description: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="active"
@@ -486,6 +488,8 @@ class ERPSettings(Base):
     currency: Mapped[str] = mapped_column(String(10), nullable=False, default="CNY")
     fiscal_year_start: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     auto_stock_deduct: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    default_fulfillment_mode: Mapped[str] = mapped_column(String(10), nullable=False, default="mts")
+    # "mts" = 按计划生产（确认时扣库存）, "mto" = 按订单生产（确认时不扣库存）
     default_payment_terms: Mapped[str | None] = mapped_column(String(200))
     customer_code_prefix: Mapped[str] = mapped_column(String(10), nullable=False, default="K")
     customer_code_digits: Mapped[int] = mapped_column(Integer, nullable=False, default=3)

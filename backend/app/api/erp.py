@@ -127,6 +127,13 @@ async def _get_or_create_settings(db, tenant_id: uuid.UUID) -> ERPSettings:
     return settings
 
 
+def _resolve_fulfillment_mode(product_mode: str | None, settings_mode: str) -> str:
+    """优先产品级 > 全局默认，返回 'mts' 或 'mto'。"""
+    if product_mode in ("mts", "mto"):
+        return product_mode
+    return settings_mode if settings_mode in ("mts", "mto") else "mts"
+
+
 # ─── Pydantic Schemas ────────────────────────────────────────────────────────
 
 class PaginatedResponse(BaseModel):
@@ -306,6 +313,7 @@ class ProductCreate(BaseModel):
     stock_qty: int = 0
     min_stock: int = 0
     description: str | None = None
+    fulfillment_mode: str | None = None  # None/mts/mto
 
 
 class ProductUpdate(BaseModel):
@@ -318,6 +326,7 @@ class ProductUpdate(BaseModel):
     min_stock: int | None = None
     description: str | None = None
     status: str | None = None
+    fulfillment_mode: str | None = None  # None/mts/mto
 
 
 class ProductOut(BaseModel):
@@ -331,6 +340,7 @@ class ProductOut(BaseModel):
     min_stock: int
     description: str | None = None
     status: str
+    fulfillment_mode: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -639,6 +649,7 @@ class ERPSettingsUpdate(BaseModel):
     currency: str | None = None
     fiscal_year_start: int | None = None
     auto_stock_deduct: bool | None = None
+    default_fulfillment_mode: str | None = None  # mts / mto
     default_payment_terms: str | None = None
     customer_code_prefix: str | None = None
     customer_code_digits: int | None = None
@@ -684,6 +695,7 @@ class ERPSettingsOut(BaseModel):
     currency: str
     fiscal_year_start: int
     auto_stock_deduct: bool
+    default_fulfillment_mode: str = "mts"
     default_payment_terms: str | None = None
     customer_code_prefix: str = "K"
     customer_code_digits: int = 3
@@ -1229,6 +1241,7 @@ def _product_to_out(p):
         unit_price=_to_f(p.unit_price),
         stock_qty=p.stock_qty, min_stock=p.min_stock,
         description=p.description, status=p.status,
+        fulfillment_mode=p.fulfillment_mode,
         created_at=p.created_at.isoformat() if p.created_at else None,
         updated_at=p.updated_at.isoformat() if p.updated_at else None,
     )
@@ -1821,26 +1834,25 @@ async def update_sales_order_status(
         _validate_transition(order.status, body.new_status, _SALES_STATUS_FLOW)
         order.status = body.new_status
 
-        # Auto-deduct stock on confirmation
+        # Auto-deduct stock on confirmation (per-product fulfillment_mode)
         if body.new_status == "confirmed":
             settings = await _get_or_create_settings(db, user.tenant_id)
-            if settings.auto_stock_deduct:
-                items_result = await db.execute(
-                    select(ERPSalesOrderItem).where(ERPSalesOrderItem.order_id == order.id)
+            items_result = await db.execute(
+                select(ERPSalesOrderItem).where(ERPSalesOrderItem.order_id == order.id)
+            )
+            items = items_result.scalars().all()
+            for item in items:
+                prod_result = await db.execute(
+                    select(ERPProduct).where(ERPProduct.id == item.product_id)
                 )
-                items = items_result.scalars().all()
-                for item in items:
-                    prod_result = await db.execute(
-                        select(ERPProduct).where(ERPProduct.id == item.product_id)
-                    )
-                    product = prod_result.scalar_one_or_none()
-                    if product:
-                        if product.stock_qty < item.quantity:
-                            raise HTTPException(
-                                400,
-                                f"Insufficient stock for '{product.name}': "
-                                f"available {product.stock_qty}, required {item.quantity}",
-                            )
+                product = prod_result.scalar_one_or_none()
+                if not product:
+                    continue
+                mode = _resolve_fulfillment_mode(
+                    product.fulfillment_mode, settings.default_fulfillment_mode
+                )
+                if mode == "mts":
+                    if product.stock_qty >= item.quantity:
                         product.stock_qty -= item.quantity
                         db.add(ERPStockRecord(
                             tenant_id=user.tenant_id,
@@ -1852,6 +1864,7 @@ async def update_sales_order_status(
                             quantity=item.quantity,
                             reason=f"Sales order {order.order_no} confirmed",
                         ))
+                    # 库存不足时跳过该行，不整单拒绝（允许手动后续补货）
 
         await db.commit()
         await db.refresh(order)
@@ -2902,6 +2915,7 @@ def _settings_to_out(s):
         id=str(s.id), company_name=s.company_name,
         currency=s.currency, fiscal_year_start=s.fiscal_year_start,
         auto_stock_deduct=s.auto_stock_deduct,
+        default_fulfillment_mode=s.default_fulfillment_mode,
         default_payment_terms=s.default_payment_terms,
         customer_code_prefix=s.customer_code_prefix,
         customer_code_digits=s.customer_code_digits,

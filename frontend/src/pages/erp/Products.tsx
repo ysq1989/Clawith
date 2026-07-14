@@ -21,6 +21,7 @@ interface Product {
     min_stock: number;
     status: string;
     description: string;
+    fulfillment_mode: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -79,6 +80,7 @@ function ProductForm({
         min_stock: String(product?.min_stock ?? '0'),
         status: product?.status ?? 'active',
         description: product?.description ?? '',
+        fulfillment_mode: product?.fulfillment_mode ?? '',
     });
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
@@ -95,6 +97,7 @@ function ProductForm({
                 unit_price: parseFloat(form.unit_price) || 0,
                 stock_qty: parseInt(form.stock_qty) || 0,
                 min_stock: parseInt(form.min_stock) || 0,
+                fulfillment_mode: form.fulfillment_mode || null,
             };
             if (product) {
                 await fetchJson(`/erp/products/${product.id}`, { method: 'PATCH', body: JSON.stringify(body) });
@@ -165,6 +168,19 @@ function ProductForm({
                             <option value="active">{isChinese ? '在售' : 'Active'}</option>
                             <option value="inactive">{isChinese ? '停售' : 'Inactive'}</option>
                         </select>
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                            {isChinese ? '履约模式' : 'Fulfillment Mode'}
+                        </label>
+                        <select value={form.fulfillment_mode} onChange={e => update('fulfillment_mode', e.target.value)} style={{ ...inputStyle, width: '100%' }}>
+                            <option value="">{isChinese ? '继承全局默认' : 'Inherit Global Default'}</option>
+                            <option value="mts">{isChinese ? '按计划生产 — 确认时扣库存' : 'Make-to-Stock — Deduct on confirm'}</option>
+                            <option value="mto">{isChinese ? '按订单生产 — 确认时不扣库存' : 'Make-to-Order — No deduct on confirm'}</option>
+                        </select>
+                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>
+                            {isChinese ? '决定销售订单确认时是否自动扣减库存' : 'Determines whether stock is auto-deducted when sales order is confirmed'}
+                        </div>
                     </div>
                     <div>
                         <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
@@ -277,15 +293,16 @@ export default function Products() {
                                 <th style={thStyle}>{t('erp.product.unit', '单位')}</th>
                                 <th style={thStyle}>{t('erp.product.price', '售价')}</th>
                                 <th style={thStyle}>{t('erp.product.stock', '库存量')}</th>
+                                <th style={thStyle}>{isChinese ? '履约模式' : 'Mode'}</th>
                                 <th style={thStyle}>{t('erp.product.status', '状态')}</th>
                                 <th style={{ ...thStyle, textAlign: 'center' }}>{t('erp.actions', '操作')}</th>
                             </tr>
                         </thead>
                         <tbody>
                             {isLoading ? (
-                                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.loading', '加载中...')}</td></tr>
+                                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.loading', '加载中...')}</td></tr>
                             ) : products.length === 0 ? (
-                                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.noData', '暂无数据')}</td></tr>
+                                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.noData', '暂无数据')}</td></tr>
                             ) : products.map(p => {
                                 const isLowStock = p.stock_qty < p.min_stock;
                                 const rowBg = isLowStock ? 'rgba(239,68,68,0.06)' : 'transparent';
@@ -299,6 +316,17 @@ export default function Products() {
                                         <td style={{ ...tdStyle, color: isLowStock ? '#ef4444' : 'var(--text-primary)', fontWeight: isLowStock ? 600 : 400 }}>
                                             {p.stock_qty}
                                             {isLowStock && <span style={{ fontSize: 11, marginLeft: 4 }}>({t('erp.product.lowStock', '低库存')})</span>}
+                                        </td>
+                                        <td style={tdStyle}>
+                                            <span style={{
+                                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                padding: '2px 8px', borderRadius: 100, fontSize: 11, fontWeight: 500,
+                                                background: p.fulfillment_mode === 'mto' ? 'rgba(251,191,36,0.12)' : 'rgba(59,130,246,0.12)',
+                                                border: `1px solid ${p.fulfillment_mode === 'mto' ? 'rgba(251,191,36,0.3)' : 'rgba(59,130,246,0.3)'}`,
+                                                color: p.fulfillment_mode === 'mto' ? '#d97706' : '#3b82f6',
+                                            }}>
+                                                {p.fulfillment_mode === 'mto' ? (isChinese ? '按订单' : 'MTO') : (isChinese ? '按计划' : 'MTS')}
+                                            </span>
                                         </td>
                                         <td style={tdStyle}>
                                             <span style={{
