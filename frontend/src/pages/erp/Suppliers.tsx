@@ -19,7 +19,9 @@ interface Supplier {
     code?: string;
     short_name?: string;
     category_id?: string;
+    category_name?: string;
     salesperson_id?: string;
+    salesperson_name?: string;
     address: string;
     status: string;
     notes: string;
@@ -31,6 +33,12 @@ interface Supplier {
     credit_code?: string;
     legal_representative?: string;
     legal_rep_phone?: string;
+    created_at: string;
+    updated_at: string;
+    default_contact_name?: string;
+    default_contact_phone?: string;
+    default_contact_email?: string;
+}
     created_at: string;
     updated_at: string;
     default_contact_name?: string;
@@ -731,24 +739,32 @@ export default function Suppliers() {
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                <th style={thStyle}>{t('erp.supplier.name', '供应商名称')}</th>
-                                <th style={thStyle}>{t('erp.supplier.defaultContact', '默认联系人')}</th>
-                                <th style={thStyle}>{t('erp.supplier.contactPhone', '联系人电话')}</th>
-                                <th style={thStyle}>{t('erp.supplier.status', '状态')}</th>
-                                <th style={thStyle}>{t('erp.supplier.createdAt', '创建时间')}</th>
+                                <th style={thStyle}>{isChinese ? '供应商编码' : 'Code'}</th>
+                                <th style={thStyle}>{isChinese ? '供应商名称' : 'Name'}</th>
+                                <th style={thStyle}>{isChinese ? '简称' : 'Short Name'}</th>
+                                <th style={thStyle}>{isChinese ? '分类' : 'Category'}</th>
+                                <th style={thStyle}>{isChinese ? '联系人' : 'Contact'}</th>
+                                <th style={thStyle}>{isChinese ? '联系人电话' : 'Phone'}</th>
+                                <th style={thStyle}>{isChinese ? '业务员' : 'Salesperson'}</th>
+                                <th style={thStyle}>{isChinese ? '状态' : 'Status'}</th>
+                                <th style={thStyle}>{isChinese ? '创建时间' : 'Created'}</th>
                                 <th style={{ ...thStyle, textAlign: 'center' }}>{t('erp.actions', '操作')}</th>
                             </tr>
                         </thead>
                         <tbody>
                             {isLoading ? (
-                                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.loading', '加载中...')}</td></tr>
+                                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.loading', '加载中...')}</td></tr>
                             ) : suppliers.length === 0 ? (
-                                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.noData', '暂无数据')}</td></tr>
+                                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.noData', '暂无数据')}</td></tr>
                             ) : suppliers.map(s => (
                                 <tr key={s.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                    <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 12, color: 'var(--text-tertiary)' }}>{s.code || '-'}</td>
                                     <td style={tdStyle}>{s.name}</td>
+                                    <td style={tdStyle}>{s.short_name || '-'}</td>
+                                    <td style={tdStyle}>{(s as any).category_name || '-'}</td>
                                     <td style={tdStyle}>{s.default_contact_name || '-'}</td>
                                     <td style={tdStyle}>{s.default_contact_phone || '-'}</td>
+                                    <td style={tdStyle}>{(s as any).salesperson_name || '-'}</td>
                                     <td style={tdStyle}>
                                         <button
                                             onClick={async () => {
