@@ -143,6 +143,7 @@ class ERPProduct(Base):
         index=True,
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    code: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)  # 产品编码，如 P001
     sku: Mapped[str | None] = mapped_column(String(100))
     category: Mapped[str | None] = mapped_column(String(100))
     unit: Mapped[str | None] = mapped_column(String(20))
@@ -177,7 +178,7 @@ class ERPMaterial(Base):
         index=True,
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    sku: Mapped[str | None] = mapped_column(String(100))
+    code: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)  # 物料编码，如 M001
     category: Mapped[str | None] = mapped_column(String(100))
     unit: Mapped[str | None] = mapped_column(String(20))
     cost_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
@@ -379,6 +380,7 @@ class ERPStockRecord(Base):
         nullable=False,
         index=True,
     )
+    record_no: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)  # 出入库单号
     product_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("erp_products.id"),
@@ -430,6 +432,7 @@ class ERPFinancialRecord(Base):
         nullable=False,
         index=True,
     )
+    record_no: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)  # 财务记录编号
     record_type: Mapped[str] = mapped_column(
         String(20), nullable=False
     )  # income | expense | receivable | payable
