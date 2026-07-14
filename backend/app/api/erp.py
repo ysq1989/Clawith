@@ -21,6 +21,7 @@ Reports        GET /reports/{sales,purchase,inventory,customers,profit-loss}
 Settings       GET/PUT /settings
 """
 
+import json
 import os
 import uuid
 from datetime import date
@@ -35,13 +36,17 @@ from app.api.auth import get_current_user
 from app.database import async_session
 from app.models.erp import (
     ERPAttachment,
+    ERPBOM,
     ERPContact,
     ERPCustomer,
     ERPFinancialRecord,
     ERPMaterial,
+    ERPPayment,
     ERPPurchaseOrder,
     ERPPurchaseOrderItem,
     ERPProduct,
+    ERPProductionOrder,
+    ERPProductionStatus,
     ERPSettings,
     ERPSalesOrder,
     ERPSalesOrderItem,
@@ -66,12 +71,16 @@ def _to_f(val) -> float:
     return float(val) if val is not None else 0.0
 
 
-async def _generate_order_no(db, Model, prefix: str, today: date) -> str:
-    """Generate sequential order_no: e.g. SO202607130001."""
+async def _generate_order_no(db, Model, prefix: str, today: date, col_name: str = "order_no") -> str:
+    """Generate sequential order_no: e.g. SO202607130001.
+
+    col_name: the column to match on (default 'order_no', use 'payment_no' for payments).
+    """
     date_str = today.strftime("%Y%m%d")
     like_pattern = f"{prefix}{date_str}%"
+    col = getattr(Model, col_name)
     result = await db.execute(
-        select(func.count()).select_from(Model).where(Model.order_no.like(like_pattern))
+        select(func.count()).select_from(Model).where(col.like(like_pattern))
     )
     seq = (result.scalar() or 0) + 1
     return f"{prefix}{date_str}{seq:04d}"
@@ -555,6 +564,7 @@ class StockRecordOut(BaseModel):
     record_type: str
     quantity: int
     related_order_id: str | None = None
+    production_order_id: str | None = None  # 关联生产工单
     reason: str | None = None
     created_at: str | None = None
 
@@ -650,6 +660,22 @@ class ERPSettingsUpdate(BaseModel):
     transfer_digits: int | None = None
     financial_prefix: str | None = None
     financial_digits: int | None = None
+    # 生产工单编码
+    production_order_prefix: str | None = None
+    production_order_digits: int | None = None
+    # 模块开关
+    module_customers: bool | None = None
+    module_suppliers: bool | None = None
+    module_products: bool | None = None
+    module_materials: bool | None = None
+    module_inventory: bool | None = None
+    module_production: bool | None = None
+    module_finance: bool | None = None
+    module_payments: bool | None = None
+    # 分类 JSON
+    warehouse_categories: str | None = None  # JSON 数组
+    outbound_categories: str | None = None   # JSON 数组
+    inbound_categories: str | None = None    # JSON 数组
 
 
 class ERPSettingsOut(BaseModel):
@@ -679,6 +705,22 @@ class ERPSettingsOut(BaseModel):
     transfer_digits: int = 4
     financial_prefix: str = "FIN"
     financial_digits: int = 4
+    # 生产工单编码
+    production_order_prefix: str = "PRD"
+    production_order_digits: int = 4
+    # 模块开关
+    module_customers: bool = True
+    module_suppliers: bool = True
+    module_products: bool = True
+    module_materials: bool = True
+    module_inventory: bool = True
+    module_production: bool = False
+    module_finance: bool = True
+    module_payments: bool = False
+    # 分类 JSON
+    warehouse_categories: str | None = None
+    outbound_categories: str | None = None
+    inbound_categories: str | None = None
 
     class Config:
         from_attributes = True
@@ -2253,6 +2295,7 @@ def _stock_record_to_out(r):
         record_type=r.record_type,
         quantity=r.quantity,
         related_order_id=_to_str(r.related_order_id),
+        production_order_id=_to_str(getattr(r, 'production_order_id', None)),
         reason=r.reason,
         created_at=r.created_at.isoformat() if r.created_at else None,
     )
@@ -2880,6 +2923,22 @@ def _settings_to_out(s):
         transfer_digits=s.transfer_digits,
         financial_prefix=s.financial_prefix,
         financial_digits=s.financial_digits,
+        # 生产工单编码
+        production_order_prefix=s.production_order_prefix,
+        production_order_digits=s.production_order_digits,
+        # 模块开关
+        module_customers=s.module_customers,
+        module_suppliers=s.module_suppliers,
+        module_products=s.module_products,
+        module_materials=s.module_materials,
+        module_inventory=s.module_inventory,
+        module_production=s.module_production,
+        module_finance=s.module_finance,
+        module_payments=s.module_payments,
+        # 分类
+        warehouse_categories=s.warehouse_categories,
+        outbound_categories=s.outbound_categories,
+        inbound_categories=s.inbound_categories,
     )
 
 
@@ -3324,3 +3383,688 @@ async def delete_category(category_id: str, type: str = "customer", user=Depends
         await db.delete(cat)
         await db.commit()
         return {"ok": True}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  PRODUCTION STATUS（生产状态自定义）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class ProductionStatusCreate(BaseModel):
+    name: str
+    sort_order: int = 0
+    is_active: bool = True
+
+
+class ProductionStatusUpdate(BaseModel):
+    name: str | None = None
+    sort_order: int | None = None
+    is_active: bool | None = None
+
+
+class ProductionStatusOut(BaseModel):
+    id: str
+    name: str
+    sort_order: int
+    is_active: bool
+    created_at: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+def _production_status_to_out(ps):
+    return ProductionStatusOut(
+        id=str(ps.id), name=ps.name,
+        sort_order=ps.sort_order, is_active=ps.is_active,
+        created_at=ps.created_at.isoformat() if ps.created_at else None,
+    )
+
+
+@router.get("/production-statuses", response_model=list[ProductionStatusOut])
+async def list_production_statuses(user=Depends(get_current_user)):
+    """获取生产状态列表（按 sort_order 排序）。"""
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPProductionStatus)
+            .where(ERPProductionStatus.tenant_id == user.tenant_id)
+            .order_by(ERPProductionStatus.sort_order.asc())
+        )
+        return [_production_status_to_out(ps) for ps in result.scalars().all()]
+
+
+@router.post("/production-statuses", response_model=ProductionStatusOut)
+async def create_production_status(body: ProductionStatusCreate, user=Depends(get_current_user)):
+    """创建生产状态。"""
+    async with async_session() as db:
+        obj = ERPProductionStatus(
+            tenant_id=user.tenant_id,
+            name=body.name,
+            sort_order=body.sort_order,
+            is_active=body.is_active,
+        )
+        db.add(obj)
+        await db.commit()
+        await db.refresh(obj)
+        return _production_status_to_out(obj)
+
+
+@router.patch("/production-statuses/{status_id}", response_model=ProductionStatusOut)
+async def update_production_status(status_id: str, body: ProductionStatusUpdate, user=Depends(get_current_user)):
+    """修改生产状态。"""
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPProductionStatus).where(
+                ERPProductionStatus.id == uuid.UUID(status_id),
+                ERPProductionStatus.tenant_id == user.tenant_id,
+            )
+        )
+        obj = result.scalar_one_or_none()
+        if not obj:
+            raise HTTPException(404, "生产状态不存在")
+        for field, value in body.model_dump(exclude_unset=True).items():
+            setattr(obj, field, value)
+        await db.commit()
+        await db.refresh(obj)
+        return _production_status_to_out(obj)
+
+
+@router.delete("/production-statuses/{status_id}")
+async def delete_production_status(status_id: str, user=Depends(get_current_user)):
+    """删除生产状态。"""
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPProductionStatus).where(
+                ERPProductionStatus.id == uuid.UUID(status_id),
+                ERPProductionStatus.tenant_id == user.tenant_id,
+            )
+        )
+        obj = result.scalar_one_or_none()
+        if not obj:
+            raise HTTPException(404, "生产状态不存在")
+        await db.delete(obj)
+        await db.commit()
+        return {"ok": True}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  BOM（物料清单）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class BOMCreate(BaseModel):
+    product_id: str
+    material_id: str
+    quantity: float = 1.0
+    unit: str | None = None
+
+
+class BOMUpdate(BaseModel):
+    product_id: str | None = None
+    material_id: str | None = None
+    quantity: float | None = None
+    unit: str | None = None
+
+
+class BOMOut(BaseModel):
+    id: str
+    product_id: str
+    material_id: str
+    quantity: float
+    unit: str | None = None
+    product_name: str | None = None
+    material_name: str | None = None
+    created_at: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+def _bom_to_out(bom, product_name=None, material_name=None):
+    return BOMOut(
+        id=str(bom.id), product_id=str(bom.product_id),
+        material_id=str(bom.material_id),
+        quantity=float(bom.quantity), unit=bom.unit,
+        product_name=product_name, material_name=material_name,
+        created_at=bom.created_at.isoformat() if bom.created_at else None,
+    )
+
+
+@router.get("/boms", response_model=list[BOMOut])
+async def list_boms(product_id: str | None = None, user=Depends(get_current_user)):
+    """获取 BOM 列表（可按 product_id 筛选）。"""
+    async with async_session() as db:
+        q = select(ERPBOM).where(ERPBOM.tenant_id == user.tenant_id)
+        if product_id:
+            q = q.where(ERPBOM.product_id == uuid.UUID(product_id))
+        result = await db.execute(q.order_by(ERPBOM.created_at.desc()))
+        boms = result.scalars().all()
+        # 批量查询产品和物料名称
+        product_ids = {b.product_id for b in boms}
+        material_ids = {b.material_id for b in boms}
+        product_names, material_names = {}, {}
+        if product_ids:
+            prod_res = await db.execute(
+                select(ERPProduct).where(ERPProduct.id.in_(product_ids))
+            )
+            product_names = {p.id: p.name for p in prod_res.scalars().all()}
+        if material_ids:
+            mat_res = await db.execute(
+                select(ERPMaterial).where(ERPMaterial.id.in_(material_ids))
+            )
+            material_names = {m.id: m.name for m in mat_res.scalars().all()}
+        return [
+            _bom_to_out(b, product_names.get(b.product_id), material_names.get(b.material_id))
+            for b in boms
+        ]
+
+
+@router.post("/boms", response_model=BOMOut)
+async def create_bom(body: BOMCreate, user=Depends(get_current_user)):
+    """创建 BOM 行。"""
+    async with async_session() as db:
+        obj = ERPBOM(
+            tenant_id=user.tenant_id,
+            product_id=uuid.UUID(body.product_id),
+            material_id=uuid.UUID(body.material_id),
+            quantity=body.quantity,
+            unit=body.unit,
+        )
+        db.add(obj)
+        await db.commit()
+        await db.refresh(obj)
+        return _bom_to_out(obj)
+
+
+@router.patch("/boms/{bom_id}", response_model=BOMOut)
+async def update_bom(bom_id: str, body: BOMUpdate, user=Depends(get_current_user)):
+    """修改 BOM 行。"""
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPBOM).where(
+                ERPBOM.id == uuid.UUID(bom_id),
+                ERPBOM.tenant_id == user.tenant_id,
+            )
+        )
+        obj = result.scalar_one_or_none()
+        if not obj:
+            raise HTTPException(404, "BOM 不存在")
+        for field, value in body.model_dump(exclude_unset=True).items():
+            if field in ("product_id", "material_id") and value is not None:
+                value = uuid.UUID(value)
+            setattr(obj, field, value)
+        await db.commit()
+        await db.refresh(obj)
+        return _bom_to_out(obj)
+
+
+@router.delete("/boms/{bom_id}")
+async def delete_bom(bom_id: str, user=Depends(get_current_user)):
+    """删除 BOM 行。"""
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPBOM).where(
+                ERPBOM.id == uuid.UUID(bom_id),
+                ERPBOM.tenant_id == user.tenant_id,
+            )
+        )
+        obj = result.scalar_one_or_none()
+        if not obj:
+            raise HTTPException(404, "BOM 不存在")
+        await db.delete(obj)
+        await db.commit()
+        return {"ok": True}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  PRODUCTION ORDERS（生产工单）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+# 生产工单状态流转
+_PRODUCTION_STATUS_FLOW = {
+    "draft":     {"confirmed", "cancelled"},
+    "confirmed": {"in_progress", "cancelled"},
+    "in_progress": {"completed", "cancelled"},
+    "completed": set(),
+    "cancelled": set(),
+}
+
+
+class ProductionOrderCreate(BaseModel):
+    product_id: str
+    quantity: int
+    warehouse_id: str | None = None
+    notes: str | None = None
+
+
+class ProductionOrderOut(BaseModel):
+    id: str
+    order_no: str | None = None
+    product_id: str
+    quantity: int
+    warehouse_id: str | None = None
+    status: str
+    notes: str | None = None
+    product_name: str | None = None
+    warehouse_name: str | None = None
+    created_by: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+def _production_order_to_out(order, product_name=None, warehouse_name=None):
+    return ProductionOrderOut(
+        id=str(order.id), order_no=order.order_no,
+        product_id=str(order.product_id), quantity=order.quantity,
+        warehouse_id=_to_str(order.warehouse_id), status=order.status,
+        notes=order.notes, product_name=product_name,
+        warehouse_name=warehouse_name,
+        created_by=_to_str(order.created_by),
+        created_at=order.created_at.isoformat() if order.created_at else None,
+        updated_at=order.updated_at.isoformat() if order.updated_at else None,
+    )
+
+
+@router.get("/production-orders", response_model=list[ProductionOrderOut])
+async def list_production_orders(status: str | None = None, user=Depends(get_current_user)):
+    """获取生产工单列表。"""
+    async with async_session() as db:
+        q = select(ERPProductionOrder).where(ERPProductionOrder.tenant_id == user.tenant_id)
+        if status:
+            q = q.where(ERPProductionOrder.status == status)
+        result = await db.execute(q.order_by(ERPProductionOrder.created_at.desc()))
+        orders = result.scalars().all()
+        # 批量查询产品和仓库名称
+        product_ids = {o.product_id for o in orders}
+        warehouse_ids = {o.warehouse_id for o in orders if o.warehouse_id}
+        product_names, warehouse_names = {}, {}
+        if product_ids:
+            prod_res = await db.execute(
+                select(ERPProduct).where(ERPProduct.id.in_(product_ids))
+            )
+            product_names = {p.id: p.name for p in prod_res.scalars().all()}
+        if warehouse_ids:
+            wh_res = await db.execute(
+                select(ERPWarehouse).where(ERPWarehouse.id.in_(warehouse_ids))
+            )
+            warehouse_names = {w.id: w.name for w in wh_res.scalars().all()}
+        return [
+            _production_order_to_out(o, product_names.get(o.product_id), warehouse_names.get(o.warehouse_id))
+            for o in orders
+        ]
+
+
+@router.post("/production-orders", response_model=ProductionOrderOut)
+async def create_production_order(body: ProductionOrderCreate, user=Depends(get_current_user)):
+    """创建生产工单。"""
+    async with async_session() as db:
+        # 生成工单号
+        settings = await _get_or_create_settings(db, user.tenant_id)
+        order_no = await _generate_order_no(
+            db, ERPProductionOrder, settings.production_order_prefix, date.today()
+        )
+        order = ERPProductionOrder(
+            tenant_id=user.tenant_id,
+            order_no=order_no,
+            product_id=uuid.UUID(body.product_id),
+            quantity=body.quantity,
+            warehouse_id=uuid.UUID(body.warehouse_id) if body.warehouse_id else None,
+            notes=body.notes,
+            created_by=user.id,
+            status="draft",
+        )
+        db.add(order)
+        await db.commit()
+        await db.refresh(order)
+        # 查询产品名称
+        prod_res = await db.execute(select(ERPProduct).where(ERPProduct.id == order.product_id))
+        product = prod_res.scalar_one_or_none()
+        return _production_order_to_out(order, product.name if product else None)
+
+
+@router.get("/production-orders/{order_id}", response_model=ProductionOrderOut)
+async def get_production_order(order_id: str, user=Depends(get_current_user)):
+    """获取生产工单详情。"""
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPProductionOrder).where(
+                ERPProductionOrder.id == uuid.UUID(order_id),
+                ERPProductionOrder.tenant_id == user.tenant_id,
+            )
+        )
+        order = result.scalar_one_or_none()
+        if not order:
+            raise HTTPException(404, "生产工单不存在")
+        # 查询关联名称
+        prod_res = await db.execute(select(ERPProduct).where(ERPProduct.id == order.product_id))
+        product = prod_res.scalar_one_or_none()
+        warehouse_name = None
+        if order.warehouse_id:
+            wh_res = await db.execute(select(ERPWarehouse).where(ERPWarehouse.id == order.warehouse_id))
+            wh = wh_res.scalar_one_or_none()
+            warehouse_name = wh.name if wh else None
+        return _production_order_to_out(order, product.name if product else None, warehouse_name)
+
+
+@router.post("/production-orders/{order_id}/status", response_model=ProductionOrderOut)
+async def change_production_order_status(order_id: str, body: dict, user=Depends(get_current_user)):
+    """生产工单状态流转。
+
+    当 new_status='confirmed' 时执行确认生产逻辑：
+    1. 查询该产品的 BOM，若存在则校验并扣减物料库存
+    2. 增加成品库存
+    3. 写入 stock_records
+    """
+    new_status = body.get("new_status")
+    if not new_status:
+        raise HTTPException(400, "缺少 new_status 参数")
+
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPProductionOrder).where(
+                ERPProductionOrder.id == uuid.UUID(order_id),
+                ERPProductionOrder.tenant_id == user.tenant_id,
+            )
+        )
+        order = result.scalar_one_or_none()
+        if not order:
+            raise HTTPException(404, "生产工单不存在")
+
+        # 校验状态流转
+        _validate_transition(order.status, new_status, _PRODUCTION_STATUS_FLOW)
+
+        # 确认生产时执行物料扣减和成品入库
+        if new_status == "confirmed":
+            await _confirm_production(db, order, user)
+
+        order.status = new_status
+        await db.commit()
+        await db.refresh(order)
+
+        # 查询产品名称
+        prod_res = await db.execute(select(ERPProduct).where(ERPProduct.id == order.product_id))
+        product = prod_res.scalar_one_or_none()
+        return _production_order_to_out(order, product.name if product else None)
+
+
+async def _confirm_production(db, order, user):
+    """确认生产工单 —— 扣减物料库存并增加成品库存。
+
+    若存在 BOM：按 BOM 计算所需物料 → 校验库存 → 扣减 → 写入出库记录
+    无论是否有 BOM：都增加成品库存并写入入库记录
+    """
+    # 确定使用的仓库（工单指定优先，否则取租户第一个仓库）
+    warehouse_id = order.warehouse_id
+    if not warehouse_id:
+        wh_res = await db.execute(
+            select(ERPWarehouse).where(ERPWarehouse.tenant_id == user.tenant_id)
+        )
+        wh = wh_res.scalars().first()
+        if wh:
+            warehouse_id = wh.id
+
+    # 查询该产品的 BOM
+    bom_result = await db.execute(
+        select(ERPBOM).where(
+            ERPBOM.tenant_id == user.tenant_id,
+            ERPBOM.product_id == order.product_id,
+        )
+    )
+    boms = bom_result.scalars().all()
+
+    if boms:
+        # BOM 存在：校验并扣减物料库存
+        for bom in boms:
+            needed = int(bom.quantity * order.quantity)
+            # 查询物料
+            mat_res = await db.execute(
+                select(ERPMaterial).where(
+                    ERPMaterial.id == bom.material_id,
+                    ERPMaterial.tenant_id == user.tenant_id,
+                )
+            )
+            material = mat_res.scalar_one_or_none()
+            if not material:
+                raise HTTPException(400, f"BOM 引用的物料 {bom.material_id} 不存在")
+            if material.stock_qty < needed:
+                raise HTTPException(
+                    400,
+                    f"物料「{material.name}」库存不足：需要 {needed}，"
+                    f"当前库存 {material.stock_qty}",
+                )
+            # 扣减物料库存
+            material.stock_qty -= needed
+            # 写入出库记录
+            if warehouse_id:
+                stock_out = ERPStockRecord(
+                    tenant_id=user.tenant_id,
+                    material_id=material.id,
+                    record_source="material",
+                    warehouse_id=warehouse_id,
+                    record_type="out",
+                    quantity=needed,
+                    production_order_id=order.id,
+                    reason=f"生产领料 工单:{order.order_no}",
+                    created_by=user.id,
+                )
+                db.add(stock_out)
+
+    # 增加成品库存
+    prod_res = await db.execute(
+        select(ERPProduct).where(
+            ERPProduct.id == order.product_id,
+            ERPProduct.tenant_id == user.tenant_id,
+        )
+    )
+    product = prod_res.scalar_one_or_none()
+    if not product:
+        raise HTTPException(400, "产品不存在")
+    product.stock_qty += order.quantity
+
+    if warehouse_id:
+        stock_in = ERPStockRecord(
+            tenant_id=user.tenant_id,
+            product_id=product.id,
+            record_source="product",
+            warehouse_id=warehouse_id,
+            record_type="in",
+            quantity=order.quantity,
+            production_order_id=order.id,
+            reason=f"生产入库 工单:{order.order_no}",
+            created_by=user.id,
+        )
+        db.add(stock_in)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  PAYMENTS（收付款）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class PaymentCreate(BaseModel):
+    payment_type: str  # 'payment' | 'receipt'
+    related_order_id: str | None = None
+    customer_id: str | None = None
+    supplier_id: str | None = None
+    amount: float
+    payment_method: str | None = None
+    payment_date: str  # YYYY-MM-DD
+    notes: str | None = None
+
+
+class PaymentOut(BaseModel):
+    id: str
+    payment_no: str | None = None
+    payment_type: str
+    related_order_id: str | None = None
+    customer_id: str | None = None
+    supplier_id: str | None = None
+    amount: float
+    payment_method: str | None = None
+    payment_date: str
+    notes: str | None = None
+    created_by: str | None = None
+    created_at: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+def _payment_to_out(p):
+    return PaymentOut(
+        id=str(p.id), payment_no=p.payment_no,
+        payment_type=p.payment_type,
+        related_order_id=_to_str(p.related_order_id),
+        customer_id=_to_str(p.customer_id),
+        supplier_id=_to_str(p.supplier_id),
+        amount=_to_f(p.amount),
+        payment_method=p.payment_method,
+        payment_date=p.payment_date.isoformat() if p.payment_date else "",
+        notes=p.notes,
+        created_by=_to_str(p.created_by),
+        created_at=p.created_at.isoformat() if p.created_at else None,
+    )
+
+
+@router.get("/payments", response_model=list[PaymentOut])
+async def list_payments(
+    payment_type: str | None = None,
+    user=Depends(get_current_user),
+):
+    """获取收付款列表。"""
+    async with async_session() as db:
+        q = select(ERPPayment).where(ERPPayment.tenant_id == user.tenant_id)
+        if payment_type:
+            q = q.where(ERPPayment.payment_type == payment_type)
+        result = await db.execute(q.order_by(ERPPayment.created_at.desc()))
+        return [_payment_to_out(p) for p in result.scalars().all()]
+
+
+@router.post("/payments", response_model=PaymentOut)
+async def create_payment(body: PaymentCreate, user=Depends(get_current_user)):
+    """录入收付款。"""
+    async with async_session() as db:
+        settings = await _get_or_create_settings(db, user.tenant_id)
+        # 生成收付款编号
+        payment_prefix = "PAY" if body.payment_type == "payment" else "RCV"
+        payment_no = await _generate_order_no(db, ERPPayment, payment_prefix, date.today(), col_name="payment_no")
+        obj = ERPPayment(
+            tenant_id=user.tenant_id,
+            payment_no=payment_no,
+            payment_type=body.payment_type,
+            related_order_id=uuid.UUID(body.related_order_id) if body.related_order_id else None,
+            customer_id=uuid.UUID(body.customer_id) if body.customer_id else None,
+            supplier_id=uuid.UUID(body.supplier_id) if body.supplier_id else None,
+            amount=body.amount,
+            payment_method=body.payment_method,
+            payment_date=date.fromisoformat(body.payment_date),
+            notes=body.notes,
+            created_by=user.id,
+        )
+        db.add(obj)
+        await db.commit()
+        await db.refresh(obj)
+        return _payment_to_out(obj)
+
+
+@router.get("/payments/receivables", response_model=list[FinancialRecordOut])
+async def list_receivables(user=Depends(get_current_user)):
+    """获取应收账款（从 financial_records type=receivable 查询）。"""
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPFinancialRecord).where(
+                ERPFinancialRecord.tenant_id == user.tenant_id,
+                ERPFinancialRecord.record_type == "receivable",
+            ).order_by(ERPFinancialRecord.record_date.desc())
+        )
+        return [_financial_to_out(r) for r in result.scalars().all()]
+
+
+@router.get("/payments/payables", response_model=list[FinancialRecordOut])
+async def list_payables(user=Depends(get_current_user)):
+    """获取应付账款（从 financial_records type=payable 查询）。"""
+    async with async_session() as db:
+        result = await db.execute(
+            select(ERPFinancialRecord).where(
+                ERPFinancialRecord.tenant_id == user.tenant_id,
+                ERPFinancialRecord.record_type == "payable",
+            ).order_by(ERPFinancialRecord.record_date.desc())
+        )
+        return [_financial_to_out(r) for r in result.scalars().all()]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  CATEGORY SETTINGS（仓库/出入库分类管理）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class CategoryListUpdate(BaseModel):
+    categories: list[str]
+
+
+def _get_category_list(raw_json: str | None) -> list[str]:
+    """将 JSON 字符串解析为列表，空值返回空列表。"""
+    if not raw_json:
+        return []
+    try:
+        return json.loads(raw_json)
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+
+@router.get("/settings/warehouse-categories")
+async def get_warehouse_categories(user=Depends(get_current_user)):
+    """获取仓库分类列表。"""
+    async with async_session() as db:
+        settings = await _get_or_create_settings(db, user.tenant_id)
+        return {"categories": _get_category_list(settings.warehouse_categories)}
+
+
+@router.put("/settings/warehouse-categories")
+async def update_warehouse_categories(body: CategoryListUpdate, user=Depends(get_current_user)):
+    """更新仓库分类列表。"""
+    async with async_session() as db:
+        settings = await _get_or_create_settings(db, user.tenant_id)
+        settings.warehouse_categories = json.dumps(body.categories, ensure_ascii=False)
+        await db.commit()
+        return {"categories": body.categories}
+
+
+@router.get("/settings/outbound-categories")
+async def get_outbound_categories(user=Depends(get_current_user)):
+    """获取出库分类列表。"""
+    async with async_session() as db:
+        settings = await _get_or_create_settings(db, user.tenant_id)
+        return {"categories": _get_category_list(settings.outbound_categories)}
+
+
+@router.put("/settings/outbound-categories")
+async def update_outbound_categories(body: CategoryListUpdate, user=Depends(get_current_user)):
+    """更新出库分类列表。"""
+    async with async_session() as db:
+        settings = await _get_or_create_settings(db, user.tenant_id)
+        settings.outbound_categories = json.dumps(body.categories, ensure_ascii=False)
+        await db.commit()
+        return {"categories": body.categories}
+
+
+@router.get("/settings/inbound-categories")
+async def get_inbound_categories(user=Depends(get_current_user)):
+    """获取入库分类列表。"""
+    async with async_session() as db:
+        settings = await _get_or_create_settings(db, user.tenant_id)
+        return {"categories": _get_category_list(settings.inbound_categories)}
+
+
+@router.put("/settings/inbound-categories")
+async def update_inbound_categories(body: CategoryListUpdate, user=Depends(get_current_user)):
+    """更新入库分类列表。"""
+    async with async_session() as db:
+        settings = await _get_or_create_settings(db, user.tenant_id)
+        settings.inbound_categories = json.dumps(body.categories, ensure_ascii=False)
+        await db.commit()
+        return {"categories": body.categories}

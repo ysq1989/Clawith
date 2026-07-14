@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { IconPlus, IconEdit, IconTrash, IconSettings } from '@tabler/icons-react';
 import { fetchJson } from '../../services/api';
 import { useDialog } from '../../components/Dialog/DialogProvider';
@@ -232,24 +233,43 @@ function CategoryTab({ type, isChinese }: { type: 'customer' | 'supplier'; isChi
 export default function ERPSettingsPage() {
     const { t, i18n } = useTranslation();
     const isChinese = i18n.language?.startsWith('zh');
-    const [activeTab, setActiveTab] = useState<'customer' | 'supplier' | 'codes'>('customer');
+    const location = useLocation();
+
+    // Determine active tab from URL path
+    const pathParts = location.pathname.split('/');
+    const urlTab = pathParts[pathParts.length - 1] || 'customer-categories';
+    const [activeTab, setActiveTab] = useState(urlTab);
+
+    useEffect(() => {
+        setActiveTab(urlTab);
+    }, [urlTab]);
+
+    const navigate = useNavigate();
 
     const tabs = [
-        { key: 'customer' as const, label: isChinese ? '客户分类' : 'Customer Categories' },
-        { key: 'supplier' as const, label: isChinese ? '供应商分类' : 'Supplier Categories' },
-        { key: 'codes' as const, label: isChinese ? '编码设置' : 'Code Settings' },
+        { key: 'customer-categories', label: isChinese ? '客户分类' : 'Customers' },
+        { key: 'supplier-categories', label: isChinese ? '供应商分类' : 'Suppliers' },
+        { key: 'warehouse-categories', label: isChinese ? '仓库分类' : 'Warehouses' },
+        { key: 'outbound-categories', label: isChinese ? '出库分类' : 'Outbound' },
+        { key: 'inbound-categories', label: isChinese ? '入库分类' : 'Inbound' },
+        { key: 'production-statuses', label: isChinese ? '生产状态' : 'Production' },
+        { key: 'code-settings', label: isChinese ? '编码设置' : 'Codes' },
+        { key: 'module-config', label: isChinese ? '模块配置' : 'Modules' },
     ];
+
+    // Category tabs use the CategoryTab component
+    const categoryTabs = ['customer-categories', 'supplier-categories', 'warehouse-categories', 'outbound-categories', 'inbound-categories'];
+    const categoryType = activeTab.replace('-categories', '');
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Tab bar */}
-            <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border-subtle)', paddingBottom: 0 }}>
+            <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border-subtle)', flexWrap: 'wrap' }}>
                 {tabs.map(tab => (
                     <button
                         key={tab.key}
-                        onClick={() => setActiveTab(tab.key)}
+                        onClick={() => { setActiveTab(tab.key); navigate(`/erp/settings/${tab.key}`); }}
                         style={{
-                            padding: '10px 20px', fontSize: 13, fontWeight: 500,
+                            padding: '10px 16px', fontSize: 13, fontWeight: 500,
                             border: 'none', borderBottom: activeTab === tab.key ? '2px solid var(--accent-primary)' : '2px solid transparent',
                             background: 'transparent',
                             color: activeTab === tab.key ? 'var(--accent-primary)' : 'var(--text-secondary)',
@@ -261,9 +281,10 @@ export default function ERPSettingsPage() {
                 ))}
             </div>
 
-            {/* Tab content */}
-            {activeTab !== 'codes' && <CategoryTab type={activeTab} isChinese={isChinese} />}
-            {activeTab === 'codes' && <CodeSettingsTab isChinese={isChinese} />}
+            {categoryTabs.includes(activeTab) && <CategoryTab type={categoryType} isChinese={isChinese} />}
+            {activeTab === 'code-settings' && <CodeSettingsTab isChinese={isChinese} />}
+            {activeTab === 'production-statuses' && <ProductionStatusTab isChinese={isChinese} />}
+            {activeTab === 'module-config' && <ModuleConfigTab isChinese={isChinese} />}
         </div>
     );
 }
@@ -350,6 +371,179 @@ function CodeSettingsTab({ isChinese }: { isChinese: boolean }) {
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button style={btnPrimary} onClick={handleSave} disabled={saving}>
                     {saving ? (isChinese ? '保存中...' : 'Saving...') : (isChinese ? '保存设置' : 'Save Settings')}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+
+/* ─── Production Status Tab ─── */
+function ProductionStatusTab({ isChinese }: { isChinese: boolean }) {
+    const queryClient = useQueryClient();
+    const [newName, setNewName] = useState('');
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editName, setEditName] = useState('');
+
+    const { data: statuses = [], isLoading } = useQuery({
+        queryKey: ['erp-production-statuses'],
+        queryFn: () => fetchJson<any[]>('/erp/production-statuses'),
+    });
+
+    const createMutation = useMutation({
+        mutationFn: (name: string) => fetchJson('/erp/production-statuses', {
+            method: 'POST', body: JSON.stringify({ name, sort_order: statuses.length }),
+        }),
+        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['erp-production-statuses'] }); setNewName(''); },
+    });
+
+    const updateMutation = useMutation({
+        mutationFn: ({ id, name }: { id: string; name: string }) => fetchJson(`/erp/production-statuses/${id}`, {
+            method: 'PATCH', body: JSON.stringify({ name }),
+        }),
+        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['erp-production-statuses'] }); setEditingId(null); },
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: (id: string) => fetchJson(`/erp/production-statuses/${id}`, { method: 'DELETE' }),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['erp-production-statuses'] }),
+    });
+
+    return (
+        <div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                <input value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newName.trim()) createMutation.mutate(newName.trim()); }} placeholder={isChinese ? '输入状态名称' : 'Enter status name'} style={{ ...inputStyle, flex: 1 }} />
+                <button style={btnPrimary} onClick={() => newName.trim() && createMutation.mutate(newName.trim())} disabled={createMutation.isPending}>
+                    <IconPlus size={14} stroke={2} /> {isChinese ? '添加' : 'Add'}
+                </button>
+            </div>
+            <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 10 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                            <th style={{ ...thStyle, width: 60 }}>{isChinese ? '序号' : '#'}</th>
+                            <th style={thStyle}>{isChinese ? '状态名称' : 'Status Name'}</th>
+                            <th style={{ ...thStyle, width: 120, textAlign: 'center' }}>{isChinese ? '操作' : 'Actions'}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {isLoading ? <tr><td colSpan={3} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{isChinese ? '加载中...' : 'Loading...'}</td></tr>
+                        : statuses.length === 0 ? <tr><td colSpan={3} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{isChinese ? '暂无状态' : 'No statuses'}</td></tr>
+                        : statuses.map((s: any, idx: number) => (
+                            <tr key={s.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                <td style={tdStyle}>{idx + 1}</td>
+                                <td style={tdStyle}>
+                                    {editingId === s.id ? (
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                            <input value={editName} onChange={e => setEditName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') updateMutation.mutate({ id: s.id, name: editName }); if (e.key === 'Escape') setEditingId(null); }} style={{ ...inputStyle, flex: 1 }} autoFocus />
+                                            <button style={{ ...btnPrimary, padding: '4px 10px', fontSize: 12 }} onClick={() => updateMutation.mutate({ id: s.id, name: editName })}>{isChinese ? '保存' : 'Save'}</button>
+                                        </div>
+                                    ) : s.name}
+                                </td>
+                                <td style={{ ...tdStyle, textAlign: 'center' }}>
+                                    {editingId !== s.id && (
+                                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                                            <button onClick={() => { setEditingId(s.id); setEditName(s.name); }} style={{ background: 'none', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '3px 6px', color: 'var(--text-tertiary)', cursor: 'pointer', display: 'inline-flex' }}>
+                                                <IconEdit size={14} stroke={1.5} />
+                                            </button>
+                                            <button onClick={() => deleteMutation.mutate(s.id)} style={{ background: 'none', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '3px 6px', color: 'var(--text-tertiary)', cursor: 'pointer', display: 'inline-flex' }}>
+                                                <IconTrash size={14} stroke={1.5} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+}
+
+
+/* ─── Module Config Tab ─── */
+function ModuleConfigTab({ isChinese }: { isChinese: boolean }) {
+    const queryClient = useQueryClient();
+    const { data: settings, isLoading } = useQuery({
+        queryKey: ['erp-settings'],
+        queryFn: () => fetchJson<any>('/erp/settings'),
+    });
+    const [saving, setSaving] = useState(false);
+    const [modules, setModules] = useState<Record<string, boolean>>({});
+
+    useEffect(() => {
+        if (settings) {
+            setModules({
+                module_customers: settings.module_customers ?? true,
+                module_suppliers: settings.module_suppliers ?? true,
+                module_products: settings.module_products ?? true,
+                module_materials: settings.module_materials ?? true,
+                module_inventory: settings.module_inventory ?? true,
+                module_production: settings.module_production ?? false,
+                module_finance: settings.module_finance ?? true,
+                module_payments: settings.module_payments ?? false,
+            });
+        }
+    }, [settings]);
+
+    const toggle = (key: string) => setModules(prev => ({ ...prev, [key]: !prev[key] }));
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            await fetchJson('/erp/settings', { method: 'PUT', body: JSON.stringify(modules) });
+            queryClient.invalidateQueries({ queryKey: ['erp-settings'] });
+        } finally { setSaving(false); }
+    };
+
+    const MODULE_ITEMS = [
+        { key: 'module_customers', labelZh: '客户管理', labelEn: 'Customers', alwaysOn: true },
+        { key: 'module_suppliers', labelZh: '供应商管理', labelEn: 'Suppliers' },
+        { key: 'module_products', labelZh: '产品管理', labelEn: 'Products' },
+        { key: 'module_materials', labelZh: '物料管理', labelEn: 'Materials' },
+        { key: 'module_inventory', labelZh: '库存管理', labelEn: 'Inventory' },
+        { key: 'module_production', labelZh: '生产管理', labelEn: 'Production' },
+        { key: 'module_finance', labelZh: '财务管理', labelEn: 'Finance' },
+        { key: 'module_payments', labelZh: '收付款', labelEn: 'Payments' },
+    ];
+
+    if (isLoading) return <div style={{ color: 'var(--text-tertiary)', padding: 40, textAlign: 'center' }}>{isChinese ? '加载中...' : 'Loading...'}</div>;
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 10 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                        <th style={{ ...thStyle, padding: '12px 16px' }}>{isChinese ? '模块' : 'Module'}</th>
+                        <th style={{ ...thStyle, padding: '12px 16px', width: 100, textAlign: 'center' }}>{isChinese ? '状态' : 'Status'}</th>
+                    </tr></thead>
+                    <tbody>
+                        {MODULE_ITEMS.map(item => (
+                            <tr key={item.key} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                <td style={{ ...tdStyle, padding: '12px 16px', fontWeight: 500 }}>{isChinese ? item.labelZh : item.labelEn}</td>
+                                <td style={{ ...tdStyle, padding: '12px 16px', textAlign: 'center' }}>
+                                    <button onClick={() => !item.alwaysOn && toggle(item.key)} disabled={item.alwaysOn} style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                                        padding: '4px 12px', borderRadius: 100, fontSize: 12, fontWeight: 500,
+                                        cursor: item.alwaysOn ? 'default' : 'pointer',
+                                        background: modules[item.key] ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+                                        border: `1px solid ${modules[item.key] ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                                        color: modules[item.key] ? '#22c55e' : '#ef4444',
+                                        opacity: item.alwaysOn ? 0.6 : 1,
+                                    }}>
+                                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: modules[item.key] ? '#22c55e' : '#ef4444' }} />
+                                        {modules[item.key] ? (isChinese ? '已启用' : 'Enabled') : (isChinese ? '已禁用' : 'Disabled')}
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button style={btnPrimary} onClick={handleSave} disabled={saving}>
+                    {saving ? (isChinese ? '保存中...' : 'Saving...') : (isChinese ? '保存配置' : 'Save Config')}
                 </button>
             </div>
         </div>

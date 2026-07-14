@@ -1,73 +1,166 @@
 /**
  * ERP Layout — Dedicated ERP sidebar + content area with company switcher dropdown.
+ * Sidebar uses two-level grouped navigation with module visibility controlled by settings.
  */
 
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useAuthStore } from '../../stores';
 import { fetchJson } from '../../services/api';
 import {
     IconLayoutDashboard,
-    IconUsers,
-    IconTruckDelivery,
-    IconBox,
-    IconPackage,
-    IconReceipt2,
-    IconShoppingCart,
-    IconPackages,
+    IconFolder,
     IconCoin,
+    IconShoppingCart,
+    IconFactory,
+    IconPackages,
     IconChartBar,
+    IconSettings,
     IconArrowLeft,
     IconBell,
     IconUserCircle,
     IconCheck,
     IconBuilding,
-    IconSettings,
+    IconChevronRight,
 } from '@tabler/icons-react';
 
-/* ─── Nav item definition ─── */
+/* ─── Navigation data structures ─── */
 interface NavItem {
     to: string;
-    icon: React.ReactNode;
     labelKey: string;
     labelDefault: string;
     end?: boolean;
 }
 
-const NAV_ITEMS: NavItem[] = [
-    { to: '/erp',              icon: <IconLayoutDashboard size={18} stroke={1.5} />, labelKey: 'erp.nav.dashboard',       labelDefault: '首页概览',    end: true },
-    { to: '/erp/customers',    icon: <IconUsers size={18} stroke={1.5} />,          labelKey: 'erp.nav.customers',       labelDefault: '客户管理' },
-    { to: '/erp/suppliers',    icon: <IconTruckDelivery size={18} stroke={1.5} />,  labelKey: 'erp.nav.suppliers',       labelDefault: '供应商' },
-    { to: '/erp/products',     icon: <IconBox size={18} stroke={1.5} />,            labelKey: 'erp.nav.products',        labelDefault: '产品管理' },
-    { to: '/erp/materials',    icon: <IconPackage size={18} stroke={1.5} />,         labelKey: 'erp.nav.materials',       labelDefault: '物料管理' },
-    { to: '/erp/sales-orders', icon: <IconReceipt2 size={18} stroke={1.5} />,       labelKey: 'erp.nav.salesOrders',     labelDefault: '销售订单' },
-    { to: '/erp/purchase-orders', icon: <IconShoppingCart size={18} stroke={1.5} />, labelKey: 'erp.nav.purchaseOrders', labelDefault: '采购订单' },
-    { to: '/erp/inventory',    icon: <IconPackages size={18} stroke={1.5} />,       labelKey: 'erp.nav.inventory',       labelDefault: '库存管理' },
-    { to: '/erp/finance',      icon: <IconCoin size={18} stroke={1.5} />,           labelKey: 'erp.nav.finance',         labelDefault: '财务管理' },
-    { to: '/erp/reports',      icon: <IconChartBar size={18} stroke={1.5} />,       labelKey: 'erp.nav.reports',         labelDefault: '数据报表' },
-    { to: '/erp/settings',     icon: <IconSettings size={18} stroke={1.5} />,       labelKey: 'erp.nav.settings',        labelDefault: '系统设置' },
+interface NavGroup {
+    key: string;
+    labelKey: string;
+    labelDefault: string;
+    icon: React.ReactNode;
+    children: NavItem[];
+    moduleFlag?: string;
+}
+
+const NAV_GROUPS: NavGroup[] = [
+    {
+        key: 'base',
+        labelKey: 'erp.nav.group.base',
+        labelDefault: '基础数据',
+        icon: <IconFolder size={18} stroke={1.5} />,
+        children: [
+            { to: '/erp/customers',   labelKey: 'erp.nav.customers',       labelDefault: '客户管理' },
+            { to: '/erp/suppliers',   labelKey: 'erp.nav.suppliers',       labelDefault: '供应商' },
+            { to: '/erp/products',    labelKey: 'erp.nav.products',        labelDefault: '产品管理' },
+            { to: '/erp/materials',   labelKey: 'erp.nav.materials',       labelDefault: '物料管理' },
+            { to: '/erp/warehouse',   labelKey: 'erp.nav.warehouse',       labelDefault: '仓库管理' },
+            { to: '/erp/bom',         labelKey: 'erp.nav.bom',             labelDefault: 'BOM 管理' },
+        ],
+    },
+    {
+        key: 'sales',
+        labelKey: 'erp.nav.group.sales',
+        labelDefault: '销售',
+        icon: <IconCoin size={18} stroke={1.5} />,
+        children: [
+            { to: '/erp/sales-orders', labelKey: 'erp.nav.salesOrders',    labelDefault: '销售订单' },
+            { to: '/erp/payments',     labelKey: 'erp.nav.payments',       labelDefault: '销售回款' },
+        ],
+    },
+    {
+        key: 'purchase',
+        labelKey: 'erp.nav.group.purchase',
+        labelDefault: '采购',
+        icon: <IconShoppingCart size={18} stroke={1.5} />,
+        children: [
+            { to: '/erp/purchase-orders', labelKey: 'erp.nav.purchaseOrders', labelDefault: '采购订单' },
+            { to: '/erp/payments',        labelKey: 'erp.nav.purchasePayments', labelDefault: '采购付款' },
+        ],
+    },
+    {
+        key: 'production',
+        labelKey: 'erp.nav.group.production',
+        labelDefault: '生产',
+        icon: <IconFactory size={18} stroke={1.5} />,
+        children: [
+            { to: '/erp/production', labelKey: 'erp.nav.production', labelDefault: '生产工单' },
+        ],
+        moduleFlag: 'module_production',
+    },
+    {
+        key: 'inventory',
+        labelKey: 'erp.nav.group.inventory',
+        labelDefault: '库存',
+        icon: <IconPackages size={18} stroke={1.5} />,
+        children: [
+            { to: '/erp/outbound',  labelKey: 'erp.nav.outbound',  labelDefault: '出库管理' },
+            { to: '/erp/inbound',   labelKey: 'erp.nav.inbound',   labelDefault: '入库管理' },
+            { to: '/erp/inventory', labelKey: 'erp.nav.inventory', labelDefault: '库存总览' },
+        ],
+    },
+    {
+        key: 'finance',
+        labelKey: 'erp.nav.group.finance',
+        labelDefault: '财务',
+        icon: <IconChartBar size={18} stroke={1.5} />,
+        children: [
+            { to: '/erp/finance', labelKey: 'erp.nav.finance', labelDefault: '财务记录' },
+            { to: '/erp/reports', labelKey: 'erp.nav.reports', labelDefault: '数据报表' },
+        ],
+    },
+    {
+        key: 'settings',
+        labelKey: 'erp.nav.group.settings',
+        labelDefault: '系统设置',
+        icon: <IconSettings size={18} stroke={1.5} />,
+        children: [
+            { to: '/erp/settings/customer-categories',    labelKey: 'erp.nav.settings.customerCategories',    labelDefault: '客户分类' },
+            { to: '/erp/settings/supplier-categories',    labelKey: 'erp.nav.settings.supplierCategories',    labelDefault: '供应商分类' },
+            { to: '/erp/settings/warehouse-categories',   labelKey: 'erp.nav.settings.warehouseCategories',   labelDefault: '仓库分类' },
+            { to: '/erp/settings/outbound-categories',    labelKey: 'erp.nav.settings.outboundCategories',    labelDefault: '出库分类' },
+            { to: '/erp/settings/inbound-categories',     labelKey: 'erp.nav.settings.inboundCategories',     labelDefault: '入库分类' },
+            { to: '/erp/settings/production-statuses',    labelKey: 'erp.nav.settings.productionStatuses',    labelDefault: '生产状态' },
+            { to: '/erp/settings/code-settings',          labelKey: 'erp.nav.settings.codeSettings',          labelDefault: '编码设置' },
+            { to: '/erp/settings/module-config',          labelKey: 'erp.nav.settings.moduleConfig',          labelDefault: '模块配置' },
+        ],
+    },
 ];
 
 /* ─── Route-to-title mapping for top bar ─── */
 const ROUTE_TITLES: Record<string, { key: string; fallback: string }> = {
-    '/erp':                { key: 'erp.nav.dashboard',       fallback: '首页概览' },
-    '/erp/customers':      { key: 'erp.nav.customers',       fallback: '客户管理' },
-    '/erp/suppliers':      { key: 'erp.nav.suppliers',       fallback: '供应商' },
-    '/erp/products':       { key: 'erp.nav.products',        fallback: '产品管理' },
-    '/erp/materials':      { key: 'erp.nav.materials',       fallback: '物料管理' },
-    '/erp/sales-orders':   { key: 'erp.nav.salesOrders',     fallback: '销售订单' },
-    '/erp/purchase-orders':{ key: 'erp.nav.purchaseOrders',  fallback: '采购订单' },
-    '/erp/inventory':      { key: 'erp.nav.inventory',       fallback: '库存管理' },
-    '/erp/finance':        { key: 'erp.nav.finance',         fallback: '财务管理' },
-    '/erp/reports':        { key: 'erp.nav.reports',         fallback: '数据报表' },
-    '/erp/settings':       { key: 'erp.nav.settings',        fallback: '系统设置' },
+    '/erp':                         { key: 'erp.nav.dashboard',                   fallback: '首页概览' },
+    '/erp/customers':               { key: 'erp.nav.customers',                   fallback: '客户管理' },
+    '/erp/suppliers':               { key: 'erp.nav.suppliers',                   fallback: '供应商' },
+    '/erp/products':                { key: 'erp.nav.products',                    fallback: '产品管理' },
+    '/erp/materials':               { key: 'erp.nav.materials',                   fallback: '物料管理' },
+    '/erp/warehouse':               { key: 'erp.nav.warehouse',                   fallback: '仓库管理' },
+    '/erp/bom':                     { key: 'erp.nav.bom',                         fallback: 'BOM 管理' },
+    '/erp/sales-orders':            { key: 'erp.nav.salesOrders',                 fallback: '销售订单' },
+    '/erp/payments':                { key: 'erp.nav.payments',                    fallback: '收付款' },
+    '/erp/purchase-orders':         { key: 'erp.nav.purchaseOrders',              fallback: '采购订单' },
+    '/erp/production':              { key: 'erp.nav.production',                  fallback: '生产工单' },
+    '/erp/outbound':                { key: 'erp.nav.outbound',                    fallback: '出库管理' },
+    '/erp/inbound':                 { key: 'erp.nav.inbound',                     fallback: '入库管理' },
+    '/erp/inventory':               { key: 'erp.nav.inventory',                   fallback: '库存总览' },
+    '/erp/finance':                 { key: 'erp.nav.finance',                     fallback: '财务记录' },
+    '/erp/reports':                 { key: 'erp.nav.reports',                     fallback: '数据报表' },
+    '/erp/settings':                { key: 'erp.nav.settings',                    fallback: '系统设置' },
+    '/erp/settings/customer-categories':  { key: 'erp.nav.settings.customerCategories',  fallback: '客户分类' },
+    '/erp/settings/supplier-categories':  { key: 'erp.nav.settings.supplierCategories',  fallback: '供应商分类' },
+    '/erp/settings/warehouse-categories': { key: 'erp.nav.settings.warehouseCategories', fallback: '仓库分类' },
+    '/erp/settings/outbound-categories':  { key: 'erp.nav.settings.outboundCategories',  fallback: '出库分类' },
+    '/erp/settings/inbound-categories':   { key: 'erp.nav.settings.inboundCategories',   fallback: '入库分类' },
+    '/erp/settings/production-statuses':  { key: 'erp.nav.settings.productionStatuses',  fallback: '生产状态' },
+    '/erp/settings/code-settings':        { key: 'erp.nav.settings.codeSettings',        fallback: '编码设置' },
+    '/erp/settings/module-config':        { key: 'erp.nav.settings.moduleConfig',        fallback: '模块配置' },
 };
 
 function resolvePageTitle(pathname: string, t: (key: string, fallback: string) => string): string {
     if (ROUTE_TITLES[pathname]) return t(ROUTE_TITLES[pathname].key, ROUTE_TITLES[pathname].fallback);
-    for (const [route, meta] of Object.entries(ROUTE_TITLES)) {
+    // Match longest prefix (sort descending by route length)
+    const sorted = Object.entries(ROUTE_TITLES).sort((a, b) => b[0].length - a[0].length);
+    for (const [route, meta] of sorted) {
         if (pathname.startsWith(route) && route !== '/erp') return t(meta.key, meta.fallback);
     }
     return t('erp.nav.dashboard', '首页概览');
@@ -138,6 +231,63 @@ const navLinkActive: React.CSSProperties = {
     color: '#ffffff',
 };
 
+/* ─── Group header button style ─── */
+const groupHeaderBase: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '9px 16px',
+    margin: '1px 8px',
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 600,
+    color: '#8ab4e0',
+    background: 'transparent',
+    border: 'none',
+    width: 'calc(100% - 16px)',
+    cursor: 'pointer',
+    transition: 'background 0.15s, color 0.15s',
+    textAlign: 'left',
+};
+
+/* ─── Sub-item link (indented, no icon) ─── */
+const subLinkBase: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 0,
+    padding: '7px 16px 7px 40px',
+    margin: '1px 8px',
+    borderRadius: 6,
+    fontSize: 12.5,
+    fontWeight: 400,
+    color: '#7ba7cc',
+    textDecoration: 'none',
+    transition: 'background 0.15s, color 0.15s',
+    cursor: 'pointer',
+};
+
+const subLinkActive: React.CSSProperties = {
+    ...subLinkBase,
+    background: 'rgba(59, 130, 246, 0.2)',
+    color: '#ffffff',
+    fontWeight: 500,
+};
+
+const chevronStyle = (expanded: boolean): React.CSSProperties => ({
+    transition: 'transform 0.2s ease',
+    transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+    flexShrink: 0,
+    marginLeft: 'auto',
+});
+
+/* ─── Helpers ─── */
+/** Check if any child of a group matches the current pathname */
+function groupMatchesPath(group: NavGroup, pathname: string): boolean {
+    return group.children.some(child =>
+        child.end ? pathname === child.to : pathname.startsWith(child.to)
+    );
+}
+
 /* ─── Component ─── */
 export default function ERPLayout() {
     const { t, i18n } = useTranslation();
@@ -151,6 +301,62 @@ export default function ERPLayout() {
     const [showMenu, setShowMenu] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
+
+    /* ── Module settings query ── */
+    const { data: erpSettings } = useQuery({
+        queryKey: ['erp-settings'],
+        queryFn: () => fetchJson<Record<string, any>>('/erp/settings'),
+        staleTime: 5 * 60 * 1000,
+    });
+
+    /* ── Compute which groups are visible based on module flags ── */
+    const visibleGroups = useMemo(() => {
+        return NAV_GROUPS.filter(group => {
+            if (!group.moduleFlag) return true;
+            if (!erpSettings) return true; // show all until settings loaded
+            const val = erpSettings[group.moduleFlag];
+            return val !== false && val !== 'false';
+        });
+    }, [erpSettings]);
+
+    /* ── Track expanded groups ── */
+    const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => {
+        // Initialize with the group that matches the current path
+        const initial = new Set<string>();
+        for (const group of NAV_GROUPS) {
+            if (groupMatchesPath(group, location.pathname)) {
+                initial.add(group.key);
+            }
+        }
+        return initial;
+    });
+
+    // Auto-expand the group that matches the current route whenever it changes
+    useEffect(() => {
+        for (const group of NAV_GROUPS) {
+            if (groupMatchesPath(group, location.pathname)) {
+                setExpandedKeys(prev => {
+                    if (prev.has(group.key)) return prev;
+                    const next = new Set(prev);
+                    next.add(group.key);
+                    return next;
+                });
+                break;
+            }
+        }
+    }, [location.pathname]);
+
+    const toggleGroup = useCallback((key: string) => {
+        setExpandedKeys(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) {
+                next.delete(key);
+            } else {
+                next.add(key);
+            }
+            return next;
+        });
+    }, []);
 
     const { data: tenantInfo } = useQuery({
         queryKey: ['erp-tenant-info'],
@@ -250,29 +456,83 @@ export default function ERPLayout() {
                 </div>
 
                 <nav style={{ flex: 1, padding: '12px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {NAV_ITEMS.map(item => (
-                        <NavLink
-                            key={item.to}
-                            to={item.to}
-                            end={item.end}
-                            style={({ isActive }) => isActive ? navLinkActive : navLinkBase}
-                            onMouseEnter={e => {
-                                if (!(e.currentTarget as HTMLElement).dataset.active) {
-                                    (e.currentTarget as HTMLElement).style.background = 'rgba(59, 130, 246, 0.1)';
-                                    (e.currentTarget as HTMLElement).style.color = '#ffffff';
-                                }
-                            }}
-                            onMouseLeave={e => {
-                                if (!(e.currentTarget as HTMLElement).dataset.active) {
-                                    (e.currentTarget as HTMLElement).style.background = 'transparent';
-                                    (e.currentTarget as HTMLElement).style.color = '#8ab4e0';
-                                }
-                            }}
-                        >
-                            {item.icon}
-                            <span>{t(item.labelKey, item.labelDefault)}</span>
-                        </NavLink>
-                    ))}
+                    {/* Dashboard — standalone NavLink, not in a group */}
+                    <NavLink
+                        to="/erp"
+                        end
+                        style={({ isActive }) => isActive ? navLinkActive : navLinkBase}
+                        onMouseEnter={e => {
+                            if (!(e.currentTarget as HTMLElement).dataset.active) {
+                                (e.currentTarget as HTMLElement).style.background = 'rgba(59, 130, 246, 0.1)';
+                                (e.currentTarget as HTMLElement).style.color = '#ffffff';
+                            }
+                        }}
+                        onMouseLeave={e => {
+                            if (!(e.currentTarget as HTMLElement).dataset.active) {
+                                (e.currentTarget as HTMLElement).style.background = 'transparent';
+                                (e.currentTarget as HTMLElement).style.color = '#8ab4e0';
+                            }
+                        }}
+                    >
+                        <IconLayoutDashboard size={18} stroke={1.5} />
+                        <span>{t('erp.nav.dashboard', '首页概览')}</span>
+                    </NavLink>
+
+                    {/* Grouped navigation */}
+                    {visibleGroups.map(group => {
+                        const expanded = expandedKeys.has(group.key);
+                        const groupActive = groupMatchesPath(group, location.pathname);
+                        return (
+                            <div key={group.key}>
+                                {/* Group header */}
+                                <button
+                                    onClick={() => toggleGroup(group.key)}
+                                    style={{
+                                        ...groupHeaderBase,
+                                        color: groupActive ? '#ffffff' : '#8ab4e0',
+                                    }}
+                                    onMouseEnter={e => {
+                                        (e.currentTarget as HTMLElement).style.background = 'rgba(59, 130, 246, 0.1)';
+                                        (e.currentTarget as HTMLElement).style.color = '#ffffff';
+                                    }}
+                                    onMouseLeave={e => {
+                                        (e.currentTarget as HTMLElement).style.background = 'transparent';
+                                        (e.currentTarget as HTMLElement).style.color = groupActive ? '#ffffff' : '#8ab4e0';
+                                    }}
+                                >
+                                    {group.icon}
+                                    <span>{t(group.labelKey, group.labelDefault)}</span>
+                                    <span style={chevronStyle(expanded)}>
+                                        <IconChevronRight size={14} stroke={2} />
+                                    </span>
+                                </button>
+
+                                {/* Sub-items */}
+                                {expanded && group.children.map(child => (
+                                    <NavLink
+                                        key={child.to}
+                                        to={child.to}
+                                        end={child.end}
+                                        style={({ isActive }) => isActive ? subLinkActive : subLinkBase}
+                                        onMouseEnter={e => {
+                                            if (!(e.currentTarget as HTMLElement).dataset.active) {
+                                                (e.currentTarget as HTMLElement).style.background = 'rgba(59, 130, 246, 0.08)';
+                                                (e.currentTarget as HTMLElement).style.color = '#ffffff';
+                                            }
+                                        }}
+                                        onMouseLeave={e => {
+                                            if (!(e.currentTarget as HTMLElement).dataset.active) {
+                                                (e.currentTarget as HTMLElement).style.background = 'transparent';
+                                                (e.currentTarget as HTMLElement).style.color = '#7ba7cc';
+                                            }
+                                        }}
+                                    >
+                                        <span>{t(child.labelKey, child.labelDefault)}</span>
+                                    </NavLink>
+                                ))}
+                            </div>
+                        );
+                    })}
                 </nav>
 
                 <div style={{ padding: '12px 8px 16px', borderTop: '1px solid #1a3a5c' }}>
