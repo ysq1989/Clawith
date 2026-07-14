@@ -14,7 +14,7 @@ import {
     IconFolder,
     IconCoin,
     IconShoppingCart,
-    IconFactory,
+    IconTool,
     IconPackages,
     IconChartBar,
     IconSettings,
@@ -82,7 +82,7 @@ const NAV_GROUPS: NavGroup[] = [
         key: 'production',
         labelKey: 'erp.nav.group.production',
         labelDefault: '生产',
-        icon: <IconFactory size={18} stroke={1.5} />,
+        icon: <IconTool size={18} stroke={1.5} />,
         children: [
             { to: '/erp/production', labelKey: 'erp.nav.production', labelDefault: '生产工单' },
         ],
