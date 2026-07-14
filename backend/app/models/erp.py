@@ -179,6 +179,7 @@ class ERPMaterial(Base):
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     code: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)  # 物料编码，如 M001
+    sku: Mapped[str | None] = mapped_column(String(100))
     category: Mapped[str | None] = mapped_column(String(100))
     unit: Mapped[str | None] = mapped_column(String(20))
     cost_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))

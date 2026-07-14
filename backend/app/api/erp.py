@@ -1032,7 +1032,7 @@ def _supplier_to_out(s, category_name=None, salesperson_name=None):
     }
 
 
-@router.get("/suppliers", response_model=list[SupplierOut])
+@router.get("/suppliers")
 async def list_suppliers(
     search: str | None = None,
     status: str | None = None,
