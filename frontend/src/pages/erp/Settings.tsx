@@ -2,7 +2,7 @@
  * ERP Settings — System settings with category management tabs.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { IconPlus, IconEdit, IconTrash, IconSettings } from '@tabler/icons-react';
@@ -43,6 +43,19 @@ const thStyle: React.CSSProperties = {
 const tdStyle: React.CSSProperties = {
     padding: '10px 12px', color: 'var(--text-primary)', fontSize: 13,
 };
+
+const CODE_ITEMS = [
+    { labelZh: '客户编码', labelEn: 'Customer Code', prefixKey: 'customer_code_prefix', digitsKey: 'customer_code_digits', defaultPrefix: 'K', defaultDigits: 3 },
+    { labelZh: '供应商编码', labelEn: 'Supplier Code', prefixKey: 'supplier_code_prefix', digitsKey: 'supplier_code_digits', defaultPrefix: 'G', defaultDigits: 3 },
+    { labelZh: '产品编码', labelEn: 'Product Code', prefixKey: 'product_code_prefix', digitsKey: 'product_code_digits', defaultPrefix: 'P', defaultDigits: 3 },
+    { labelZh: '物料编码', labelEn: 'Material Code', prefixKey: 'material_code_prefix', digitsKey: 'material_code_digits', defaultPrefix: 'M', defaultDigits: 3 },
+    { labelZh: '销售订单编号', labelEn: 'Sales Order No', prefixKey: 'sales_order_prefix', digitsKey: 'sales_order_digits', defaultPrefix: 'SO', defaultDigits: 4 },
+    { labelZh: '采购订单编号', labelEn: 'Purchase Order No', prefixKey: 'purchase_order_prefix', digitsKey: 'purchase_order_digits', defaultPrefix: 'PO', defaultDigits: 4 },
+    { labelZh: '出库单编号', labelEn: 'Outbound No', prefixKey: 'outbound_prefix', digitsKey: 'outbound_digits', defaultPrefix: 'OUT', defaultDigits: 4 },
+    { labelZh: '入库单编号', labelEn: 'Inbound No', prefixKey: 'inbound_prefix', digitsKey: 'inbound_digits', defaultPrefix: 'IN', defaultDigits: 4 },
+    { labelZh: '调拨单编号', labelEn: 'Transfer No', prefixKey: 'transfer_prefix', digitsKey: 'transfer_digits', defaultPrefix: 'TR', defaultDigits: 4 },
+    { labelZh: '财务记录编号', labelEn: 'Financial No', prefixKey: 'financial_prefix', digitsKey: 'financial_digits', defaultPrefix: 'FIN', defaultDigits: 4 },
+];
 
 /* ─── Category Tab Component ─── */
 function CategoryTab({ type, isChinese }: { type: 'customer' | 'supplier'; isChinese: boolean }) {
@@ -219,11 +232,12 @@ function CategoryTab({ type, isChinese }: { type: 'customer' | 'supplier'; isChi
 export default function ERPSettingsPage() {
     const { t, i18n } = useTranslation();
     const isChinese = i18n.language?.startsWith('zh');
-    const [activeTab, setActiveTab] = useState<'customer' | 'supplier'>('customer');
+    const [activeTab, setActiveTab] = useState<'customer' | 'supplier' | 'codes'>('customer');
 
     const tabs = [
         { key: 'customer' as const, label: isChinese ? '客户分类' : 'Customer Categories' },
         { key: 'supplier' as const, label: isChinese ? '供应商分类' : 'Supplier Categories' },
+        { key: 'codes' as const, label: isChinese ? '编码设置' : 'Code Settings' },
     ];
 
     return (
@@ -248,7 +262,96 @@ export default function ERPSettingsPage() {
             </div>
 
             {/* Tab content */}
-            <CategoryTab type={activeTab} isChinese={isChinese} />
+            {activeTab !== 'codes' && <CategoryTab type={activeTab} isChinese={isChinese} />}
+            {activeTab === 'codes' && <CodeSettingsTab isChinese={isChinese} />}
+        </div>
+    );
+}
+
+
+/* ─── Code Settings Tab ─── */
+function CodeSettingsTab({ isChinese }: { isChinese: boolean }) {
+    const queryClient = useQueryClient();
+
+    const { data: settings, isLoading } = useQuery({
+        queryKey: ['erp-settings'],
+        queryFn: () => fetchJson<any>('/erp/settings'),
+    });
+
+    const [form, setForm] = useState<Record<string, string>>({});
+    const [saving, setSaving] = useState(false);
+
+    // Sync settings to form when loaded
+    useEffect(() => {
+        if (settings) {
+            const f: Record<string, string> = {};
+            CODE_ITEMS.forEach(item => {
+                f[item.prefixKey] = settings[item.prefixKey] ?? item.defaultPrefix;
+                f[item.digitsKey] = String(settings[item.digitsKey] ?? item.defaultDigits);
+            });
+            setForm(f);
+        }
+    }, [settings]);
+
+    const update = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const body: Record<string, any> = {};
+            CODE_ITEMS.forEach(item => {
+                body[item.prefixKey] = form[item.prefixKey] || item.defaultPrefix;
+                body[item.digitsKey] = parseInt(form[item.digitsKey]) || item.defaultDigits;
+            });
+            await fetchJson('/erp/settings', { method: 'PUT', body: JSON.stringify(body) });
+            queryClient.invalidateQueries({ queryKey: ['erp-settings'] });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (isLoading) return <div style={{ color: 'var(--text-tertiary)', padding: 40, textAlign: 'center' }}>{isChinese ? '加载中...' : 'Loading...'}</div>;
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 10, overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                            <th style={{ ...thStyle, padding: '12px 16px' }}>{isChinese ? '单据类型' : 'Entity'}</th>
+                            <th style={{ ...thStyle, padding: '12px 16px', width: 150 }}>{isChinese ? '前缀' : 'Prefix'}</th>
+                            <th style={{ ...thStyle, padding: '12px 16px', width: 120 }}>{isChinese ? '流水位数' : 'Digits'}</th>
+                            <th style={{ ...thStyle, padding: '12px 16px', width: 160 }}>{isChinese ? '示例' : 'Example'}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {CODE_ITEMS.map(item => {
+                            const prefix = form[item.prefixKey] || item.defaultPrefix;
+                            const digits = parseInt(form[item.digitsKey]) || item.defaultDigits;
+                            const example = prefix + '1'.padStart(digits, '0');
+                            return (
+                                <tr key={item.prefixKey} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                    <td style={{ ...tdStyle, padding: '10px 16px', fontWeight: 500 }}>{isChinese ? item.labelZh : item.labelEn}</td>
+                                    <td style={{ padding: '8px 16px' }}>
+                                        <input value={form[item.prefixKey] || ''} onChange={e => update(item.prefixKey, e.target.value)} style={{ ...inputStyle, width: '100%' }} />
+                                    </td>
+                                    <td style={{ padding: '8px 16px' }}>
+                                        <input type="number" min={1} max={8} value={form[item.digitsKey] || ''} onChange={e => update(item.digitsKey, e.target.value)} style={{ ...inputStyle, width: '100%' }} />
+                                    </td>
+                                    <td style={{ ...tdStyle, padding: '10px 16px', fontFamily: 'monospace', color: 'var(--text-tertiary)', fontSize: 13 }}>
+                                        {example}
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button style={btnPrimary} onClick={handleSave} disabled={saving}>
+                    {saving ? (isChinese ? '保存中...' : 'Saving...') : (isChinese ? '保存设置' : 'Save Settings')}
+                </button>
+            </div>
         </div>
     );
 }

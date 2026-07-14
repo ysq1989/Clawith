@@ -477,10 +477,26 @@ class ERPSettings(Base):
     fiscal_year_start: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     auto_stock_deduct: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     default_payment_terms: Mapped[str | None] = mapped_column(String(200))
-    customer_code_prefix: Mapped[str] = mapped_column(String(10), nullable=False, default="K")  # 客户编码前缀
-    customer_code_digits: Mapped[int] = mapped_column(Integer, nullable=False, default=3)  # 客户流水号位数
-    supplier_code_prefix: Mapped[str] = mapped_column(String(10), nullable=False, default="G")  # 供应商编码前缀
-    supplier_code_digits: Mapped[int] = mapped_column(Integer, nullable=False, default=3)  # 供应商流水号位数
+    customer_code_prefix: Mapped[str] = mapped_column(String(10), nullable=False, default="K")
+    customer_code_digits: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    supplier_code_prefix: Mapped[str] = mapped_column(String(10), nullable=False, default="G")
+    supplier_code_digits: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    product_code_prefix: Mapped[str] = mapped_column(String(10), nullable=False, default="P")
+    product_code_digits: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    material_code_prefix: Mapped[str] = mapped_column(String(10), nullable=False, default="M")
+    material_code_digits: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    sales_order_prefix: Mapped[str] = mapped_column(String(10), nullable=False, default="SO")
+    sales_order_digits: Mapped[int] = mapped_column(Integer, nullable=False, default=4)
+    purchase_order_prefix: Mapped[str] = mapped_column(String(10), nullable=False, default="PO")
+    purchase_order_digits: Mapped[int] = mapped_column(Integer, nullable=False, default=4)
+    outbound_prefix: Mapped[str] = mapped_column(String(10), nullable=False, default="OUT")
+    outbound_digits: Mapped[int] = mapped_column(Integer, nullable=False, default=4)
+    inbound_prefix: Mapped[str] = mapped_column(String(10), nullable=False, default="IN")
+    inbound_digits: Mapped[int] = mapped_column(Integer, nullable=False, default=4)
+    transfer_prefix: Mapped[str] = mapped_column(String(10), nullable=False, default="TR")
+    transfer_digits: Mapped[int] = mapped_column(Integer, nullable=False, default=4)
+    financial_prefix: Mapped[str] = mapped_column(String(10), nullable=False, default="FIN")
+    financial_digits: Mapped[int] = mapped_column(Integer, nullable=False, default=4)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(),

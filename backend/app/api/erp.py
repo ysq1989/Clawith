@@ -634,6 +634,22 @@ class ERPSettingsUpdate(BaseModel):
     customer_code_digits: int | None = None
     supplier_code_prefix: str | None = None
     supplier_code_digits: int | None = None
+    product_code_prefix: str | None = None
+    product_code_digits: int | None = None
+    material_code_prefix: str | None = None
+    material_code_digits: int | None = None
+    sales_order_prefix: str | None = None
+    sales_order_digits: int | None = None
+    purchase_order_prefix: str | None = None
+    purchase_order_digits: int | None = None
+    outbound_prefix: str | None = None
+    outbound_digits: int | None = None
+    inbound_prefix: str | None = None
+    inbound_digits: int | None = None
+    transfer_prefix: str | None = None
+    transfer_digits: int | None = None
+    financial_prefix: str | None = None
+    financial_digits: int | None = None
 
 
 class ERPSettingsOut(BaseModel):
@@ -647,6 +663,22 @@ class ERPSettingsOut(BaseModel):
     customer_code_digits: int = 3
     supplier_code_prefix: str = "G"
     supplier_code_digits: int = 3
+    product_code_prefix: str = "P"
+    product_code_digits: int = 3
+    material_code_prefix: str = "M"
+    material_code_digits: int = 3
+    sales_order_prefix: str = "SO"
+    sales_order_digits: int = 4
+    purchase_order_prefix: str = "PO"
+    purchase_order_digits: int = 4
+    outbound_prefix: str = "OUT"
+    outbound_digits: int = 4
+    inbound_prefix: str = "IN"
+    inbound_digits: int = 4
+    transfer_prefix: str = "TR"
+    transfer_digits: int = 4
+    financial_prefix: str = "FIN"
+    financial_digits: int = 4
 
     class Config:
         from_attributes = True
@@ -2822,61 +2854,53 @@ async def profit_loss_report(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def _settings_to_out(s):
+    return ERPSettingsOut(
+        id=str(s.id), company_name=s.company_name,
+        currency=s.currency, fiscal_year_start=s.fiscal_year_start,
+        auto_stock_deduct=s.auto_stock_deduct,
+        default_payment_terms=s.default_payment_terms,
+        customer_code_prefix=s.customer_code_prefix,
+        customer_code_digits=s.customer_code_digits,
+        supplier_code_prefix=s.supplier_code_prefix,
+        supplier_code_digits=s.supplier_code_digits,
+        product_code_prefix=s.product_code_prefix,
+        product_code_digits=s.product_code_digits,
+        material_code_prefix=s.material_code_prefix,
+        material_code_digits=s.material_code_digits,
+        sales_order_prefix=s.sales_order_prefix,
+        sales_order_digits=s.sales_order_digits,
+        purchase_order_prefix=s.purchase_order_prefix,
+        purchase_order_digits=s.purchase_order_digits,
+        outbound_prefix=s.outbound_prefix,
+        outbound_digits=s.outbound_digits,
+        inbound_prefix=s.inbound_prefix,
+        inbound_digits=s.inbound_digits,
+        transfer_prefix=s.transfer_prefix,
+        transfer_digits=s.transfer_digits,
+        financial_prefix=s.financial_prefix,
+        financial_digits=s.financial_digits,
+    )
+
+
 @router.get("/settings", response_model=ERPSettingsOut)
 async def get_erp_settings(user=Depends(get_current_user)):
     async with async_session() as db:
         settings = await _get_or_create_settings(db, user.tenant_id)
         await db.commit()
-        return ERPSettingsOut(
-            id=str(settings.id),
-            company_name=settings.company_name,
-            currency=settings.currency,
-            fiscal_year_start=settings.fiscal_year_start,
-            auto_stock_deduct=settings.auto_stock_deduct,
-            default_payment_terms=settings.default_payment_terms,
-            customer_code_prefix=settings.customer_code_prefix,
-            customer_code_digits=settings.customer_code_digits,
-            supplier_code_prefix=settings.supplier_code_prefix,
-            supplier_code_digits=settings.supplier_code_digits,
-        )
+        return _settings_to_out(settings)
 
 
 @router.put("/settings", response_model=ERPSettingsOut)
 async def update_erp_settings(body: ERPSettingsUpdate, user=Depends(get_current_user)):
     async with async_session() as db:
         settings = await _get_or_create_settings(db, user.tenant_id)
-        if body.company_name is not None:
-            settings.company_name = body.company_name
-        if body.currency is not None:
-            settings.currency = body.currency
-        if body.fiscal_year_start is not None:
-            settings.fiscal_year_start = body.fiscal_year_start
-        if body.auto_stock_deduct is not None:
-            settings.auto_stock_deduct = body.auto_stock_deduct
-        if body.default_payment_terms is not None:
-            settings.default_payment_terms = body.default_payment_terms
-        if body.customer_code_prefix is not None:
-            settings.customer_code_prefix = body.customer_code_prefix
-        if body.customer_code_digits is not None:
-            settings.customer_code_digits = body.customer_code_digits
-        if body.supplier_code_prefix is not None:
-            settings.supplier_code_prefix = body.supplier_code_prefix
-        if body.supplier_code_digits is not None:
-            settings.supplier_code_digits = body.supplier_code_digits
+        for field, value in body.model_dump(exclude_unset=True).items():
+            if hasattr(settings, field):
+                setattr(settings, field, value)
         await db.commit()
         await db.refresh(settings)
-        return ERPSettingsOut(
-            id=str(settings.id),
-            company_name=settings.company_name,
-            currency=settings.currency,
-            fiscal_year_start=settings.fiscal_year_start,
-            auto_stock_deduct=settings.auto_stock_deduct,
-            default_payment_terms=settings.default_payment_terms,
-            customer_code_prefix=settings.customer_code_prefix,
-            customer_code_digits=settings.customer_code_digits,
-            supplier_code_prefix=settings.supplier_code_prefix,
-            supplier_code_digits=settings.supplier_code_digits,
-        )
+        return _settings_to_out(settings)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
