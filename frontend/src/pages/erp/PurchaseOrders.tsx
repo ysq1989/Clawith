@@ -230,8 +230,9 @@ function NewOrderDialog({
                 method: 'POST',
                 body: JSON.stringify({
                     supplier_id: supplierId,
+                    order_date: new Date().toISOString().slice(0, 10),
                     notes,
-                    lines: lines.map(l => ({ material_id: l.material_id, quantity: l.quantity, unit_price: l.unit_price })),
+                    items: lines.map(l => ({ material_id: l.material_id, quantity: l.quantity, unit_price: l.unit_price })),
                 }),
             });
             queryClient.invalidateQueries({ queryKey: ['erp-purchase-orders'] });
