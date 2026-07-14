@@ -2928,19 +2928,7 @@ async def list_contacts(
             .order_by(ERPContact.created_at.desc())
         )
         contacts = result.scalars().all()
-        return [
-            ContactOut(
-                id=str(c.id),
-                parent_type=c.parent_type,
-                parent_id=str(c.parent_id),
-                name=c.name,
-                position=c.position,
-                phone=c.phone,
-                notes=c.notes,
-                created_at=str(c.created_at) if c.created_at else None,
-            )
-            for c in contacts
-        ]
+        return [_contact_to_out(c) for c in contacts]
 
 
 @router.post("/contacts", response_model=ContactOut)
