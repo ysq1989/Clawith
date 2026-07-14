@@ -713,7 +713,7 @@ export default function Suppliers() {
                     style={{ ...inputStyle, minWidth: 120 }}
                 >
                     <option value="all">{isChinese ? '全部状态' : 'All Status'}</option>
-                    <option value="active">{isChinese ? '活跃' : 'Active'}</option>
+                    <option value="active">{isChinese ? '启用' : 'Active'}</option>
                     <option value="inactive">{isChinese ? '停用' : 'Inactive'}</option>
                 </select>
                 <div style={{ flex: 1 }} />
