@@ -376,7 +376,7 @@ function CustomerForm({
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => onClose(false)}>
-            <div style={{ background: 'var(--bg-primary)', borderRadius: 12, border: '1px solid var(--border-subtle)', width: 800, maxHeight: '90vh', overflow: 'auto', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ background: 'var(--bg-primary)', borderRadius: 12, border: '1px solid var(--border-subtle)', width: 900, maxHeight: '90vh', overflow: 'auto', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
                 <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
                     {customer ? (isChinese ? '编辑客户' : 'Edit Customer') : (isChinese ? '新建客户' : 'New Customer')}
                 </h3>
@@ -471,7 +471,7 @@ function CustomerForm({
                                                 <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '电话' : 'Phone'}</th>
                                                 <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '备注' : 'Notes'}</th>
                                                 <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 50 }}>{isChinese ? '默认' : 'Default'}</th>
-                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 80 }} />
+                                                <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 120 }} />
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -601,7 +601,7 @@ function CustomerForm({
                                             <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '文件名' : 'File Name'}</th>
                                             <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '大小' : 'Size'}</th>
                                             <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '上传时间' : 'Upload Time'}</th>
-                                            <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 80 }}>{isChinese ? '操作' : 'Actions'}</th>
+                                            <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 120 }}>{isChinese ? '操作' : 'Actions'}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
