@@ -163,7 +163,7 @@ export default function Reports() {
     const salesTable = data?.sales_table ?? [];
     const purchaseTable = data?.purchase_table ?? [];
 
-    const pnlData = pnl.months.map((m, i) => ({
+    const pnlData = (pnl.months ?? []).map((m, i) => ({
         month: m,
         income: pnl.income[i] ?? 0,
         expense: pnl.expense[i] ?? 0,
