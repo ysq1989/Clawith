@@ -19,7 +19,9 @@ interface Customer {
     code?: string;
     short_name?: string;
     category_id?: string;
+    category_name?: string;
     salesperson_id?: string;
+    salesperson_name?: string;
     address: string;
     status: string;
     notes: string;
@@ -733,24 +735,32 @@ export default function Customers() {
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                <th style={thStyle}>{t('erp.customer.name', '客户名称')}</th>
-                                <th style={thStyle}>{t('erp.customer.defaultContact', '默认联系人')}</th>
-                                <th style={thStyle}>{t('erp.customer.contactPhone', '联系人电话')}</th>
-                                <th style={thStyle}>{t('erp.customer.status', '状态')}</th>
-                                <th style={thStyle}>{t('erp.customer.createdAt', '创建时间')}</th>
+                                <th style={thStyle}>{isChinese ? '客户编码' : 'Code'}</th>
+                                <th style={thStyle}>{isChinese ? '客户名称' : 'Name'}</th>
+                                <th style={thStyle}>{isChinese ? '简称' : 'Short Name'}</th>
+                                <th style={thStyle}>{isChinese ? '分类' : 'Category'}</th>
+                                <th style={thStyle}>{isChinese ? '联系人' : 'Contact'}</th>
+                                <th style={thStyle}>{isChinese ? '联系人电话' : 'Phone'}</th>
+                                <th style={thStyle}>{isChinese ? '业务员' : 'Salesperson'}</th>
+                                <th style={thStyle}>{isChinese ? '状态' : 'Status'}</th>
+                                <th style={thStyle}>{isChinese ? '创建时间' : 'Created'}</th>
                                 <th style={{ ...thStyle, textAlign: 'center' }}>{t('erp.actions', '操作')}</th>
                             </tr>
                         </thead>
                         <tbody>
                             {isLoading ? (
-                                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.loading', '加载中...')}</td></tr>
+                                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.loading', '加载中...')}</td></tr>
                             ) : customers.length === 0 ? (
-                                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.noData', '暂无数据')}</td></tr>
+                                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.noData', '暂无数据')}</td></tr>
                             ) : customers.map(c => (
                                 <tr key={c.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                    <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 12, color: 'var(--text-tertiary)' }}>{c.code || '-'}</td>
                                     <td style={tdStyle}>{c.name}</td>
+                                    <td style={tdStyle}>{c.short_name || '-'}</td>
+                                    <td style={tdStyle}>{(c as any).category_name || '-'}</td>
                                     <td style={tdStyle}>{c.default_contact_name || '-'}</td>
                                     <td style={tdStyle}>{c.default_contact_phone || '-'}</td>
+                                    <td style={tdStyle}>{(c as any).salesperson_name || '-'}</td>
                                     <td style={tdStyle}>
                                         <button
                                             onClick={async () => {
