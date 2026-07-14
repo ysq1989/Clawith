@@ -39,12 +39,6 @@ interface Supplier {
     default_contact_phone?: string;
     default_contact_email?: string;
 }
-    created_at: string;
-    updated_at: string;
-    default_contact_name?: string;
-    default_contact_phone?: string;
-    default_contact_email?: string;
-}
 
 interface SuppliersResponse {
     items: Supplier[];
