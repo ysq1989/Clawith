@@ -554,7 +554,7 @@ export default function ERPLayout() {
                         }}
                     >
                         <IconArrowLeft size={16} stroke={1.5} />
-                        <span>{t('erp.backToClawith', '返回 Clawith')}</span>
+                        <span>{isChinese ? '智能体' : 'Agents'}</span>
                     </NavLink>
                 </div>
             </aside>
