@@ -441,6 +441,7 @@ class SalesOrderCreate(BaseModel):
     due_date: str | None = None
     discount: float = 0
     tax_amount: float = 0
+    status: str = "草稿"
     notes: str | None = None
     items: list[SalesOrderItemCreate]
 
@@ -501,6 +502,7 @@ class PurchaseOrderCreate(BaseModel):
     due_date: str | None = None
     discount: float = 0
     tax_amount: float = 0
+    status: str = "草稿"
     notes: str | None = None
     items: list[PurchaseOrderItemCreate]
 
@@ -1661,7 +1663,7 @@ async def create_sales_order(body: SalesOrderCreate, user=Depends(get_current_us
             customer_id=body.customer_id,
             order_date=date.fromisoformat(body.order_date),
             due_date=date.fromisoformat(body.due_date) if body.due_date else None,
-            status="草稿",
+            status=body.status,
             total_amount=total_amount,
             discount=body.discount,
             tax_amount=body.tax_amount,
@@ -1971,7 +1973,7 @@ async def create_purchase_order(body: PurchaseOrderCreate, user=Depends(get_curr
             supplier_id=body.supplier_id,
             order_date=date.fromisoformat(body.order_date),
             due_date=date.fromisoformat(body.due_date) if body.due_date else None,
-            status="草稿",
+            status=body.status,
             total_amount=total_amount,
             discount=body.discount,
             tax_amount=body.tax_amount,

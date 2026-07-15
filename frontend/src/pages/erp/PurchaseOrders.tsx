@@ -220,6 +220,27 @@ function SearchableSelect({
     );
 }
 
+/* ─── Status Select ─── */
+function StatusSelect({ value, onChange, statusType, isChinese }: {
+    value: string; onChange: (v: string) => void; statusType: string; isChinese: boolean;
+}) {
+    const { data: statuses = [] } = useQuery<any[]>({
+        queryKey: ['erp-order-statuses', statusType],
+        queryFn: () => fetchJson<any[]>(`/erp/production-statuses?type=${statusType}`),
+    });
+    const allStatuses = [
+        { name: '草稿', is_active: true },
+        ...statuses.filter((s: any) => s.is_active && s.name !== '草稿'),
+    ];
+    return (
+        <select value={value} onChange={e => onChange(e.target.value)} style={{ ...inputStyle, width: '100%' }}>
+            {allStatuses.map(s => (
+                <option key={s.name} value={s.name}>{s.name}</option>
+            ))}
+        </select>
+    );
+}
+
 /* ─── New Purchase Order Dialog ─── */
 function NewOrderDialog({
     onClose, isChinese,
@@ -230,6 +251,7 @@ function NewOrderDialog({
     const queryClient = useQueryClient();
     const [supplierId, setSupplierId] = useState('');
     const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
+    const [orderStatus, setOrderStatus] = useState('草稿');
     const [notes, setNotes] = useState('');
     const [lines, setLines] = useState<OrderLine[]>([
         { material_id: '', quantity: 1, unit_price: 0, subtotal: 0 },
@@ -275,6 +297,7 @@ function NewOrderDialog({
                 body: JSON.stringify({
                     supplier_id: supplierId,
                     order_date: orderDate,
+                    status: orderStatus,
                     notes,
                     items: lines.map(l => ({ material_id: l.material_id, quantity: l.quantity, unit_price: l.unit_price })),
                 }),
@@ -317,6 +340,19 @@ function NewOrderDialog({
                         </label>
                         <input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} style={{ ...inputStyle, width: '100%' }} />
                     </div>
+                </div>
+
+                {/* Status selector */}
+                <div style={{ marginBottom: 16 }}>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                        {isChinese ? '订单状态' : 'Order Status'}
+                    </label>
+                    <StatusSelect
+                        value={orderStatus}
+                        onChange={setOrderStatus}
+                        statusType="purchase"
+                        isChinese={isChinese}
+                    />
                 </div>
 
                 {/* Line items */}
