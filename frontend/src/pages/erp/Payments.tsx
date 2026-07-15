@@ -247,7 +247,7 @@ export default function Payments() {
     const { data, isLoading } = useQuery({
         queryKey: ['erp-payments', activeTab, search, dateFrom, dateTo, page],
         queryFn: () => fetchJson<PaymentsResponse>(
-            `/erp/payments?type=${activeTab}&search=${encodeURIComponent(search)}&date_from=${dateFrom}&date_to=${dateTo}&page=${page}&page_size=20`,
+            `/erp/payments?payment_type=${activeTab}&search=${encodeURIComponent(search)}&date_from=${dateFrom}&date_to=${dateTo}&page=${page}&page_size=20`,
         ),
     });
 
