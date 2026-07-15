@@ -382,7 +382,7 @@ function CodeSettingsTab({ isChinese }: { isChinese: boolean }) {
 }
 
 
-/* ─── Production Status Tab ─── */
+/* ─── Order Status Tab ─── */
 function OrderStatusTab({ statusType, isChinese }: { statusType: string; isChinese: boolean }) {
     const queryClient = useQueryClient();
     const [newName, setNewName] = useState('');
@@ -405,8 +405,8 @@ function OrderStatusTab({ statusType, isChinese }: { statusType: string; isChine
     });
 
     const updateMutation = useMutation({
-        mutationFn: ({ id, name }: { id: string; name: string }) => fetchJson(`/erp/production-statuses/${id}`, {
-            method: 'PATCH', body: JSON.stringify({ name }),
+        mutationFn: ({ id, payload }: { id: string; payload: any }) => fetchJson(`/erp/production-statuses/${id}`, {
+            method: 'PATCH', body: JSON.stringify(payload),
         }),
         onSuccess: () => { queryClient.invalidateQueries({ queryKey }); setEditingId(null); },
     });
@@ -415,6 +415,10 @@ function OrderStatusTab({ statusType, isChinese }: { statusType: string; isChine
         mutationFn: (id: string) => fetchJson(`/erp/production-statuses/${id}`, { method: 'DELETE' }),
         onSuccess: () => queryClient.invalidateQueries({ queryKey }),
     });
+
+    const setAsDefault = (id: string) => {
+        updateMutation.mutate({ id, payload: { is_default: true } });
+    };
 
     return (
         <div>
@@ -428,24 +432,37 @@ function OrderStatusTab({ statusType, isChinese }: { statusType: string; isChine
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                         <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                            <th style={{ ...thStyle, width: 60 }}>{isChinese ? '序号' : '#'}</th>
+                            <th style={{ ...thStyle, width: 50 }}>{isChinese ? '序号' : '#'}</th>
                             <th style={thStyle}>{isChinese ? '状态名称' : 'Status Name'}</th>
+                            <th style={{ ...thStyle, width: 80, textAlign: 'center' }}>{isChinese ? '默认' : 'Default'}</th>
                             <th style={{ ...thStyle, width: 120, textAlign: 'center' }}>{isChinese ? '操作' : 'Actions'}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {isLoading ? <tr><td colSpan={3} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{isChinese ? '加载中...' : 'Loading...'}</td></tr>
-                        : statuses.length === 0 ? <tr><td colSpan={3} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{isChinese ? '暂无状态' : 'No statuses'}</td></tr>
+                        {isLoading ? <tr><td colSpan={4} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{isChinese ? '加载中...' : 'Loading...'}</td></tr>
+                        : statuses.length === 0 ? <tr><td colSpan={4} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{isChinese ? '暂无状态' : 'No statuses'}</td></tr>
                         : statuses.map((s: any, idx: number) => (
                             <tr key={s.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                                 <td style={tdStyle}>{idx + 1}</td>
                                 <td style={tdStyle}>
                                     {editingId === s.id ? (
                                         <div style={{ display: 'flex', gap: 6 }}>
-                                            <input value={editName} onChange={e => setEditName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') updateMutation.mutate({ id: s.id, name: editName }); if (e.key === 'Escape') setEditingId(null); }} style={{ ...inputStyle, flex: 1 }} autoFocus />
-                                            <button style={{ ...btnPrimary, padding: '4px 10px', fontSize: 12 }} onClick={() => updateMutation.mutate({ id: s.id, name: editName })}>{isChinese ? '保存' : 'Save'}</button>
+                                            <input value={editName} onChange={e => setEditName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') updateMutation.mutate({ id: s.id, payload: { name: editName } }); if (e.key === 'Escape') setEditingId(null); }} style={{ ...inputStyle, flex: 1 }} autoFocus />
+                                            <button style={{ ...btnPrimary, padding: '4px 10px', fontSize: 12 }} onClick={() => updateMutation.mutate({ id: s.id, payload: { name: editName } })}>{isChinese ? '保存' : 'Save'}</button>
                                         </div>
                                     ) : s.name}
+                                </td>
+                                <td style={{ ...tdStyle, textAlign: 'center' }}>
+                                    <button
+                                        onClick={() => !s.is_default && setAsDefault(s.id)}
+                                        style={{
+                                            background: 'none', border: 'none', cursor: s.is_default ? 'default' : 'pointer', padding: 4,
+                                            color: s.is_default ? 'var(--accent-primary)' : 'var(--text-tertiary)',
+                                        }}
+                                        title={s.is_default ? (isChinese ? '默认状态' : 'Default') : (isChinese ? '设为默认' : 'Set as default')}
+                                    >
+                                        {s.is_default ? '★' : '☆'}
+                                    </button>
                                 </td>
                                 <td style={{ ...tdStyle, textAlign: 'center' }}>
                                     {editingId !== s.id && (

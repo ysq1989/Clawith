@@ -29,7 +29,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import String, select, func, or_
+from sqlalchemy import String, select, func, or_, update
 import aiofiles
 
 from app.api.auth import get_current_user
@@ -3357,12 +3357,14 @@ class ProductionStatusCreate(BaseModel):
     status_type: str = "production"  # sales / purchase / production
     sort_order: int = 0
     is_active: bool = True
+    is_default: bool = False
 
 
 class ProductionStatusUpdate(BaseModel):
     name: str | None = None
     sort_order: int | None = None
     is_active: bool | None = None
+    is_default: bool | None = None
 
 
 class ProductionStatusOut(BaseModel):
@@ -3371,6 +3373,7 @@ class ProductionStatusOut(BaseModel):
     status_type: str
     sort_order: int
     is_active: bool
+    is_default: bool
     created_at: str | None = None
 
     class Config:
@@ -3380,7 +3383,7 @@ class ProductionStatusOut(BaseModel):
 def _production_status_to_out(ps):
     return ProductionStatusOut(
         id=str(ps.id), name=ps.name, status_type=ps.status_type,
-        sort_order=ps.sort_order, is_active=ps.is_active,
+        sort_order=ps.sort_order, is_active=ps.is_active, is_default=ps.is_default,
         created_at=ps.created_at.isoformat() if ps.created_at else None,
     )
 
@@ -3407,12 +3410,24 @@ async def list_production_statuses(
 async def create_production_status(body: ProductionStatusCreate, user=Depends(get_current_user)):
     """创建订单状态。"""
     async with async_session() as db:
+        # 如果设为默认，先取消同类型其他默认
+        if body.is_default:
+            await db.execute(
+                update(ERPProductionStatus)
+                .where(
+                    ERPProductionStatus.tenant_id == user.tenant_id,
+                    ERPProductionStatus.status_type == body.status_type,
+                    ERPProductionStatus.is_default == True,
+                )
+                .values(is_default=False)
+            )
         obj = ERPProductionStatus(
             tenant_id=user.tenant_id,
             name=body.name,
             status_type=body.status_type,
             sort_order=body.sort_order,
             is_active=body.is_active,
+            is_default=body.is_default,
         )
         db.add(obj)
         await db.commit()
@@ -3422,7 +3437,7 @@ async def create_production_status(body: ProductionStatusCreate, user=Depends(ge
 
 @router.patch("/production-statuses/{status_id}", response_model=ProductionStatusOut)
 async def update_production_status(status_id: str, body: ProductionStatusUpdate, user=Depends(get_current_user)):
-    """修改生产状态。"""
+    """修改订单状态。"""
     async with async_session() as db:
         result = await db.execute(
             select(ERPProductionStatus).where(
@@ -3432,8 +3447,21 @@ async def update_production_status(status_id: str, body: ProductionStatusUpdate,
         )
         obj = result.scalar_one_or_none()
         if not obj:
-            raise HTTPException(404, "生产状态不存在")
-        for field, value in body.model_dump(exclude_unset=True).items():
+            raise HTTPException(404, "状态不存在")
+        update_data = body.model_dump(exclude_unset=True)
+        # 如果设为默认，先取消同类型其他默认
+        if update_data.get("is_default"):
+            await db.execute(
+                update(ERPProductionStatus)
+                .where(
+                    ERPProductionStatus.tenant_id == user.tenant_id,
+                    ERPProductionStatus.status_type == obj.status_type,
+                    ERPProductionStatus.id != obj.id,
+                    ERPProductionStatus.is_default == True,
+                )
+                .values(is_default=False)
+            )
+        for field, value in update_data.items():
             setattr(obj, field, value)
         await db.commit()
         await db.refresh(obj)

@@ -228,12 +228,13 @@ function StatusSelect({ value, onChange, statusType, isChinese }: {
         queryKey: ['erp-order-statuses', statusType],
         queryFn: () => fetchJson<any[]>(`/erp/production-statuses?type=${statusType}`),
     });
+    const defaultStatus = statuses.find((s: any) => s.is_default)?.name ?? '草稿';
     const allStatuses = [
         { name: '草稿', is_active: true },
         ...statuses.filter((s: any) => s.is_active && s.name !== '草稿'),
     ];
     return (
-        <select value={value} onChange={e => onChange(e.target.value)} style={{ ...inputStyle, width: '100%' }}>
+        <select value={value || defaultStatus} onChange={e => onChange(e.target.value)} style={{ ...inputStyle, width: '100%' }}>
             {allStatuses.map(s => (
                 <option key={s.name} value={s.name}>{s.name}</option>
             ))}
