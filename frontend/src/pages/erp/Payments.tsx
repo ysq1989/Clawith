@@ -233,11 +233,11 @@ function NewPaymentDialog({
 }
 
 /* ─── Main Component ─── */
-export default function Payments() {
+export default function Payments({ defaultType }: { defaultType?: 'receipt' | 'payment' }) {
     const { t, i18n } = useTranslation();
     const isChinese = i18n.language?.startsWith('zh');
 
-    const [activeTab, setActiveTab] = useState<'receipt' | 'payment'>('receipt');
+    const [activeTab, setActiveTab] = useState<'receipt' | 'payment'>(defaultType ?? 'receipt');
     const [search, setSearch] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
@@ -260,27 +260,29 @@ export default function Payments() {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* ── Tabs ── */}
-            <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid var(--border-subtle)' }}>
-                {(['receipt', 'payment'] as const).map(tab => (
-                    <button
-                        key={tab}
-                        onClick={() => { setActiveTab(tab); setPage(1); }}
-                        style={{
-                            padding: '10px 24px', fontSize: 14, fontWeight: activeTab === tab ? 600 : 400,
-                            background: 'none', border: 'none', cursor: 'pointer',
-                            color: activeTab === tab ? 'var(--accent-primary)' : 'var(--text-tertiary)',
-                            borderBottom: activeTab === tab ? '2px solid var(--accent-primary)' : '2px solid transparent',
-                            marginBottom: -2, transition: 'all 0.15s',
-                        }}
-                    >
-                        {tab === 'receipt'
-                            ? (isChinese ? '收款记录' : 'Receipts')
-                            : (isChinese ? '付款记录' : 'Payments')
-                        }
-                    </button>
-                ))}
-            </div>
+            {/* ── Tabs (only show when no defaultType) ── */}
+            {!defaultType && (
+                <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid var(--border-subtle)' }}>
+                    {(['receipt', 'payment'] as const).map(tab => (
+                        <button
+                            key={tab}
+                            onClick={() => { setActiveTab(tab); setPage(1); }}
+                            style={{
+                                padding: '10px 24px', fontSize: 14, fontWeight: activeTab === tab ? 600 : 400,
+                                background: 'none', border: 'none', cursor: 'pointer',
+                                color: activeTab === tab ? 'var(--accent-primary)' : 'var(--text-tertiary)',
+                                borderBottom: activeTab === tab ? '2px solid var(--accent-primary)' : '2px solid transparent',
+                                marginBottom: -2, transition: 'all 0.15s',
+                            }}
+                        >
+                            {tab === 'receipt'
+                                ? (isChinese ? '收款记录' : 'Receipts')
+                                : (isChinese ? '付款记录' : 'Payments')
+                            }
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {/* ── Toolbar ── */}
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>

@@ -65,7 +65,7 @@ const NAV_GROUPS: NavGroup[] = [
         icon: <IconCoin size={18} stroke={1.5} />,
         children: [
             { to: '/erp/sales-orders', labelKey: 'erp.nav.salesOrders',    labelDefault: '销售订单' },
-            { to: '/erp/payments',     labelKey: 'erp.nav.payments',       labelDefault: '销售回款' },
+            { to: '/erp/sales-receipts', labelKey: 'erp.nav.salesReceipts', labelDefault: '销售回款' },
         ],
     },
     {
@@ -75,7 +75,7 @@ const NAV_GROUPS: NavGroup[] = [
         icon: <IconShoppingCart size={18} stroke={1.5} />,
         children: [
             { to: '/erp/purchase-orders', labelKey: 'erp.nav.purchaseOrders', labelDefault: '采购订单' },
-            { to: '/erp/payments',        labelKey: 'erp.nav.purchasePayments', labelDefault: '采购付款' },
+            { to: '/erp/purchase-payments', labelKey: 'erp.nav.purchasePayments', labelDefault: '采购付款' },
         ],
     },
     {

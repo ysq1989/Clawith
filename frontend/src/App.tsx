@@ -319,7 +319,9 @@ export default function App() {
                     <Route path="sales-orders" element={<ERPSalesOrders />} />
                     <Route path="purchase-orders" element={<ERPPurchaseOrders />} />
                     <Route path="production" element={<ERPProduction />} />
-                    <Route path="payments" element={<ERPPayments />} />
+                    <Route path="payments" element={<Navigate to="/erp/sales-receipts" replace />} />
+                    <Route path="sales-receipts" element={<ERPPayments defaultType="receipt" />} />
+                    <Route path="purchase-payments" element={<ERPPayments defaultType="payment" />} />
                     <Route path="warehouse" element={<Navigate to="/erp/inventory" replace />} />
                     <Route path="outbound" element={<Navigate to="/erp/inventory" replace />} />
                     <Route path="inbound" element={<Navigate to="/erp/inventory" replace />} />
