@@ -605,6 +605,7 @@ function CustomerForm({
                                         <tr style={{ background: 'var(--bg-secondary)' }}>
                                             <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '文件名' : 'File Name'}</th>
                                             <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '大小' : 'Size'}</th>
+                                            <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '上传人' : 'Uploaded By'}</th>
                                             <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px' }}>{isChinese ? '上传时间' : 'Upload Time'}</th>
                                             <th style={{ ...thStyle, fontSize: 11, padding: '6px 8px', textAlign: 'center', width: 120 }}>{isChinese ? '操作' : 'Actions'}</th>
                                         </tr>
@@ -614,6 +615,7 @@ function CustomerForm({
                                             <tr key={att.id} style={{ borderTop: '1px solid var(--border-subtle)' }}>
                                                 <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{att.file_name || att.name || '-'}</td>
                                                 <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{att.file_size != null ? formatFileSize(att.file_size) : '-'}</td>
+                                                <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12, color: 'var(--text-tertiary)' }}>{att.uploaded_by_name ?? '-'}</td>
                                                 <td style={{ ...tdStyle, padding: '6px 8px', fontSize: 12 }}>{att.created_at ? new Date(att.created_at).toLocaleString() : '-'}</td>
                                                 <td style={{ ...tdStyle, padding: '6px 8px', textAlign: 'center' }}>
                                                     <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>

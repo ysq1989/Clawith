@@ -632,6 +632,7 @@ function OrderDetailDialog({
                                     <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                                         <th style={thStyle}>{isChinese ? '文件名' : 'File Name'}</th>
                                         <th style={thStyle}>{isChinese ? '大小' : 'Size'}</th>
+                                        <th style={thStyle}>{isChinese ? '上传人' : 'Uploaded By'}</th>
                                         <th style={thStyle}>{isChinese ? '上传时间' : 'Uploaded'}</th>
                                         <th style={{ ...thStyle, textAlign: 'center' }}>{isChinese ? '操作' : 'Actions'}</th>
                                     </tr>
@@ -641,6 +642,7 @@ function OrderDetailDialog({
                                         <tr key={a.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                                             <td style={tdStyle}>{a.file_name}</td>
                                             <td style={{ ...tdStyle, color: 'var(--text-tertiary)' }}>{formatFileSize(a.file_size)}</td>
+                                            <td style={{ ...tdStyle, color: 'var(--text-tertiary)' }}>{a.uploaded_by_name ?? '-'}</td>
                                             <td style={{ ...tdStyle, color: 'var(--text-tertiary)' }}>{new Date(a.created_at).toLocaleString()}</td>
                                             <td style={{ ...tdStyle, textAlign: 'center' }}>
                                                 <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>

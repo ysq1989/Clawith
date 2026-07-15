@@ -778,6 +778,8 @@ class AttachmentOut(BaseModel):
     file_path: str
     file_size: int
     mime_type: str | None = None
+    uploaded_by: str | None = None
+    uploaded_by_name: str | None = None
     created_at: str | None = None
 
     class Config:
@@ -3096,6 +3098,7 @@ async def upload_attachment(
             file_path=os.path.relpath(file_path, _BACKEND_DIR),
             file_size=file_size,
             mime_type=file.content_type,
+            uploaded_by=user.id,
         )
         db.add(attachment)
         await db.commit()
@@ -3108,6 +3111,8 @@ async def upload_attachment(
             file_path=attachment.file_path,
             file_size=attachment.file_size,
             mime_type=attachment.mime_type,
+            uploaded_by=str(user.id),
+            uploaded_by_name=getattr(user, 'display_name', None),
             created_at=str(attachment.created_at) if attachment.created_at else None,
         )
 
@@ -3121,7 +3126,8 @@ async def list_attachments(
         raise HTTPException(400, "parent_type must be 'customer', 'supplier', 'sales_order', or 'purchase_order'")
     async with async_session() as db:
         result = await db.execute(
-            select(ERPAttachment)
+            select(ERPAttachment, User.display_name)
+            .outerjoin(User, ERPAttachment.uploaded_by == User.id)
             .where(
                 ERPAttachment.tenant_id == user.tenant_id,
                 ERPAttachment.parent_type == parent_type,
@@ -3129,7 +3135,7 @@ async def list_attachments(
             )
             .order_by(ERPAttachment.created_at.desc())
         )
-        attachments = result.scalars().all()
+        rows = result.all()
         return [
             AttachmentOut(
                 id=str(a.id),
@@ -3139,9 +3145,11 @@ async def list_attachments(
                 file_path=a.file_path,
                 file_size=a.file_size,
                 mime_type=a.mime_type,
+                uploaded_by=str(a.uploaded_by) if a.uploaded_by else None,
+                uploaded_by_name=uploader_name,
                 created_at=str(a.created_at) if a.created_at else None,
             )
-            for a in attachments
+            for a, uploader_name in rows
         ]
 
 
