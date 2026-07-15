@@ -31,7 +31,7 @@ interface PurchaseOrder {
     order_date: string;
     due_date: string | null;
     notes: string;
-    lines: OrderLine[];
+    items: OrderLine[];
     created_at: string;
     updated_at: string;
 }
@@ -485,7 +485,7 @@ function OrderDetailDialog({
                             </tr>
                         </thead>
                         <tbody>
-                            {(order.lines ?? []).map((line, idx) => (
+                            {(order.items ?? []).map((line, idx) => (
                                 <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                                     <td style={tdStyle}>{line.material_name ?? line.material_id}</td>
                                     <td style={tdStyle}>{line.quantity}{line.unit ? ` ${line.unit}` : ''}</td>

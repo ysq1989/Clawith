@@ -31,7 +31,7 @@ interface SalesOrder {
     order_date: string;
     due_date: string | null;
     notes: string;
-    lines: OrderLine[];
+    items: OrderLine[];
     created_at: string;
     updated_at: string;
 }
@@ -237,7 +237,7 @@ function NewOrderDialog({
     const [notes, setNotes] = useState(order?.notes ?? '');
     const [lines, setLines] = useState<OrderLine[]>(
         order?.lines?.length
-            ? order.lines.map(l => ({ ...l, subtotal: l.quantity * l.unit_price }))
+            ? order.items.map(l => ({ ...l, subtotal: l.quantity * l.unit_price }))
             : [{ product_id: '', quantity: 1, unit_price: 0, subtotal: 0 }]
     );
     const [saving, setSaving] = useState(false);
@@ -565,7 +565,7 @@ function OrderDetailDialog({
                             </tr>
                         </thead>
                         <tbody>
-                            {(order.lines ?? []).map((line, idx) => (
+                            {(order.items ?? []).map((line, idx) => (
                                 <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                                     <td style={tdStyle}>{line.product_name ?? line.product_id}</td>
                                     <td style={tdStyle}>{line.quantity}{line.unit ? ` ${line.unit}` : ''}</td>
