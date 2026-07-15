@@ -1,6 +1,6 @@
 /**
- * SalesOrders — Sales order management with status filter tabs, order list, create/edit dialog with
- * dynamic line items, and order detail dialog with status transitions.
+ * SalesOrders — Sales order management with dynamic status tabs, create dialog with date picker,
+ * order detail dialog with status transitions, and delete support.
  */
 
 import { useState, useMemo } from 'react';
@@ -28,6 +28,8 @@ interface SalesOrder {
     customer_name: string;
     total_amount: number;
     status: string;
+    order_date: string;
+    due_date: string | null;
     notes: string;
     lines: OrderLine[];
     created_at: string;
@@ -41,22 +43,7 @@ interface OrdersResponse {
     page_size: number;
 }
 
-interface CustomerOption {
-    id: string;
-    name: string;
-}
-
-interface ProductOption {
-    id: string;
-    name: string;
-    sku: string;
-    unit_price: number;
-    unit?: string;
-}
-
-/* ─── Constants ─── */
-const STATUS_TABS = ['all', 'draft', 'confirmed', 'processing', 'shipped', 'completed', 'cancelled'] as const;
-
+/* ─── Colors for known statuses (fallback for custom ones) ─── */
 const STATUS_COLOR: Record<string, string> = {
     draft: '#8b8b9e',
     confirmed: '#3b82f6',
@@ -74,6 +61,8 @@ const STATUS_LABELS: Record<string, { zh: string; en: string }> = {
     completed:  { zh: '已完成', en: 'Completed' },
     cancelled:  { zh: '已取消', en: 'Cancelled' },
 };
+
+const FALLBACK_COLORS = ['#3b82f6', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#10b981'];
 
 /* ─── Styles ─── */
 const inputStyle: React.CSSProperties = {
@@ -93,6 +82,9 @@ const btnSecondary: React.CSSProperties = {
     background: 'var(--bg-secondary)', color: 'var(--text-primary)',
     fontSize: 13, fontWeight: 500, cursor: 'pointer',
 };
+const btnDanger: React.CSSProperties = {
+    ...btnPrimary, background: '#ef4444',
+};
 const thStyle: React.CSSProperties = {
     textAlign: 'left', padding: '10px 12px', fontWeight: 600,
     color: 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap',
@@ -101,10 +93,21 @@ const tdStyle: React.CSSProperties = {
     padding: '10px 12px', color: 'var(--text-primary)', fontSize: 13,
 };
 
+/* ─── Helpers ─── */
+function getStatusColor(status: string, idx: number) {
+    return STATUS_COLOR[status] ?? FALLBACK_COLORS[idx % FALLBACK_COLORS.length];
+}
+
+function getStatusLabel(status: string, isChinese: boolean) {
+    const known = STATUS_LABELS[status];
+    if (known) return isChinese ? known.zh : known.en;
+    return status;
+}
+
 /* ─── Status Badge ─── */
-function StatusBadge({ status, isChinese }: { status: string; isChinese: boolean }) {
-    const color = STATUS_COLOR[status] ?? 'var(--text-tertiary)';
-    const label = isChinese ? (STATUS_LABELS[status]?.zh ?? status) : (STATUS_LABELS[status]?.en ?? status);
+function StatusBadge({ status, isChinese, colorIdx = 0 }: { status: string; isChinese: boolean; colorIdx?: number }) {
+    const color = getStatusColor(status, colorIdx);
+    const label = getStatusLabel(status, isChinese);
     return (
         <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -133,7 +136,6 @@ function SearchableSelect({
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
-    const ref = useState<HTMLDivElement | null>(null)[0];
 
     const { data, isLoading } = useQuery({
         queryKey: ['searchable-select', apiPath, search, page, status],
@@ -143,10 +145,10 @@ function SearchableSelect({
 
     const items = Array.isArray(data) ? data : (data?.items ?? []);
     const total = Array.isArray(data) ? data.length : (data?.total ?? 0);
-    const totalPages = Math.max(1, Math.ceil(total / (Array.isArray(data) ? data.length : (data?.page_size ?? 10))));
+    const totalPages = Math.max(1, Math.ceil(total / (Array.isArray(data) ? Math.max(data.length, 1) : (data?.page_size ?? 10))));
     const selectedItem = items.find((i: any) => i.id === value);
     const displayLabel = selectedItem
-        ? (labelKey === 'name_sku' ? `${selectedItem.name} (${selectedItem.sku})` : selectedItem.name)
+        ? (labelKey === 'name_sku' && selectedItem.sku ? `${selectedItem.name} (${selectedItem.sku})` : selectedItem.name)
         : '';
 
     return (
@@ -169,48 +171,48 @@ function SearchableSelect({
             {open && (
                 <div style={{
                     position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
-                    background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8,
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 1001, overflow: 'hidden',
+                    background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: 8,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 1001, overflow: 'hidden',
                 }}>
-                    <div style={{ padding: 8, borderBottom: '1px solid #e2e8f0' }}>
+                    <div style={{ padding: 8, borderBottom: '1px solid var(--border-subtle)' }}>
                         <div style={{ position: 'relative' }}>
-                            <IconSearch size={14} stroke={1.5} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                            <IconSearch size={14} stroke={1.5} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
                             <input
                                 autoFocus
                                 value={search}
                                 onChange={e => { setSearch(e.target.value); setPage(1); }}
                                 placeholder={isChinese ? '输入关键词搜索...' : 'Search...'}
-                                style={{ width: '100%', padding: '6px 8px 6px 28px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', color: '#1e293b', background: '#f8fafc' }}
+                                style={{ width: '100%', padding: '6px 8px 6px 28px', border: '1px solid var(--border-subtle)', borderRadius: 6, fontSize: 13, outline: 'none', color: 'var(--text-primary)', background: 'var(--bg-secondary)' }}
                             />
                         </div>
                     </div>
                     <div style={{ maxHeight: 240, overflowY: 'auto' }}>
                         {isLoading ? (
-                            <div style={{ padding: 16, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>{isChinese ? '加载中...' : 'Loading...'}</div>
+                            <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>{isChinese ? '加载中...' : 'Loading...'}</div>
                         ) : items.length === 0 ? (
-                            <div style={{ padding: 16, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>{isChinese ? '无匹配结果' : 'No results'}</div>
+                            <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>{isChinese ? '无匹配结果' : 'No results'}</div>
                         ) : items.map((item: any) => (
                             <div
                                 key={item.id}
                                 onClick={() => { onChange(item.id, item); setOpen(false); setSearch(''); }}
                                 style={{
                                     padding: '8px 12px', cursor: 'pointer', fontSize: 13,
-                                    color: '#1e293b', borderBottom: '1px solid #f1f5f9',
-                                    background: item.id === value ? '#eff6ff' : 'transparent',
+                                    color: 'var(--text-primary)', borderBottom: '1px solid var(--border-subtle)',
+                                    background: item.id === value ? 'var(--accent-primary)18' : 'transparent',
                                     transition: 'background 0.1s',
                                 }}
-                                onMouseEnter={e => { if (item.id !== value) (e.currentTarget as HTMLElement).style.background = '#f8fafc'; }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = item.id === value ? '#eff6ff' : 'transparent'; }}
+                                onMouseEnter={e => { if (item.id !== value) (e.currentTarget as HTMLElement).style.background = 'var(--bg-secondary)'; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = item.id === value ? 'var(--accent-primary)18' : 'transparent'; }}
                             >
                                 <div style={{ fontWeight: item.id === value ? 600 : 400 }}>{item.name}</div>
-                                {item.sku && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>SKU: {item.sku}</div>}
+                                {item.sku && <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>SKU: {item.sku}</div>}
                             </div>
                         ))}
                     </div>
                     {totalPages > 1 && (
-                        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid #e2e8f0' }}>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid var(--border-subtle)' }}>
                             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} style={{ ...btnSecondary, padding: '3px 8px', fontSize: 11 }}>{isChinese ? '上一页' : 'Prev'}</button>
-                            <span style={{ fontSize: 11, color: '#94a3b8', lineHeight: '24px' }}>{page}/{totalPages}</span>
+                            <span style={{ fontSize: 11, color: 'var(--text-tertiary)', lineHeight: '24px' }}>{page}/{totalPages}</span>
                             <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} style={{ ...btnSecondary, padding: '3px 8px', fontSize: 11 }}>{isChinese ? '下一页' : 'Next'}</button>
                         </div>
                     )}
@@ -229,6 +231,7 @@ function NewOrderDialog({
 }) {
     const queryClient = useQueryClient();
     const [customerId, setCustomerId] = useState('');
+    const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
     const [notes, setNotes] = useState('');
     const [lines, setLines] = useState<OrderLine[]>([
         { product_id: '', quantity: 1, unit_price: 0, subtotal: 0 },
@@ -237,7 +240,6 @@ function NewOrderDialog({
     const [error, setError] = useState('');
 
     const addLine = () => setLines(prev => [...prev, { product_id: '', quantity: 1, unit_price: 0, subtotal: 0 }]);
-
     const removeLine = (idx: number) => setLines(prev => prev.filter((_, i) => i !== idx));
 
     const updateLine = (idx: number, field: keyof OrderLine, value: any) => {
@@ -274,7 +276,7 @@ function NewOrderDialog({
                 method: 'POST',
                 body: JSON.stringify({
                     customer_id: customerId,
-                    order_date: new Date().toISOString().slice(0, 10),
+                    order_date: orderDate,
                     notes,
                     items: lines.map(l => ({ product_id: l.product_id, quantity: l.quantity, unit_price: l.unit_price })),
                 }),
@@ -295,20 +297,28 @@ function NewOrderDialog({
                     {isChinese ? '新建销售订单' : 'New Sales Order'}
                 </h3>
 
-                {/* Customer selector */}
-                <div style={{ marginBottom: 16 }}>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                        {isChinese ? '选择客户 *' : 'Select Customer *'}
-                    </label>
-                    <SearchableSelect
-                        value={customerId}
-                        onChange={(id) => setCustomerId(id)}
-                        placeholder={isChinese ? '-- 请选择客户 --' : '-- Select Customer --'}
-                        apiPath="/erp/customers"
-                        isChinese={isChinese}
-                        labelKey="name"
-                        status="active"
-                    />
+                {/* Customer + Date */}
+                <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+                    <div style={{ flex: 2 }}>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                            {isChinese ? '选择客户 *' : 'Select Customer *'}
+                        </label>
+                        <SearchableSelect
+                            value={customerId}
+                            onChange={(id) => setCustomerId(id)}
+                            placeholder={isChinese ? '-- 请选择客户 --' : '-- Select Customer --'}
+                            apiPath="/erp/customers"
+                            isChinese={isChinese}
+                            labelKey="name"
+                            status="active"
+                        />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                            {isChinese ? '订单日期 *' : 'Order Date *'}
+                        </label>
+                        <input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} style={{ ...inputStyle, width: '100%' }} />
+                    </div>
                 </div>
 
                 {/* Line items */}
@@ -321,10 +331,10 @@ function NewOrderDialog({
                             <IconPlus size={14} stroke={2} /> {isChinese ? '添加行' : 'Add Line'}
                         </button>
                     </div>
-                    <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 8 }}>
+                    <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
-                                <tr style={{ background: 'var(--bg-tertiary)' }}>
+                                <tr style={{ background: 'var(--bg-secondary)' }}>
                                     <th style={{ ...thStyle, width: '35%' }}>{isChinese ? '产品名称' : 'Product'}</th>
                                     <th style={{ ...thStyle, width: '15%' }}>{isChinese ? '单价' : 'Price'}</th>
                                     <th style={{ ...thStyle, width: '20%' }}>{isChinese ? '数量' : 'Qty'}</th>
@@ -404,6 +414,8 @@ function OrderDetailDialog({
     isChinese: boolean;
 }) {
     const queryClient = useQueryClient();
+    const dialog = useDialog();
+
     const statusTransitionMutation = useMutation({
         mutationFn: (newStatus: string) => fetchJson(`/erp/sales-orders/${order.id}/status`, {
             method: 'POST', body: JSON.stringify({ new_status: newStatus }),
@@ -423,14 +435,25 @@ function OrderDetailDialog({
         ...(order.status !== 'cancelled' ? ['cancelled'] : []),
     ];
 
+    const handleStatusChange = async (newStatus: string) => {
+        if (newStatus === 'cancelled') {
+            const ok = await dialog.confirm(
+                isChinese ? '确定要取消此订单吗？' : 'Are you sure you want to cancel this order?',
+                { title: isChinese ? '取消订单' : 'Cancel Order', danger: true, confirmLabel: isChinese ? '取消订单' : 'Cancel Order' },
+            );
+            if (!ok) return;
+        }
+        statusTransitionMutation.mutate(newStatus);
+    };
+
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
-            <div style={{ background: 'var(--bg-primary)', borderRadius: 12, border: '1px solid var(--border-subtle)', width: 560, maxHeight: '90vh', overflow: 'auto', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ background: 'var(--bg-primary)', borderRadius: 12, border: '1px solid var(--border-subtle)', width: 720, maxHeight: '90vh', overflow: 'auto', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
                 <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
                     {isChinese ? '订单详情' : 'Order Detail'}: {order.order_no}
                 </h3>
 
-                <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 24, marginBottom: 16, flexWrap: 'wrap' }}>
                     <div>
                         <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{isChinese ? '客户' : 'Customer'}</div>
                         <div style={{ fontSize: 14, color: 'var(--text-primary)' }}>{order.customer_name}</div>
@@ -442,6 +465,10 @@ function OrderDetailDialog({
                     <div>
                         <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{isChinese ? '金额' : 'Amount'}</div>
                         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{order.total_amount.toFixed(2)}</div>
+                    </div>
+                    <div>
+                        <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{isChinese ? '订单日期' : 'Order Date'}</div>
+                        <div style={{ fontSize: 14, color: 'var(--text-primary)' }}>{order.order_date}</div>
                     </div>
                     <div>
                         <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{isChinese ? '创建时间' : 'Created'}</div>
@@ -457,16 +484,16 @@ function OrderDetailDialog({
                                 <th style={thStyle}>{isChinese ? '产品' : 'Product'}</th>
                                 <th style={thStyle}>{isChinese ? '数量' : 'Qty'}</th>
                                 <th style={thStyle}>{isChinese ? '单价' : 'Unit Price'}</th>
-                                <th style={thStyle}>{isChinese ? '小计' : 'Subtotal'}</th>
+                                <th style={{ ...thStyle, textAlign: 'right' }}>{isChinese ? '小计' : 'Subtotal'}</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {order.lines.map((line, idx) => (
+                            {(order.lines ?? []).map((line, idx) => (
                                 <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                                     <td style={tdStyle}>{line.product_name ?? line.product_id}</td>
-                                    <td style={tdStyle}>{line.quantity}</td>
+                                    <td style={tdStyle}>{line.quantity}{line.unit ? ` ${line.unit}` : ''}</td>
                                     <td style={tdStyle}>{line.unit_price.toFixed(2)}</td>
-                                    <td style={tdStyle}>{line.subtotal.toFixed(2)}</td>
+                                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 500 }}>{line.subtotal.toFixed(2)}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -481,19 +508,19 @@ function OrderDetailDialog({
 
                 {/* Status transition buttons */}
                 {available.length > 0 && (
-                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                         {available.map(s => (
                             <button
                                 key={s}
-                                onClick={() => statusTransitionMutation.mutate(s)}
+                                onClick={() => handleStatusChange(s)}
                                 disabled={statusTransitionMutation.isPending}
                                 style={{
-                                    ...btnPrimary,
-                                    background: s === 'cancelled' ? '#ef4444' : STATUS_COLOR[s] ?? 'var(--accent-primary)',
+                                    ...(s === 'cancelled' ? btnDanger : btnPrimary),
+                                    background: s === 'cancelled' ? '#ef4444' : getStatusColor(s, 0),
                                     opacity: statusTransitionMutation.isPending ? 0.7 : 1,
                                 }}
                             >
-                                {isChinese ? (STATUS_LABELS[s]?.zh ?? s) : (STATUS_LABELS[s]?.en ?? s)}
+                                {getStatusLabel(s, isChinese)}
                             </button>
                         ))}
                     </div>
@@ -520,12 +547,35 @@ export default function SalesOrders() {
     const [showNewOrder, setShowNewOrder] = useState(false);
     const [viewingOrder, setViewingOrder] = useState<SalesOrder | null>(null);
 
+    /* Fetch custom statuses for filter tabs */
+    const { data: customStatuses = [] } = useQuery({
+        queryKey: ['erp-order-statuses', 'sales'],
+        queryFn: () => fetchJson<any[]>('/erp/production-statuses?type=sales'),
+    });
+    const statusTabs = useMemo(() => {
+        const custom = customStatuses.filter((s: any) => s.is_active).map((s: any) => s.name);
+        return ['all', ...custom, 'cancelled'];
+    }, [customStatuses]);
+
     const { data, isLoading } = useQuery({
         queryKey: ['erp-sales-orders', statusFilter, search, page],
         queryFn: () => fetchJson<OrdersResponse>(
             `/erp/sales-orders?status=${statusFilter === 'all' ? '' : statusFilter}&search=${encodeURIComponent(search)}&page=${page}&page_size=20`,
         ),
     });
+
+    const deleteMutation = useMutation({
+        mutationFn: (id: string) => fetchJson(`/erp/sales-orders/${id}`, { method: 'DELETE' }),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['erp-sales-orders'] }),
+    });
+
+    const handleDelete = async (id: string, orderNo: string) => {
+        const ok = await dialog.confirm(
+            isChinese ? `确定删除订单 ${orderNo}？` : `Delete order ${orderNo}?`,
+            { title: isChinese ? '删除订单' : 'Delete Order', danger: true, confirmLabel: isChinese ? '删除' : 'Delete' },
+        );
+        if (ok) deleteMutation.mutate(id);
+    };
 
     const orders = Array.isArray(data) ? data : (data?.items ?? []);
     const total = Array.isArray(data) ? data.length : (data?.total ?? 0);
@@ -536,10 +586,10 @@ export default function SalesOrders() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* ── Status filter tabs ── */}
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                {STATUS_TABS.map(s => {
+                {statusTabs.map(s => {
                     const label = s === 'all'
                         ? (isChinese ? '全部' : 'All')
-                        : (isChinese ? (STATUS_LABELS[s]?.zh ?? s) : (STATUS_LABELS[s]?.en ?? s));
+                        : (s === 'cancelled' ? (isChinese ? '已取消' : 'Cancelled') : getStatusLabel(s, isChinese));
                     return (
                         <button
                             key={s}
@@ -547,7 +597,7 @@ export default function SalesOrders() {
                             style={{
                                 padding: '5px 14px', borderRadius: 100, fontSize: 12, fontWeight: 500,
                                 border: statusFilter === s ? 'none' : '1px solid var(--border-subtle)',
-                                background: statusFilter === s ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+                                background: statusFilter === s ? (s === 'cancelled' ? '#ef4444' : getStatusColor(s, 0)) : 'var(--bg-secondary)',
                                 color: statusFilter === s ? '#fff' : 'var(--text-secondary)',
                                 cursor: 'pointer', transition: 'all 0.15s',
                             }}
@@ -569,6 +619,9 @@ export default function SalesOrders() {
                         style={{ ...inputStyle, width: '100%', paddingLeft: 32 }}
                     />
                 </div>
+                <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
+                    {isChinese ? `共 ${total} 条` : `${total} records`}
+                </div>
                 <div style={{ flex: 1 }} />
                 <button style={btnPrimary} onClick={() => setShowNewOrder(true)}>
                     <IconPlus size={16} stroke={2} />
@@ -585,8 +638,8 @@ export default function SalesOrders() {
                                 <th style={thStyle}>{t('erp.order.orderNo', '订单号')}</th>
                                 <th style={thStyle}>{t('erp.order.customer', '客户')}</th>
                                 <th style={thStyle}>{t('erp.order.amount', '金额')}</th>
+                                <th style={thStyle}>{isChinese ? '订单日期' : 'Order Date'}</th>
                                 <th style={thStyle}>{t('erp.order.status', '状态')}</th>
-                                <th style={thStyle}>{t('erp.order.date', '日期')}</th>
                                 <th style={{ ...thStyle, textAlign: 'center' }}>{t('erp.actions', '操作')}</th>
                             </tr>
                         </thead>
@@ -597,15 +650,22 @@ export default function SalesOrders() {
                                 <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{t('erp.noData', '暂无数据')}</td></tr>
                             ) : orders.map(o => (
                                 <tr key={o.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                    <td style={tdStyle}>{o.order_no}</td>
+                                    <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 12 }}>{o.order_no}</td>
                                     <td style={tdStyle}>{o.customer_name}</td>
-                                    <td style={tdStyle}>{o.total_amount.toFixed(2)}</td>
+                                    <td style={{ ...tdStyle, fontWeight: 500 }}>{o.total_amount.toFixed(2)}</td>
+                                    <td style={{ ...tdStyle, color: 'var(--text-tertiary)' }}>{o.order_date}</td>
                                     <td style={tdStyle}><StatusBadge status={o.status} isChinese={isChinese} /></td>
-                                    <td style={{ ...tdStyle, color: 'var(--text-tertiary)' }}>{new Date(o.created_at).toLocaleDateString()}</td>
                                     <td style={{ ...tdStyle, textAlign: 'center' }}>
-                                        <button onClick={() => setViewingOrder(o)} style={{ background: 'none', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '3px 6px', color: 'var(--text-tertiary)', cursor: 'pointer', display: 'flex' }} title={isChinese ? '查看详情' : 'View Detail'}>
-                                            <IconEye size={14} stroke={1.5} />
-                                        </button>
+                                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                                            <button onClick={() => setViewingOrder(o)} style={{ background: 'none', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '3px 6px', color: 'var(--text-tertiary)', cursor: 'pointer', display: 'flex' }} title={isChinese ? '查看详情' : 'View Detail'}>
+                                                <IconEye size={14} stroke={1.5} />
+                                            </button>
+                                            {o.status === 'draft' && (
+                                                <button onClick={() => handleDelete(o.id, o.order_no)} style={{ background: 'none', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '3px 6px', color: 'var(--text-tertiary)', cursor: 'pointer', display: 'flex' }} title={isChinese ? '删除' : 'Delete'}>
+                                                    <IconTrash size={14} stroke={1.5} />
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -625,17 +685,10 @@ export default function SalesOrders() {
 
             {/* ── Dialogs ── */}
             {showNewOrder && (
-                <NewOrderDialog
-                    isChinese={isChinese}
-                    onClose={() => setShowNewOrder(false)}
-                />
+                <NewOrderDialog isChinese={isChinese} onClose={() => setShowNewOrder(false)} />
             )}
             {viewingOrder && (
-                <OrderDetailDialog
-                    order={viewingOrder}
-                    isChinese={isChinese}
-                    onClose={() => setViewingOrder(null)}
-                />
+                <OrderDetailDialog order={viewingOrder} isChinese={isChinese} onClose={() => setViewingOrder(null)} />
             )}
         </div>
     );
