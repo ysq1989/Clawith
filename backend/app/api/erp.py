@@ -3116,9 +3116,9 @@ async def upload_attachment(
 async def list_attachments(
     parent_type: str, parent_id: str, user=Depends(get_current_user)
 ):
-    """获取指定客户/供应商的附件列表。"""
-    if parent_type not in ("customer", "supplier"):
-        raise HTTPException(400, "parent_type must be 'customer' or 'supplier'")
+    """获取指定父实体的附件列表。"""
+    if parent_type not in ("customer", "supplier", "sales_order", "purchase_order"):
+        raise HTTPException(400, "parent_type must be 'customer', 'supplier', 'sales_order', or 'purchase_order'")
     async with async_session() as db:
         result = await db.execute(
             select(ERPAttachment)

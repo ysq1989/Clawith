@@ -6,7 +6,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { IconPlus, IconSearch, IconEye, IconTrash } from '@tabler/icons-react';
+import { IconPlus, IconSearch, IconEye, IconTrash, IconEdit } from '@tabler/icons-react';
 import { fetchJson } from '../../services/api';
 import { useDialog } from '../../components/Dialog/DialogProvider';
 
@@ -222,20 +222,24 @@ function SearchableSelect({
     );
 }
 
-/* ─── New Order Dialog ─── */
+/* ─── New/Edit Order Dialog ─── */
 function NewOrderDialog({
-    onClose, isChinese,
+    onClose, isChinese, order,
 }: {
     onClose: (saved: boolean) => void;
     isChinese: boolean;
+    order?: SalesOrder;
 }) {
+    const isEdit = !!order;
     const queryClient = useQueryClient();
-    const [customerId, setCustomerId] = useState('');
-    const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
-    const [notes, setNotes] = useState('');
-    const [lines, setLines] = useState<OrderLine[]>([
-        { product_id: '', quantity: 1, unit_price: 0, subtotal: 0 },
-    ]);
+    const [customerId, setCustomerId] = useState(order?.customer_id ?? '');
+    const [orderDate, setOrderDate] = useState(order?.order_date ?? new Date().toISOString().slice(0, 10));
+    const [notes, setNotes] = useState(order?.notes ?? '');
+    const [lines, setLines] = useState<OrderLine[]>(
+        order?.lines?.length
+            ? order.lines.map(l => ({ ...l, subtotal: l.quantity * l.unit_price }))
+            : [{ product_id: '', quantity: 1, unit_price: 0, subtotal: 0 }]
+    );
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
 
@@ -272,15 +276,26 @@ function NewOrderDialog({
         if (lines.some(l => !l.product_id || l.quantity <= 0)) { setError(isChinese ? '请完善明细行' : 'Please complete all line items'); return; }
         setSaving(true); setError('');
         try {
-            await fetchJson('/erp/sales-orders', {
-                method: 'POST',
-                body: JSON.stringify({
-                    customer_id: customerId,
-                    order_date: orderDate,
-                    notes,
-                    items: lines.map(l => ({ product_id: l.product_id, quantity: l.quantity, unit_price: l.unit_price })),
-                }),
-            });
+            if (isEdit) {
+                await fetchJson(`/erp/sales-orders/${order!.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        customer_id: customerId,
+                        notes,
+                        items: lines.map(l => ({ product_id: l.product_id, quantity: l.quantity, unit_price: l.unit_price })),
+                    }),
+                });
+            } else {
+                await fetchJson('/erp/sales-orders', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        customer_id: customerId,
+                        order_date: orderDate,
+                        notes,
+                        items: lines.map(l => ({ product_id: l.product_id, quantity: l.quantity, unit_price: l.unit_price })),
+                    }),
+                });
+            }
             queryClient.invalidateQueries({ queryKey: ['erp-sales-orders'] });
             onClose(true);
         } catch (e: any) {
@@ -294,7 +309,10 @@ function NewOrderDialog({
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => onClose(false)}>
             <div style={{ background: 'var(--bg-primary)', borderRadius: 12, border: '1px solid var(--border-subtle)', width: 760, maxHeight: '90vh', overflow: 'auto', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
                 <h3 style={{ margin: '0 0 20px', fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
-                    {isChinese ? '新建销售订单' : 'New Sales Order'}
+                    {isEdit
+                        ? (isChinese ? '编辑销售订单' : 'Edit Sales Order')
+                        : (isChinese ? '新建销售订单' : 'New Sales Order')
+                    }
                 </h3>
 
                 {/* Customer + Date */}
@@ -397,7 +415,10 @@ function NewOrderDialog({
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                     <button style={btnSecondary} onClick={() => onClose(false)}>{isChinese ? '取消' : 'Cancel'}</button>
                     <button style={{ ...btnPrimary, opacity: saving ? 0.7 : 1, cursor: saving ? 'wait' : 'pointer' }} onClick={handleSubmit} disabled={saving}>
-                        {saving ? (isChinese ? '创建中...' : 'Creating...') : (isChinese ? '创建订单' : 'Create Order')}
+                        {saving
+                            ? (isChinese ? '保存中...' : 'Saving...')
+                            : (isEdit ? (isChinese ? '保存' : 'Save') : (isChinese ? '创建订单' : 'Create Order'))
+                        }
                     </button>
                 </div>
             </div>
@@ -660,6 +681,7 @@ export default function SalesOrders() {
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
     const [showNewOrder, setShowNewOrder] = useState(false);
+    const [editingOrder, setEditingOrder] = useState<SalesOrder | null>(null);
     const [viewingOrder, setViewingOrder] = useState<SalesOrder | null>(null);
 
     /* Fetch custom statuses for filter tabs */
@@ -775,10 +797,15 @@ export default function SalesOrders() {
                                             <button onClick={() => setViewingOrder(o)} style={{ background: 'none', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '3px 6px', color: 'var(--text-tertiary)', cursor: 'pointer', display: 'flex' }} title={isChinese ? '查看详情' : 'View Detail'}>
                                                 <IconEye size={14} stroke={1.5} />
                                             </button>
-                                            {o.status === 'draft' && (
+                                            {o.status === '草稿' && (
+                                                <>
+                                                <button onClick={() => setEditingOrder(o)} style={{ background: 'none', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '3px 6px', color: 'var(--text-tertiary)', cursor: 'pointer', display: 'flex' }} title={isChinese ? '编辑' : 'Edit'}>
+                                                    <IconEdit size={14} stroke={1.5} />
+                                                </button>
                                                 <button onClick={() => handleDelete(o.id, o.order_no)} style={{ background: 'none', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '3px 6px', color: 'var(--text-tertiary)', cursor: 'pointer', display: 'flex' }} title={isChinese ? '删除' : 'Delete'}>
                                                     <IconTrash size={14} stroke={1.5} />
                                                 </button>
+                                                </>
                                             )}
                                         </div>
                                     </td>
@@ -801,6 +828,9 @@ export default function SalesOrders() {
             {/* ── Dialogs ── */}
             {showNewOrder && (
                 <NewOrderDialog isChinese={isChinese} onClose={() => setShowNewOrder(false)} />
+            )}
+            {editingOrder && (
+                <NewOrderDialog isChinese={isChinese} order={editingOrder} onClose={(saved) => { setEditingOrder(null); if (saved) queryClient.invalidateQueries({ queryKey: ['erp-sales-orders'] }); }} />
             )}
             {viewingOrder && (
                 <OrderDetailDialog order={viewingOrder} isChinese={isChinese} onClose={() => setViewingOrder(null)} />
