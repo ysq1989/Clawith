@@ -349,7 +349,6 @@ function NewOrderDialog({
                             <IconPlus size={14} stroke={2} /> {isChinese ? '添加行' : 'Add Line'}
                         </button>
                     </div>
-                    <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                                 <tr style={{ background: 'var(--bg-secondary)' }}>
@@ -396,7 +395,6 @@ function NewOrderDialog({
                                 ))}
                             </tbody>
                         </table>
-                    </div>
                     <div style={{ textAlign: 'right', marginTop: 10, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
                         {isChinese ? '合计: ' : 'Total: '}{total.toFixed(2)}
                     </div>
