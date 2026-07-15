@@ -510,7 +510,7 @@ function OrderDetailDialog({
                 </div>
 
                 {activeTab === 'detail' ? (
-
+                <>
                 <div style={{ display: 'flex', gap: 24, marginBottom: 16, flexWrap: 'wrap' }}>
                     <div>
                         <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{isChinese ? '客户' : 'Customer'}</div>
