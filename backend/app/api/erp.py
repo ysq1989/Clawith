@@ -86,33 +86,25 @@ async def _generate_order_no(db, Model, prefix: str, today: date, col_name: str 
     return f"{prefix}{date_str}{seq:04d}"
 
 
-# Valid status transitions
-_SALES_STATUS_FLOW = {
-    "draft":     {"confirmed", "cancelled"},
-    "confirmed": {"processing", "cancelled"},
-    "processing": {"shipped", "cancelled"},
-    "shipped":   {"completed", "cancelled"},
-    "completed": set(),
-    "cancelled": set(),
-}
-
-_PURCHASE_STATUS_FLOW = {
-    "draft":     {"confirmed", "cancelled"},
-    "confirmed": {"receiving", "cancelled"},
-    "receiving": {"completed", "cancelled"},
-    "completed": set(),
-    "cancelled": set(),
-}
+# 订单状态由用户自定义（erp_production_statuses 表），不再硬编码流转规则
 
 
-def _validate_transition(current: str, new: str, flow: dict[str, set[str]]) -> None:
-    allowed = flow.get(current, set())
-    if new not in allowed:
-        raise HTTPException(
-            400,
-            f"Cannot transition from '{current}' to '{new}'. "
-            f"Allowed: {', '.join(sorted(allowed)) or 'none'}",
+async def _validate_custom_status(db, tenant_id: uuid.UUID, new_status: str, status_type: str) -> None:
+    """校验目标状态是否在自定义状态列表中（cancelled 总是允许）。"""
+    if new_status == "cancelled":
+        return
+    if new_status == "draft":
+        raise HTTPException(400, "Cannot revert to draft")
+    result = await db.execute(
+        select(ERPProductionStatus).where(
+            ERPProductionStatus.tenant_id == tenant_id,
+            ERPProductionStatus.status_type == status_type,
+            ERPProductionStatus.name == new_status,
+            ERPProductionStatus.is_active == True,
         )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(400, f"Invalid status '{new_status}' for {status_type} orders")
 
 
 async def _get_or_create_settings(db, tenant_id: uuid.UUID) -> ERPSettings:
@@ -1831,7 +1823,7 @@ async def update_sales_order_status(
         if not order:
             raise HTTPException(404, "Sales order not found")
 
-        _validate_transition(order.status, body.new_status, _SALES_STATUS_FLOW)
+        await _validate_custom_status(db, user.tenant_id, body.new_status, "sales")
         order.status = body.new_status
 
         # 库存出入库由 Agent 引导用户手动执行，确认只改状态
@@ -2140,7 +2132,7 @@ async def update_purchase_order_status(
         if not order:
             raise HTTPException(404, "Purchase order not found")
 
-        _validate_transition(order.status, body.new_status, _PURCHASE_STATUS_FLOW)
+        await _validate_custom_status(db, user.tenant_id, body.new_status, "purchase")
         order.status = body.new_status
 
         # 库存出入库由 Agent 引导用户手动执行，确认只改状态
@@ -3352,6 +3344,7 @@ async def delete_category(category_id: str, type: str = "customer", user=Depends
 
 class ProductionStatusCreate(BaseModel):
     name: str
+    status_type: str = "production"  # sales / purchase / production
     sort_order: int = 0
     is_active: bool = True
 
@@ -3365,6 +3358,7 @@ class ProductionStatusUpdate(BaseModel):
 class ProductionStatusOut(BaseModel):
     id: str
     name: str
+    status_type: str
     sort_order: int
     is_active: bool
     created_at: str | None = None
@@ -3375,19 +3369,25 @@ class ProductionStatusOut(BaseModel):
 
 def _production_status_to_out(ps):
     return ProductionStatusOut(
-        id=str(ps.id), name=ps.name,
+        id=str(ps.id), name=ps.name, status_type=ps.status_type,
         sort_order=ps.sort_order, is_active=ps.is_active,
         created_at=ps.created_at.isoformat() if ps.created_at else None,
     )
 
 
 @router.get("/production-statuses", response_model=list[ProductionStatusOut])
-async def list_production_statuses(user=Depends(get_current_user)):
-    """获取生产状态列表（按 sort_order 排序）。"""
+async def list_production_statuses(
+    type: str | None = None, user=Depends(get_current_user)
+):
+    """获取订单状态列表（按 sort_order 排序）。type: sales/purchase/production，默认 production。"""
+    status_type = type or "production"
     async with async_session() as db:
         result = await db.execute(
             select(ERPProductionStatus)
-            .where(ERPProductionStatus.tenant_id == user.tenant_id)
+            .where(
+                ERPProductionStatus.tenant_id == user.tenant_id,
+                ERPProductionStatus.status_type == status_type,
+            )
             .order_by(ERPProductionStatus.sort_order.asc())
         )
         return [_production_status_to_out(ps) for ps in result.scalars().all()]
@@ -3395,11 +3395,12 @@ async def list_production_statuses(user=Depends(get_current_user)):
 
 @router.post("/production-statuses", response_model=ProductionStatusOut)
 async def create_production_status(body: ProductionStatusCreate, user=Depends(get_current_user)):
-    """创建生产状态。"""
+    """创建订单状态。"""
     async with async_session() as db:
         obj = ERPProductionStatus(
             tenant_id=user.tenant_id,
             name=body.name,
+            status_type=body.status_type,
             sort_order=body.sort_order,
             is_active=body.is_active,
         )
@@ -3581,16 +3582,6 @@ async def delete_bom(bom_id: str, user=Depends(get_current_user)):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-# 生产工单状态流转
-_PRODUCTION_STATUS_FLOW = {
-    "draft":     {"confirmed", "cancelled"},
-    "confirmed": {"in_progress", "cancelled"},
-    "in_progress": {"completed", "cancelled"},
-    "completed": set(),
-    "cancelled": set(),
-}
-
-
 class ProductionOrderCreate(BaseModel):
     product_id: str
     quantity: int
@@ -3735,7 +3726,7 @@ async def change_production_order_status(order_id: str, body: dict, user=Depends
             raise HTTPException(404, "生产工单不存在")
 
         # 校验状态流转
-        _validate_transition(order.status, new_status, _PRODUCTION_STATUS_FLOW)
+        await _validate_custom_status(db, user.tenant_id, new_status, "production")
 
         # 确认生产时执行物料扣减和成品入库
         if new_status == "confirmed":

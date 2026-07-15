@@ -252,7 +252,9 @@ export default function ERPSettingsPage() {
         { key: 'warehouse-categories', label: isChinese ? '仓库分类' : 'Warehouses' },
         { key: 'outbound-categories', label: isChinese ? '出库分类' : 'Outbound' },
         { key: 'inbound-categories', label: isChinese ? '入库分类' : 'Inbound' },
-        { key: 'production-statuses', label: isChinese ? '生产状态' : 'Production' },
+        { key: 'sales-statuses', label: isChinese ? '销售状态' : 'Sales Status' },
+        { key: 'purchase-statuses', label: isChinese ? '采购状态' : 'Purchase Status' },
+        { key: 'production-statuses', label: isChinese ? '生产状态' : 'Production Status' },
         { key: 'code-settings', label: isChinese ? '编码设置' : 'Codes' },
         { key: 'module-config', label: isChinese ? '模块配置' : 'Modules' },
     ];
@@ -283,7 +285,9 @@ export default function ERPSettingsPage() {
 
             {categoryTabs.includes(activeTab) && <CategoryTab type={categoryType} isChinese={isChinese} />}
             {activeTab === 'code-settings' && <CodeSettingsTab isChinese={isChinese} />}
-            {activeTab === 'production-statuses' && <ProductionStatusTab isChinese={isChinese} />}
+            {activeTab === 'sales-statuses' && <OrderStatusTab statusType="sales" isChinese={isChinese} />}
+            {activeTab === 'purchase-statuses' && <OrderStatusTab statusType="purchase" isChinese={isChinese} />}
+            {activeTab === 'production-statuses' && <OrderStatusTab statusType="production" isChinese={isChinese} />}
             {activeTab === 'module-config' && <ModuleConfigTab isChinese={isChinese} />}
         </div>
     );
@@ -379,34 +383,37 @@ function CodeSettingsTab({ isChinese }: { isChinese: boolean }) {
 
 
 /* ─── Production Status Tab ─── */
-function ProductionStatusTab({ isChinese }: { isChinese: boolean }) {
+function OrderStatusTab({ statusType, isChinese }: { statusType: string; isChinese: boolean }) {
     const queryClient = useQueryClient();
     const [newName, setNewName] = useState('');
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editName, setEditName] = useState('');
 
+    const queryKey = ['erp-order-statuses', statusType];
+    const apiUrl = `/erp/production-statuses?type=${statusType}`;
+
     const { data: statuses = [], isLoading } = useQuery({
-        queryKey: ['erp-production-statuses'],
-        queryFn: () => fetchJson<any[]>('/erp/production-statuses'),
+        queryKey,
+        queryFn: () => fetchJson<any[]>(apiUrl),
     });
 
     const createMutation = useMutation({
         mutationFn: (name: string) => fetchJson('/erp/production-statuses', {
-            method: 'POST', body: JSON.stringify({ name, sort_order: statuses.length }),
+            method: 'POST', body: JSON.stringify({ name, status_type: statusType, sort_order: statuses.length }),
         }),
-        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['erp-production-statuses'] }); setNewName(''); },
+        onSuccess: () => { queryClient.invalidateQueries({ queryKey }); setNewName(''); },
     });
 
     const updateMutation = useMutation({
         mutationFn: ({ id, name }: { id: string; name: string }) => fetchJson(`/erp/production-statuses/${id}`, {
             method: 'PATCH', body: JSON.stringify({ name }),
         }),
-        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['erp-production-statuses'] }); setEditingId(null); },
+        onSuccess: () => { queryClient.invalidateQueries({ queryKey }); setEditingId(null); },
     });
 
     const deleteMutation = useMutation({
         mutationFn: (id: string) => fetchJson(`/erp/production-statuses/${id}`, { method: 'DELETE' }),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['erp-production-statuses'] }),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey }),
     });
 
     return (

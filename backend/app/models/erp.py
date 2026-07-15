@@ -701,7 +701,7 @@ class ERPProductionOrder(Base):
 
 
 class ERPProductionStatus(Base):
-    """生产状态自定义 —— 允许租户自定义生产工单的可用状态。"""
+    """订单状态自定义 —— 允许租户自定义销售/采购/生产订单的可用状态。"""
 
     __tablename__ = "erp_production_statuses"
 
@@ -714,6 +714,8 @@ class ERPProductionStatus(Base):
         nullable=False,
         index=True,
     )
+    status_type: Mapped[str] = mapped_column(String(20), nullable=False, default="production")
+    # "sales" / "purchase" / "production"
     name: Mapped[str] = mapped_column(String(50), nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

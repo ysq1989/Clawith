@@ -367,13 +367,14 @@ function OrderDetailDialog({
         },
     });
 
-    const nextStatuses: Record<string, string[]> = {
-        draft: ['confirmed', 'cancelled'],
-        confirmed: ['processing', 'cancelled'],
-        processing: ['received', 'cancelled'],
-        received: ['completed'],
-    };
-    const available = nextStatuses[order.status] ?? [];
+    const { data: customStatuses = [] } = useQuery({
+        queryKey: ['erp-order-statuses', 'purchase'],
+        queryFn: () => fetchJson<any[]>('/erp/production-statuses?type=purchase'),
+    });
+    const available = [
+        ...customStatuses.filter((s: any) => s.is_active && s.name !== order.status).map((s: any) => s.name),
+        ...(order.status !== 'cancelled' ? ['cancelled'] : []),
+    ];
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
