@@ -1834,37 +1834,7 @@ async def update_sales_order_status(
         _validate_transition(order.status, body.new_status, _SALES_STATUS_FLOW)
         order.status = body.new_status
 
-        # Auto-deduct stock on confirmation (per-product fulfillment_mode)
-        if body.new_status == "confirmed":
-            settings = await _get_or_create_settings(db, user.tenant_id)
-            items_result = await db.execute(
-                select(ERPSalesOrderItem).where(ERPSalesOrderItem.order_id == order.id)
-            )
-            items = items_result.scalars().all()
-            for item in items:
-                prod_result = await db.execute(
-                    select(ERPProduct).where(ERPProduct.id == item.product_id)
-                )
-                product = prod_result.scalar_one_or_none()
-                if not product:
-                    continue
-                mode = _resolve_fulfillment_mode(
-                    product.fulfillment_mode, settings.default_fulfillment_mode
-                )
-                if mode == "mts":
-                    if product.stock_qty >= item.quantity:
-                        product.stock_qty -= item.quantity
-                        db.add(ERPStockRecord(
-                            tenant_id=user.tenant_id,
-                            product_id=product.id,
-                            record_source="product",
-                            warehouse_id=uuid.UUID(int=0),
-                            related_order_id=order.id,
-                            record_type="out",
-                            quantity=item.quantity,
-                            reason=f"Sales order {order.order_no} confirmed",
-                        ))
-                    # 库存不足时跳过该行，不整单拒绝（允许手动后续补货）
+        # 库存出入库由 Agent 引导用户手动执行，确认只改状态
 
         await db.commit()
         await db.refresh(order)
@@ -2173,31 +2143,7 @@ async def update_purchase_order_status(
         _validate_transition(order.status, body.new_status, _PURCHASE_STATUS_FLOW)
         order.status = body.new_status
 
-        # Auto-add stock on confirmation
-        if body.new_status == "confirmed":
-            settings = await _get_or_create_settings(db, user.tenant_id)
-            if settings.auto_stock_deduct:
-                items_result = await db.execute(
-                    select(ERPPurchaseOrderItem).where(ERPPurchaseOrderItem.order_id == order.id)
-                )
-                items = items_result.scalars().all()
-                for item in items:
-                    mat_result = await db.execute(
-                        select(ERPMaterial).where(ERPMaterial.id == item.material_id)
-                    )
-                    material = mat_result.scalar_one_or_none()
-                    if material:
-                        material.stock_qty += item.quantity
-                        db.add(ERPStockRecord(
-                            tenant_id=user.tenant_id,
-                            material_id=material.id,
-                            record_source="material",
-                            warehouse_id=uuid.UUID(int=0),
-                            related_order_id=order.id,
-                            record_type="in",
-                            quantity=item.quantity,
-                            reason=f"Purchase order {order.order_no} confirmed",
-                        ))
+        # 库存出入库由 Agent 引导用户手动执行，确认只改状态
 
         await db.commit()
         await db.refresh(order)
