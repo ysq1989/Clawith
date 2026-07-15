@@ -91,9 +91,9 @@ async def _generate_order_no(db, Model, prefix: str, today: date, col_name: str 
 
 async def _validate_custom_status(db, tenant_id: uuid.UUID, new_status: str, status_type: str) -> None:
     """校验目标状态是否在自定义状态列表中（cancelled 总是允许）。"""
-    if new_status == "cancelled":
+    if new_status == "已取消":
         return
-    if new_status == "draft":
+    if new_status == "草稿":
         raise HTTPException(400, "Cannot revert to draft")
     result = await db.execute(
         select(ERPProductionStatus).where(
@@ -1659,7 +1659,7 @@ async def create_sales_order(body: SalesOrderCreate, user=Depends(get_current_us
             customer_id=body.customer_id,
             order_date=date.fromisoformat(body.order_date),
             due_date=date.fromisoformat(body.due_date) if body.due_date else None,
-            status="draft",
+            status="草稿",
             total_amount=total_amount,
             discount=body.discount,
             tax_amount=body.tax_amount,
@@ -1850,7 +1850,7 @@ async def delete_sales_order(order_id: str, user=Depends(get_current_user)):
         order = result.scalar_one_or_none()
         if not order:
             raise HTTPException(404, "Sales order not found")
-        if order.status != "draft":
+        if order.status != "草稿":
             raise HTTPException(400, "Only draft orders can be deleted")
         items_result = await db.execute(
             select(ERPSalesOrderItem).where(ERPSalesOrderItem.order_id == order.id)
@@ -1969,7 +1969,7 @@ async def create_purchase_order(body: PurchaseOrderCreate, user=Depends(get_curr
             supplier_id=body.supplier_id,
             order_date=date.fromisoformat(body.order_date),
             due_date=date.fromisoformat(body.due_date) if body.due_date else None,
-            status="draft",
+            status="草稿",
             total_amount=total_amount,
             discount=body.discount,
             tax_amount=body.tax_amount,
@@ -2159,7 +2159,7 @@ async def delete_purchase_order(order_id: str, user=Depends(get_current_user)):
         order = result.scalar_one_or_none()
         if not order:
             raise HTTPException(404, "Purchase order not found")
-        if order.status != "draft":
+        if order.status != "草稿":
             raise HTTPException(400, "Only draft orders can be deleted")
         items_result = await db.execute(
             select(ERPPurchaseOrderItem).where(ERPPurchaseOrderItem.order_id == order.id)
@@ -2625,7 +2625,7 @@ async def financial_summary(
         recv_result = await db.execute(
             select(func.coalesce(func.sum(ERPSalesOrder.net_amount), 0)).where(
                 ERPSalesOrder.tenant_id == user.tenant_id,
-                ERPSalesOrder.status.in_(["confirmed", "processing", "shipped"]),
+                ERPSalesOrder.status.in_(["已确认", "处理中", "已发货"]),
             )
         )
         receivable = float(recv_result.scalar() or 0)
@@ -2633,7 +2633,7 @@ async def financial_summary(
         pay_result = await db.execute(
             select(func.coalesce(func.sum(ERPPurchaseOrder.net_amount), 0)).where(
                 ERPPurchaseOrder.tenant_id == user.tenant_id,
-                ERPPurchaseOrder.status.in_(["confirmed", "receiving"]),
+                ERPPurchaseOrder.status.in_(["已确认", "收货中"]),
             )
         )
         payable = float(pay_result.scalar() or 0)
@@ -2678,7 +2678,7 @@ async def sales_report(
             )
             .where(
                 ERPSalesOrder.tenant_id == user.tenant_id,
-                ERPSalesOrder.status.notin_(["draft", "cancelled"]),
+                ERPSalesOrder.status.notin_(["草稿", "已取消"]),
             )
             .group_by(period_col)
             .order_by(period_col)
@@ -2725,7 +2725,7 @@ async def purchase_report(
             )
             .where(
                 ERPPurchaseOrder.tenant_id == user.tenant_id,
-                ERPPurchaseOrder.status.notin_(["draft", "cancelled"]),
+                ERPPurchaseOrder.status.notin_(["草稿", "已取消"]),
             )
             .group_by(period_col)
             .order_by(period_col)
@@ -2782,7 +2782,7 @@ async def customer_report(user=Depends(get_current_user)):
             )
             .where(
                 ERPSalesOrder.tenant_id == user.tenant_id,
-                ERPSalesOrder.status.notin_(["draft", "cancelled"]),
+                ERPSalesOrder.status.notin_(["草稿", "已取消"]),
             )
             .group_by(ERPSalesOrder.customer_id)
             .order_by(func.sum(ERPSalesOrder.net_amount).desc())
@@ -3666,7 +3666,7 @@ async def create_production_order(body: ProductionOrderCreate, user=Depends(get_
             warehouse_id=uuid.UUID(body.warehouse_id) if body.warehouse_id else None,
             notes=body.notes,
             created_by=user.id,
-            status="draft",
+            status="草稿",
         )
         db.add(order)
         await db.commit()
@@ -3729,7 +3729,7 @@ async def change_production_order_status(order_id: str, body: dict, user=Depends
         await _validate_custom_status(db, user.tenant_id, new_status, "production")
 
         # 确认生产时执行物料扣减和成品入库
-        if new_status == "confirmed":
+        if new_status == "已确认":
             await _confirm_production(db, order, user)
 
         order.status = new_status

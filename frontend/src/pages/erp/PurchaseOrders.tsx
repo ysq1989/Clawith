@@ -45,19 +45,19 @@ interface OrdersResponse {
 
 /* ─── Colors for known statuses ─── */
 const STATUS_COLOR: Record<string, string> = {
-    draft: '#8b8b9e',
-    confirmed: '#3b82f6',
-    receiving: '#f59e0b',
-    completed: '#22c55e',
-    cancelled: '#ef4444',
+    '草稿': '#8b8b9e',
+    '已确认': '#3b82f6',
+    '收货中': '#f59e0b',
+    '已完成': '#22c55e',
+    '已取消': '#ef4444',
 };
 
 const STATUS_LABELS: Record<string, { zh: string; en: string }> = {
-    draft:      { zh: '草稿',   en: 'Draft' },
-    confirmed:  { zh: '已确认', en: 'Confirmed' },
-    receiving:  { zh: '收货中', en: 'Receiving' },
-    completed:  { zh: '已完成', en: 'Completed' },
-    cancelled:  { zh: '已取消', en: 'Cancelled' },
+    '草稿':   { zh: '草稿',   en: 'Draft' },
+    '已确认': { zh: '已确认', en: 'Confirmed' },
+    '收货中': { zh: '收货中', en: 'Receiving' },
+    '已完成': { zh: '已完成', en: 'Completed' },
+    '已取消': { zh: '已取消', en: 'Cancelled' },
 };
 
 const FALLBACK_COLORS = ['#3b82f6', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#10b981'];
@@ -430,11 +430,11 @@ function OrderDetailDialog({
     });
     const available = [
         ...customStatuses.filter((s: any) => s.is_active && s.name !== order.status).map((s: any) => s.name),
-        ...(order.status !== 'cancelled' ? ['cancelled'] : []),
+        ...(order.status !== '已取消' ? ['已取消'] : []),
     ];
 
     const handleStatusChange = async (newStatus: string) => {
-        if (newStatus === 'cancelled') {
+        if (newStatus === '已取消') {
             const ok = await dialog.confirm(
                 isChinese ? '确定要取消此采购订单吗？' : 'Are you sure you want to cancel this order?',
                 { title: isChinese ? '取消订单' : 'Cancel Order', danger: true, confirmLabel: isChinese ? '取消订单' : 'Cancel Order' },
@@ -511,8 +511,8 @@ function OrderDetailDialog({
                                 onClick={() => handleStatusChange(s)}
                                 disabled={statusMutation.isPending}
                                 style={{
-                                    ...(s === 'cancelled' ? btnDanger : btnPrimary),
-                                    background: s === 'cancelled' ? '#ef4444' : getStatusColor(s, 0),
+                                    ...(s === '已取消' ? btnDanger : btnPrimary),
+                                    background: s === '已取消' ? '#ef4444' : getStatusColor(s, 0),
                                     opacity: statusMutation.isPending ? 0.7 : 1,
                                 }}
                             >
@@ -550,7 +550,7 @@ export default function PurchaseOrders() {
     });
     const statusTabs = useMemo(() => {
         const custom = customStatuses.filter((s: any) => s.is_active).map((s: any) => s.name);
-        return ['all', ...custom, 'cancelled'];
+        return ['all', ...custom, '已取消'];
     }, [customStatuses]);
 
     const { data, isLoading } = useQuery({
@@ -585,7 +585,7 @@ export default function PurchaseOrders() {
                 {statusTabs.map(s => {
                     const label = s === 'all'
                         ? (isChinese ? '全部' : 'All')
-                        : (s === 'cancelled' ? (isChinese ? '已取消' : 'Cancelled') : getStatusLabel(s, isChinese));
+                        : (s === '已取消' ? (isChinese ? '已取消' : 'Cancelled') : getStatusLabel(s, isChinese));
                     return (
                         <button
                             key={s}
@@ -593,7 +593,7 @@ export default function PurchaseOrders() {
                             style={{
                                 padding: '5px 14px', borderRadius: 100, fontSize: 12, fontWeight: 500,
                                 border: statusFilter === s ? 'none' : '1px solid var(--border-subtle)',
-                                background: statusFilter === s ? (s === 'cancelled' ? '#ef4444' : getStatusColor(s, 0)) : 'var(--bg-secondary)',
+                                background: statusFilter === s ? (s === '已取消' ? '#ef4444' : getStatusColor(s, 0)) : 'var(--bg-secondary)',
                                 color: statusFilter === s ? '#fff' : 'var(--text-secondary)',
                                 cursor: 'pointer', transition: 'all 0.15s',
                             }}
