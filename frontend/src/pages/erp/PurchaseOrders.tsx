@@ -252,7 +252,7 @@ function NewOrderDialog({
     const queryClient = useQueryClient();
     const [supplierId, setSupplierId] = useState('');
     const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
-    const [orderStatus, setOrderStatus] = useState('草稿');
+    const [orderStatus, setOrderStatus] = useState('');
     const [notes, setNotes] = useState('');
     const [lines, setLines] = useState<OrderLine[]>([
         { material_id: '', quantity: 1, unit_price: 0, subtotal: 0 },

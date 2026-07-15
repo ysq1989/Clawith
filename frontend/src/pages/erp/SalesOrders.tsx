@@ -256,7 +256,7 @@ function NewOrderDialog({
     const queryClient = useQueryClient();
     const [customerId, setCustomerId] = useState(order?.customer_id ?? '');
     const [orderDate, setOrderDate] = useState(order?.order_date ?? new Date().toISOString().slice(0, 10));
-    const [orderStatus, setOrderStatus] = useState(order?.status ?? '草稿');
+    const [orderStatus, setOrderStatus] = useState(order?.status ?? '');
     const [notes, setNotes] = useState(order?.notes ?? '');
     const [lines, setLines] = useState<OrderLine[]>(
         order?.items?.length
