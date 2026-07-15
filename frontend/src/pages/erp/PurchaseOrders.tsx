@@ -451,6 +451,12 @@ function OrderDetailDialog({
     const queryClient = useQueryClient();
     const dialog = useDialog();
 
+    const { data: orderDetail } = useQuery<PurchaseOrder>({
+        queryKey: ['erp-purchase-order', order.id],
+        queryFn: () => fetchJson<PurchaseOrder>(`/erp/purchase-orders/${order.id}`),
+    });
+    const detail = orderDetail ?? order;
+
     const statusMutation = useMutation({
         mutationFn: (newStatus: string) => fetchJson(`/erp/purchase-orders/${order.id}/status`, {
             method: 'POST', body: JSON.stringify({ new_status: newStatus }),
@@ -485,29 +491,29 @@ function OrderDetailDialog({
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
             <div style={{ background: 'var(--bg-primary)', borderRadius: 12, border: '1px solid var(--border-subtle)', width: 720, maxHeight: '90vh', overflow: 'auto', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
                 <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
-                    {isChinese ? '采购订单详情' : 'Purchase Order Detail'}: {order.order_no}
+                    {isChinese ? '采购订单详情' : 'Purchase Order Detail'}: {detail.order_no}
                 </h3>
 
                 <div style={{ display: 'flex', gap: 24, marginBottom: 16, flexWrap: 'wrap' }}>
                     <div>
                         <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{isChinese ? '供应商' : 'Supplier'}</div>
-                        <div style={{ fontSize: 14, color: 'var(--text-primary)' }}>{order.supplier_name}</div>
+                        <div style={{ fontSize: 14, color: 'var(--text-primary)' }}>{detail.supplier_name}</div>
                     </div>
                     <div>
                         <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{isChinese ? '状态' : 'Status'}</div>
-                        <StatusBadge status={order.status} isChinese={isChinese} />
+                        <StatusBadge status={detail.status} isChinese={isChinese} />
                     </div>
                     <div>
                         <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{isChinese ? '金额' : 'Amount'}</div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{order.total_amount.toFixed(2)}</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{detail.total_amount.toFixed(2)}</div>
                     </div>
                     <div>
                         <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{isChinese ? '订单日期' : 'Order Date'}</div>
-                        <div style={{ fontSize: 14, color: 'var(--text-primary)' }}>{order.order_date}</div>
+                        <div style={{ fontSize: 14, color: 'var(--text-primary)' }}>{detail.order_date}</div>
                     </div>
                     <div>
                         <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{isChinese ? '创建时间' : 'Created'}</div>
-                        <div style={{ fontSize: 14, color: 'var(--text-primary)' }}>{new Date(order.created_at).toLocaleString()}</div>
+                        <div style={{ fontSize: 14, color: 'var(--text-primary)' }}>{new Date(detail.created_at).toLocaleString()}</div>
                     </div>
                 </div>
 
@@ -522,7 +528,7 @@ function OrderDetailDialog({
                             </tr>
                         </thead>
                         <tbody>
-                            {(order.items ?? []).map((line, idx) => (
+                            {(detail.items ?? []).map((line, idx) => (
                                 <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                                     <td style={tdStyle}>{line.material_name ?? line.material_id}</td>
                                     <td style={tdStyle}>{line.quantity}{line.unit ? ` ${line.unit}` : ''}</td>
@@ -534,9 +540,9 @@ function OrderDetailDialog({
                     </table>
                 </div>
 
-                {order.notes && (
+                {detail.notes && (
                     <div style={{ marginBottom: 16, fontSize: 13, color: 'var(--text-secondary)' }}>
-                        {isChinese ? '备注: ' : 'Notes: '}{order.notes}
+                        {isChinese ? '备注: ' : 'Notes: '}{detail.notes}
                     </div>
                 )}
 
