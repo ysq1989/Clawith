@@ -842,6 +842,32 @@ AGENT_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "call_erp_api",
+            "description": "Call the Clawith ERP API directly with automatic authentication. Use this to create/read/update customers, suppliers, products, orders, inventory, etc. Returns JSON response.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "method": {
+                        "type": "string",
+                        "enum": ["GET", "POST", "PATCH", "DELETE"],
+                        "description": "HTTP method",
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "API path relative to /api/erp, e.g. 'customers', 'sales-orders', 'products?search=xxx'",
+                    },
+                    "body": {
+                        "type": "object",
+                        "description": "Request body for POST/PATCH (JSON object)",
+                    },
+                },
+                "required": ["method", "path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "execute_code_e2b",
             "description": "Execute code (Python, Bash, or Node.js) in a secure E2B cloud sandbox. The sandbox has full network access and is fully isolated from the server. Use this when local execution is insufficient or when network access is required inside the code.",
             "parameters": {
@@ -2607,6 +2633,42 @@ async def _get_agent_tenant_id(agent_id: uuid.UUID) -> str | None:
     return None
 
 
+async def _call_erp_api(tenant_id: str | None, arguments: dict) -> str:
+    """Internal ERP API call for agents — bypasses JWT auth using tenant_id."""
+    import httpx
+
+    method = arguments.get("method", "GET").upper()
+    path = arguments.get("path", "").lstrip("/")
+    body = arguments.get("body")
+
+    if not path:
+        return "Error: path is required"
+
+    url = f"http://127.0.0.1:8008/api/erp/{path}"
+    headers = {"Content-Type": "application/json"}
+    if tenant_id:
+        headers["X-Agent-Tenant-Id"] = tenant_id
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            if method == "GET":
+                resp = await client.get(url, headers=headers)
+            elif method == "POST":
+                resp = await client.post(url, headers=headers, json=body or {})
+            elif method == "PATCH":
+                resp = await client.patch(url, headers=headers, json=body or {})
+            elif method == "DELETE":
+                resp = await client.delete(url, headers=headers)
+            else:
+                return f"Error: unsupported method {method}"
+
+            if resp.status_code >= 400:
+                return f"API Error ({resp.status_code}): {resp.text[:500]}"
+            return resp.text[:2000]
+    except Exception as e:
+        return f"Error calling ERP API: {e}"
+
+
 def _agent_workspace_root(agent_id: uuid.UUID) -> Path:
     """Return the per-agent local path without creating or hydrating it."""
     return WORKSPACE_ROOT / str(agent_id)
@@ -3107,6 +3169,8 @@ async def execute_tool(
             result = await _plaza_create_post(agent_id, arguments)
         elif tool_name == "plaza_add_comment":
             result = await _plaza_add_comment(agent_id, arguments)
+        elif tool_name == "call_erp_api":
+            result = await _call_erp_api(_agent_tenant_id, arguments)
         elif tool_name in ("execute_code", "execute_code_e2b"):
             logger.info(f"[DirectTool] Executing code ({tool_name}) with arguments: {arguments}")
             result = await _run_with_temp_workspace(

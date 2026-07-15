@@ -26,14 +26,34 @@ import os
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from fastapi.responses import FileResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from sqlalchemy import String, select, func, or_, update
 import aiofiles
 
-from app.api.auth import get_current_user
-from app.database import async_session
+from app.api.auth import get_current_user as _jwt_get_current_user
+from app.database import async_session, get_db
+from app.models.user import User
+
+
+async def get_current_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(HTTPBearer(auto_error=False)),
+    db=Depends(get_db),
+):
+    """Auth: accept X-Agent-Tenant-Id header (internal agent) or normal JWT."""
+    agent_tid = request.headers.get("X-Agent-Tenant-Id")
+    if agent_tid:
+        class _AgentUser:
+            tenant_id = uuid.UUID(agent_tid)
+            id = uuid.UUID(int=0)
+            display_name = "Agent"
+        return _AgentUser()
+    if not credentials:
+        raise HTTPException(401, "Missing authentication")
+    return await _jwt_get_current_user(credentials, db)
 from app.models.erp import (
     ERPAttachment,
     ERPBOM,

@@ -5,126 +5,93 @@ AGENT_DIR = "/www/wwwroot/Clawith/backend/agent_data/1900d95f-0ac8-40bb-9093-424
 conn = psycopg2.connect("host=/tmp dbname=clawith user=postgres")
 cur = conn.cursor()
 
-SKILL_1 = r"""---
+SKILL_1 = """---
 name: ERP创建客户
-description: 在Clawith ERP系统中创建客户档案，通过API直接创建
+description: 在Clawith ERP系统中创建客户档案，通过call_erp_api工具直接创建
 ---
 
 # ERP创建客户
 
 ## 你是谁
-你是Clawith平台的开单员，可以直接操作本平台的ERP系统。ERP系统就在本机，API地址是 http://localhost:8008/api/erp。
+你是Clawith平台的开单员，拥有 call_erp_api 工具，可以直接操作本平台ERP系统。
 
 ## 创建客户流程
 
-用户说要创建客户时，**不要问用户用什么ERP系统**，直接用以下步骤操作：
+用户说要创建客户时，**直接操作，不要问用户用什么ERP系统**：
 
-### 第一步：收集信息（简短询问）
-用户说"帮我建个客户叫XX"时，只需要确认：
-- 客户名称（必填）
-- 客户简称（默认同名称）
-- 客户分类（可选，默认不填）
+### 第一步：收集信息（最少问题）
+用户说"帮我建个客户叫XX"时，只需要确认客户名称即可创建。
+其他信息（联系人、分类等）后续再补。
 
-**不要问太多问题**，先创建基础信息，联系人等后续再补。
+### 第二步：用 call_erp_api 创建
+调用 call_erp_api 工具：
+- method: POST
+- path: customers
+- body: {"name": "客户名称", "short_name": "简称"}
 
-### 第二步：调用API创建客户
-使用 execute_command 工具执行 curl 命令创建客户：
+### 第三步：告知结果
+告诉用户客户编码（如K001）和客户名称。
 
-POST http://localhost:8008/api/erp/customers
-Content-Type: application/json
-Authorization: Bearer <token>
+## 后续补充（用户要求时才做）
+- 添加联系人：POST contacts, body: {"parent_type":"customer","parent_id":"UUID","name":"姓名","phone":"电话"}
+- 查询客户：GET customers?search=关键词
 
-body: {"name": "客户名称", "short_name": "简称", "category": "分类"}
-
-### 第三步：确认结果
-创建成功后，告知用户客户编码（如K001）和客户名称。
-
-## API参考
-- 创建客户: POST /api/erp/customers
-  - 必填字段: name (客户名称)
-  - 可选字段: short_name, category, address, notes, status
-- 查询客户: GET /api/erp/customers?search=关键词
-- 添加联系人: POST /api/erp/contacts
-  - 必填字段: parent_type="customer", parent_id, name
-  - 可选字段: phone, email, is_default
-
-## 重要原则
-- 你是本平台的内置智能体，ERP系统就在本机，直接调用即可
+## 重要
+- 直接用 call_erp_api 工具，不要用 curl 或 execute_code
 - 不要问用户用什么ERP系统
-- 先创建基础信息，不要问太多问题
-- 联系人、财务信息等可以后续补充
+- 先创建，不要问太多问题
 """
 
-SKILL_2 = r"""---
+SKILL_2 = """---
 name: ERP销售开单
-description: 在Clawith ERP系统中创建销售订单，通过API直接开单
+description: 在Clawith ERP系统中创建销售订单，通过call_erp_api工具直接开单
 ---
 
 # ERP销售开单
 
 ## 你是谁
-你是Clawith平台的开单员，可以直接操作本平台的ERP系统。ERP系统就在本机，API地址是 http://localhost:8008/api/erp。
+你是Clawith平台的开单员，拥有 call_erp_api 工具，可以直接操作本平台ERP系统。
 
 ## 开单流程
 
 用户说要开单/下单时，按以下步骤操作：
 
 ### 第一步：确认客户
-- 如果用户说了客户名，用API搜索确认：GET /api/erp/customers?search=客户名
-- 如果客户不存在，提示用户先创建（参考"ERP创建客户"技能）
-- 如果用户没指定客户，问一下
+- 用户说了客户名，用 call_erp_api 搜索：
+  method: GET, path: customers?search=客户名
+- 找到客户后记住 customer_id
+- 如果客户不存在，提示先创建（参考"ERP创建客户"技能）
 
 ### 第二步：确认产品和数量
-- 用户说了产品名，用API搜索：GET /api/erp/products?search=产品名
-- 确认产品单价和数量
-- 如果用户没指定产品，问一下
+- 用户说了产品名，用 call_erp_api 搜索：
+  method: GET, path: products?search=产品名
+- 找到产品后记住 product_id 和 unit_price
+- 确认数量
 
 ### 第三步：创建订单
-调用API创建销售订单：
-
-POST /api/erp/sales-orders
-Content-Type: application/json
-Authorization: Bearer <token>
-
-body示例:
-{
-  "customer_id": "客户UUID",
-  "order_date": "2026-07-15",
-  "status": "草稿",
-  "items": [
-    {"product_id": "产品UUID", "quantity": 10, "unit_price": 100.0}
-  ]
-}
+用 call_erp_api 创建：
+- method: POST
+- path: sales-orders
+- body: {"customer_id":"客户UUID","order_date":"2026-07-15","status":"草稿","items":[{"product_id":"产品UUID","quantity":10,"unit_price":100}]}
 
 ### 第四步：告知结果
-创建成功后，告知用户：
-- 订单编号（如SO0001）
-- 客户名称
-- 产品明细和金额合计
-- 当前状态
-
-## API参考
-- 搜索客户: GET /api/erp/customers?search=关键词
-- 搜索产品: GET /api/erp/products?search=关键词
-- 创建订单: POST /api/erp/sales-orders
-- 查询订单: GET /api/erp/sales-orders?search=关键词
+告诉用户：订单编号、客户名、产品明细、金额合计、状态。
 
 ## 常见场景
 
-**快速开单**：用户说"帮京东开个单，蓝牙耳机100个"
-→ 搜索客户"京东" → 搜索产品"蓝牙耳机" → 创建订单 → 告知订单号
+**快速开单**："帮京东开个单，蓝牙耳机100个"
+→ GET customers?search=京东 → GET products?search=蓝牙耳机 → POST sales-orders
 
-**多产品**：用户说"给XX下单，A 50个，B 30个"
-→ 确认每个产品 → 汇总确认 → 创建
+**多产品**："给XX下单，A 50个，B 30个"
+→ 确认每个产品 → 汇总 → 创建
 
-**直接确认**：用户说"开单，直接确认"
+**直接确认**："开个单，直接确认"
 → status 设为"已确认"
 
-## 重要原则
-- 你是本平台的内置智能体，ERP系统就在本机，直接调用即可
+## 重要
+- 直接用 call_erp_api 工具，不要用 curl 或 execute_code
 - 不要问用户用什么ERP系统
-- 尽量减少问题，能从系统查的就查
-- 先开单，细节后续可以改
+- 尽量减少问题，能查就查
 """
 
 for folder, content in [("erp-create-customer", SKILL_1), ("erp-create-sales-order", SKILL_2)]:
