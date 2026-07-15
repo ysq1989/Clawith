@@ -3068,8 +3068,8 @@ async def upload_attachment(
     user=Depends(get_current_user),
 ):
     """上传附件到指定客户/供应商。文件保存到 agent_data/erp_attachments/{tenant_id}/{uuid}_{filename}。"""
-    if parent_type not in ("customer", "supplier"):
-        raise HTTPException(400, "parent_type must be 'customer' or 'supplier")
+    if parent_type not in ("customer", "supplier", "sales_order", "purchase_order"):
+        raise HTTPException(400, "parent_type must be 'customer', 'supplier', 'sales_order', or 'purchase_order'")
 
     tenant_dir = os.path.join(_ATTACHMENTS_DIR, str(user.tenant_id))
     os.makedirs(tenant_dir, exist_ok=True)

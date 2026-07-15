@@ -3,7 +3,7 @@
  * order detail dialog with status transitions, and delete support.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { IconPlus, IconSearch, IconEye, IconTrash } from '@tabler/icons-react';
@@ -415,6 +415,8 @@ function OrderDetailDialog({
 }) {
     const queryClient = useQueryClient();
     const dialog = useDialog();
+    const [activeTab, setActiveTab] = useState<'detail' | 'attachments'>('detail');
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const statusTransitionMutation = useMutation({
         mutationFn: (newStatus: string) => fetchJson(`/erp/sales-orders/${order.id}/status`, {
@@ -446,12 +448,68 @@ function OrderDetailDialog({
         statusTransitionMutation.mutate(newStatus);
     };
 
+    /* ── Attachment logic ── */
+    const { data: attachments = [] } = useQuery<any[]>({
+        queryKey: ['erp-attachments', 'sales_order', order.id],
+        queryFn: () => fetchJson<any[]>(`/erp/attachments?parent_type=sales_order&parent_id=${order.id}`),
+    });
+
+    const uploadAttachment = async (file: File) => {
+        const fd = new FormData();
+        fd.append('file', file);
+        const token = localStorage.getItem('token');
+        await fetch(`/api/erp/attachments?parent_type=sales_order&parent_id=${order.id}`, {
+            method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
+        });
+        queryClient.invalidateQueries({ queryKey: ['erp-attachments', 'sales_order', order.id] });
+    };
+
+    const deleteAttachment = async (id: string) => {
+        await fetchJson(`/erp/attachments/${id}`, { method: 'DELETE' });
+        queryClient.invalidateQueries({ queryKey: ['erp-attachments', 'sales_order', order.id] });
+    };
+
+    const downloadAttachment = (id: string) => {
+        const token = localStorage.getItem('token');
+        window.open(`/api/erp/attachments/${id}/download?token=${token}`, '_blank');
+    };
+
+    const formatFileSize = (bytes: number) => {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    };
+
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
             <div style={{ background: 'var(--bg-primary)', borderRadius: 12, border: '1px solid var(--border-subtle)', width: 720, maxHeight: '90vh', overflow: 'auto', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
                 <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
                     {isChinese ? '订单详情' : 'Order Detail'}: {order.order_no}
                 </h3>
+
+                {/* Tab bar */}
+                <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid var(--border-subtle)', marginBottom: 16 }}>
+                    {(['detail', 'attachments'] as const).map(tab => (
+                        <button
+                            key={tab}
+                            onClick={() => setActiveTab(tab)}
+                            style={{
+                                padding: '8px 20px', fontSize: 13, fontWeight: activeTab === tab ? 600 : 400,
+                                background: 'none', border: 'none', cursor: 'pointer',
+                                color: activeTab === tab ? 'var(--accent-primary)' : 'var(--text-tertiary)',
+                                borderBottom: activeTab === tab ? '2px solid var(--accent-primary)' : '2px solid transparent',
+                                marginBottom: -2, transition: 'all 0.15s',
+                            }}
+                        >
+                            {tab === 'detail'
+                                ? (isChinese ? '订单信息' : 'Detail')
+                                : (isChinese ? `附件 (${attachments.length})` : `Attachments (${attachments.length})`)
+                            }
+                        </button>
+                    ))}
+                </div>
+
+                {activeTab === 'detail' ? (
 
                 <div style={{ display: 'flex', gap: 24, marginBottom: 16, flexWrap: 'wrap' }}>
                     <div>
@@ -524,6 +582,63 @@ function OrderDetailDialog({
                             </button>
                         ))}
                     </div>
+                )}
+                </>
+                ) : (
+                <>
+                {/* ── Attachments tab ── */}
+                <div style={{ marginBottom: 16 }}>
+                    <input
+                        ref={fileInputRef}
+                        type="file" multiple hidden
+                        onChange={e => { if (e.target.files) Array.from(e.target.files).forEach(f => uploadAttachment(f)); e.target.value = ''; }}
+                    />
+                    <button
+                        style={{ ...btnSecondary, marginBottom: 12 }}
+                        onClick={() => fileInputRef.current?.click()}
+                    >
+                        {isChinese ? '上传附件' : 'Upload Attachment'}
+                    </button>
+
+                    {attachments.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-tertiary)', fontSize: 13 }}>
+                            {isChinese ? '暂无附件' : 'No attachments'}
+                        </div>
+                    ) : (
+                        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                        <th style={thStyle}>{isChinese ? '文件名' : 'File Name'}</th>
+                                        <th style={thStyle}>{isChinese ? '大小' : 'Size'}</th>
+                                        <th style={thStyle}>{isChinese ? '上传时间' : 'Uploaded'}</th>
+                                        <th style={{ ...thStyle, textAlign: 'center' }}>{isChinese ? '操作' : 'Actions'}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {attachments.map((a: any) => (
+                                        <tr key={a.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                            <td style={tdStyle}>{a.file_name}</td>
+                                            <td style={{ ...tdStyle, color: 'var(--text-tertiary)' }}>{formatFileSize(a.file_size)}</td>
+                                            <td style={{ ...tdStyle, color: 'var(--text-tertiary)' }}>{new Date(a.created_at).toLocaleString()}</td>
+                                            <td style={{ ...tdStyle, textAlign: 'center' }}>
+                                                <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                                                    <button onClick={() => downloadAttachment(a.id)} style={{ background: 'none', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '3px 6px', color: 'var(--text-tertiary)', cursor: 'pointer', display: 'flex' }} title={isChinese ? '下载' : 'Download'}>
+                                                        <IconEye size={14} stroke={1.5} />
+                                                    </button>
+                                                    <button onClick={() => deleteAttachment(a.id)} style={{ background: 'none', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '3px 6px', color: 'var(--text-tertiary)', cursor: 'pointer', display: 'flex' }} title={isChinese ? '删除' : 'Delete'}>
+                                                        <IconTrash size={14} stroke={1.5} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+                </>
                 )}
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
