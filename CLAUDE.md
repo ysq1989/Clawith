@@ -251,7 +251,10 @@ ssh -i scripts/bt/8.134.178.82_id_ed25519 root@8.134.178.82 "cd /www/wwwroot/Cla
 
 - **Python Imports**: Place at file top. Avoid inline imports unless necessary (e.g., circular dependency prevention).
 - **Multi-tenant queries**: Always include `tenant_id` filter in database queries.
+- **ERP status strings**: Order statuses are stored in Chinese (草稿, 已确认, 已完成, 已取消, etc.). All hardcoded status checks in `erp.py` must use Chinese strings. Do not mix English and Chinese status values.
+- **ERP helper pattern**: Use `_xxx_to_out()` dict helpers (not Pydantic `model_validate()`) for ERP entity responses to avoid UUID/datetime serialization issues.
 - **No `.agents/` directory in this fork**: The upstream `AGENTS.md` references `.agents/rules/` and `.agents/workflows/` — these directories do not exist in the forked repo. Do not attempt to read them.
+- **ERP attachment parent_type**: Valid values are `customer`, `supplier`, `sales_order`, `purchase_order`. Validation exists in both `upload_attachment` and `list_attachments` endpoints.
 
 ## ERP Module
 
@@ -262,7 +265,7 @@ The ERP module is an independent sub-application within Clawith, accessible at `
 - **Frontend**: `frontend/src/pages/erp/` — 15 page components, each a default export
 - **Backend**: `backend/app/api/erp.py` (~4000 lines, 48+ endpoints, Router prefix `/api/erp`)
 - **Models**: `backend/app/models/erp.py` — 15 SQLAlchemy models (customers, suppliers, products, materials, warehouses, orders, stock, financial, BOM, production, payments, categories, settings)
-- **Migrations**: `backend/alembic/versions/060-071_*.py`
+- **Migrations**: `backend/alembic/versions/060-076_*.py`
 
 ### Key Design Decisions
 
@@ -271,6 +274,9 @@ The ERP module is an independent sub-application within Clawith, accessible at `
 - **BOM is optional**: Production orders can work with or without a BOM. With BOM → deducts materials. Without BOM → only adds finished product.
 - **Module flags**: `ERPSettings` has `module_production` and `module_payments` (default off). Sidebar groups are filtered by these flags.
 - **Categories as JSON**: Warehouse/outbound/inbound categories stored as JSON arrays in `ERPSettings`, not separate tables.
+- **Fulfillment mode**: Products have `fulfillment_mode` (`mts`=按计划生产 / `mto`=按订单生产 / `null`=inherit global default). Stored in `erp_products.fulfillment_mode` and `erp_settings.default_fulfillment_mode`. Currently informational — stock operations are Agent-guided, not auto-triggered on order confirmation.
+- **Custom order statuses**: Sales/purchase/production statuses are user-defined per tenant in `erp_production_statuses` table (with `status_type` field: `sales`/`purchase`/`production`). Status names are in Chinese (草稿, 已确认, 处理中, etc.). Each type supports one `is_default` status. Status transitions are unrestricted — any enabled status can be selected.
+- **Agent ERP integration**: The `call_erp_api` tool (in `agent_tools.py`) allows agents to call ERP endpoints directly using `X-Agent-Tenant-Id` header auth (no JWT needed). ERP API in `erp.py` accepts this header as an alternative to JWT.
 
 ### ERP Helper Pattern
 
