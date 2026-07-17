@@ -976,6 +976,25 @@ BUILTIN_TOOLS = [
         },
     },
     {
+        "name": "call_erp_api",
+        "display_name": "ERP API",
+        "description": "Call the Clawith ERP system API directly with automatic authentication. Use this to create/read/update customers, suppliers, products, orders, inventory, and other ERP data. Returns JSON response.",
+        "category": "erp",
+        "icon": "📋",
+        "is_default": True,
+        "parameters_schema": {
+            "type": "object",
+            "properties": {
+                "method": {"type": "string", "enum": ["GET", "POST", "PATCH", "DELETE"], "description": "HTTP method"},
+                "path": {"type": "string", "description": "API path relative to /api/erp, e.g. 'customers', 'sales-orders', 'products?search=xxx'"},
+                "body": {"type": "object", "description": "Request body for POST/PATCH (JSON object)"},
+            },
+            "required": ["method", "path"],
+        },
+        "config": {},
+        "config_schema": {},
+    },
+    {
         "name": "execute_code_e2b",
         "display_name": "Code Executor (E2B Cloud)",
         "description": "Execute code (Python, Bash, Node.js) in a secure E2B cloud sandbox. Provides full network access and an isolated environment without consuming local resources. Requires an E2B API key.",
