@@ -55,9 +55,6 @@ class ERPCustomer(Base):
     code: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)  # 客户编码，如 K001
     short_name: Mapped[str | None] = mapped_column(String(100))  # 简称
     category_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
-    contact_name: Mapped[str | None] = mapped_column(String(100))
-    phone: Mapped[str | None] = mapped_column(String(50))
-    email: Mapped[str | None] = mapped_column(String(200))
     address: Mapped[str | None] = mapped_column(Text)
     tax_id: Mapped[str | None] = mapped_column(String(50))
     salesperson_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)  # 业务员
@@ -100,9 +97,6 @@ class ERPSupplier(Base):
     code: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)  # 供应商编码，如 G001
     short_name: Mapped[str | None] = mapped_column(String(100))  # 简称
     category_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
-    contact_name: Mapped[str | None] = mapped_column(String(100))
-    phone: Mapped[str | None] = mapped_column(String(50))
-    email: Mapped[str | None] = mapped_column(String(200))
     address: Mapped[str | None] = mapped_column(Text)
     tax_id: Mapped[str | None] = mapped_column(String(50))
     payment_terms: Mapped[str | None] = mapped_column(String(100))

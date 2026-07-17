@@ -160,9 +160,6 @@ class CustomerCreate(BaseModel):
     code: str | None = None  # 客户编码（可选，不传则自动生成）
     short_name: str | None = None
     category_id: str | None = None
-    contact_name: str | None = None
-    phone: str | None = None
-    email: str | None = None
     address: str | None = None
     tax_id: str | None = None
     salesperson_id: str | None = None  # 业务员
@@ -182,9 +179,6 @@ class CustomerUpdate(BaseModel):
     code: str | None = None
     short_name: str | None = None
     category_id: str | None = None
-    contact_name: str | None = None
-    phone: str | None = None
-    email: str | None = None
     address: str | None = None
     tax_id: str | None = None
     salesperson_id: str | None = None
@@ -207,9 +201,6 @@ class CustomerOut(BaseModel):
     short_name: str | None = None
     category_id: str | None = None
     category_name: str | None = None
-    contact_name: str | None = None
-    phone: str | None = None
-    email: str | None = None
     address: str | None = None
     tax_id: str | None = None
     salesperson_id: str | None = None
@@ -239,9 +230,6 @@ class SupplierCreate(BaseModel):
     code: str | None = None  # 供应商编码（可选，不传则自动生成）
     short_name: str | None = None
     category_id: str | None = None
-    contact_name: str | None = None
-    phone: str | None = None
-    email: str | None = None
     address: str | None = None
     tax_id: str | None = None
     payment_terms: str | None = None
@@ -262,9 +250,6 @@ class SupplierUpdate(BaseModel):
     code: str | None = None
     short_name: str | None = None
     category_id: str | None = None
-    contact_name: str | None = None
-    phone: str | None = None
-    email: str | None = None
     address: str | None = None
     tax_id: str | None = None
     payment_terms: str | None = None
@@ -288,9 +273,6 @@ class SupplierOut(BaseModel):
     short_name: str | None = None
     category_id: str | None = None
     category_name: str | None = None
-    contact_name: str | None = None
-    phone: str | None = None
-    email: str | None = None
     address: str | None = None
     tax_id: str | None = None
     payment_terms: str | None = None
@@ -820,8 +802,7 @@ def _customer_to_out(c, category_name=None, salesperson_name=None):
         "short_name": c.short_name,
         "category_id": str(c.category_id) if c.category_id else None,
         "category_name": category_name,
-        "contact_name": c.contact_name, "phone": c.phone,
-        "email": c.email, "address": c.address, "tax_id": c.tax_id,
+        "address": c.address, "tax_id": c.tax_id,
         "salesperson_id": str(c.salesperson_id) if c.salesperson_id else None,
         "salesperson_name": salesperson_name,
         "company_name": c.company_name,
@@ -850,13 +831,7 @@ async def list_customers(
         q = select(ERPCustomer).where(ERPCustomer.tenant_id == user.tenant_id)
         if search:
             like = f"%{search}%"
-            q = q.where(
-                or_(
-                    ERPCustomer.name.ilike(like),
-                    ERPCustomer.contact_name.ilike(like),
-                    ERPCustomer.email.ilike(like),
-                )
-            )
+            q = q.where(ERPCustomer.name.ilike(like))
         if status:
             q = q.where(ERPCustomer.status == status)
         # Total count
@@ -1041,8 +1016,7 @@ def _supplier_to_out(s, category_name=None, salesperson_name=None):
         "short_name": s.short_name,
         "category_id": str(s.category_id) if s.category_id else None,
         "category_name": category_name,
-        "contact_name": s.contact_name, "phone": s.phone,
-        "email": s.email, "address": s.address, "tax_id": s.tax_id,
+        "address": s.address, "tax_id": s.tax_id,
         "payment_terms": s.payment_terms,
         "salesperson_id": str(s.salesperson_id) if s.salesperson_id else None,
         "salesperson_name": salesperson_name,
@@ -1072,13 +1046,7 @@ async def list_suppliers(
         q = select(ERPSupplier).where(ERPSupplier.tenant_id == user.tenant_id)
         if search:
             like = f"%{search}%"
-            q = q.where(
-                or_(
-                    ERPSupplier.name.ilike(like),
-                    ERPSupplier.contact_name.ilike(like),
-                    ERPSupplier.email.ilike(like),
-                )
-            )
+            q = q.where(ERPSupplier.name.ilike(like))
         if status:
             q = q.where(ERPSupplier.status == status)
         from sqlalchemy import func as sqlfunc
