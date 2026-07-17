@@ -2636,6 +2636,7 @@ async def _get_agent_tenant_id(agent_id: uuid.UUID) -> str | None:
 async def _call_erp_api(tenant_id: str | None, arguments: dict) -> str:
     """Internal ERP API call for agents — bypasses JWT auth using tenant_id."""
     import httpx
+    logger.info(f"[call_erp_api] tenant={tenant_id} method={arguments.get('method')} path={arguments.get('path')}")
 
     method = arguments.get("method", "GET").upper()
     path = arguments.get("path", "").lstrip("/")
