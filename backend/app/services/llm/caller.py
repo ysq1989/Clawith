@@ -515,14 +515,14 @@ async def call_llm(
                 role="user",
                 content=(
                     f"⚠️ 你已使用 {round_i}/{_max_tool_rounds} 轮工具调用。"
-                    "如果当前任务尚未完成，请尽快使用 upsert_focus_item 保存进度，"
-                    "并使用 set_trigger 设置续接触发器，在剩余轮次中做好收尾。"
+                    "如果当前任务有阶段性成果，请立即调用 finish 工具将结果告知用户。"
+                    "如果还需要继续工作，请在接下来的轮次中尽快完成并调用 finish。"
                 ),
             ))
         elif round_i == _warn_threshold_96:
             api_messages.append(LLMMessage(
                 role="user",
-                content="🚨 仅剩 2 轮工具调用。请立即使用 upsert_focus_item 保存进度并设置续接触发器。",
+                content="🚨 仅剩 2 轮工具调用。请立即调用 finish 工具将当前结果告知用户，结束本轮对话。",
             ))
 
         # Check token usage limit mid-loop (every 3 rounds)
