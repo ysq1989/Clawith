@@ -20,7 +20,7 @@ from app.models.agent import Agent, AgentTemplate
 from app.models.tool import AgentTool, Tool
 from app.services.storage import get_storage_backend
 
-router = APIRouter(prefix="/agent-admin", tags=["agent-admin"])
+router = APIRouter(prefix="/api/agent-admin", tags=["agent-admin"])
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────
