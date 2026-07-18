@@ -873,7 +873,8 @@ AGENT_TOOLS = [
                 "Call the Agent Admin API to manage other digital employees (agents). "
                 "Use this to read/modify agent settings (name, role, model, rounds), "
                 "soul.md (personality), memory.md, skills (workspace files), "
-                "tools (enable/disable), and A2A relationships. "
+                "tools (enable/disable), A2A relationships, "
+                "list templates, and create new agents from templates. "
                 "Returns JSON response."
             ),
             "parameters": {
@@ -890,19 +891,21 @@ AGENT_TOOLS = [
                             "API path relative to /api/agent-admin. Examples:\n"
                             "- GET agents — list all agents\n"
                             "- GET agents/{id} — get agent detail\n"
-                            "- PATCH agents/{id}/settings — update agent settings (body: {name, role_description, max_tool_rounds, ...})\n"
+                            "- POST agents — create new agent (body: {name, template_id?, role_description?})\n"
+                            "- PATCH agents/{id}/settings — update agent settings\n"
                             "- GET agents/{id}/files/soul.md — read agent personality\n"
                             "- PUT agents/{id}/files/soul.md — update agent personality (body: {content: '...'})\n"
                             "- GET agents/{id}/files/memory/memory.md — read agent memory\n"
                             "- PUT agents/{id}/files/memory/memory.md — update agent memory\n"
                             "- GET agents/{id}/files — list workspace files\n"
-                            "- GET agents/{id}/files/skills/ — list installed skills\n"
                             "- GET agents/{id}/files/skills/{folder}/SKILL.md — read a skill\n"
                             "- PUT agents/{id}/files/skills/{folder}/SKILL.md — update a skill\n"
                             "- GET agents/{id}/tools — list agent tools\n"
                             "- PUT agents/{id}/tools — update tool assignments (body: [{tool_id, enabled}])\n"
                             "- GET agents/{id}/relationships — list A2A relationships\n"
-                            "- PUT agents/{id}/relationships — set A2A relationships"
+                            "- PUT agents/{id}/relationships — set A2A relationships\n"
+                            "- GET templates — list available templates (query: ?category=my-talent)\n"
+                            "- POST agents — create agent from template (body: {name, template_id})"
                         ),
                     },
                     "body": {

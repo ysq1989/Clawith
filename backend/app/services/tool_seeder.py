@@ -997,7 +997,7 @@ BUILTIN_TOOLS = [
     {
         "name": "call_agent_admin_api",
         "display_name": "Agent Admin API",
-        "description": "Call the Agent Admin API to manage other digital employees (agents). Use this to read/modify agent settings, soul.md (personality), memory.md, skills, tools, and A2A relationships. Returns JSON response.",
+        "description": "Call the Agent Admin API to manage other digital employees (agents). Use this to read/modify agent settings, soul.md (personality), memory.md, skills, tools, A2A relationships, list templates, and create new agents. Returns JSON response.",
         "category": "admin",
         "icon": "🔧",
         "is_default": False,
@@ -1011,6 +1011,7 @@ BUILTIN_TOOLS = [
                         "API path relative to /api/agent-admin. Examples:\n"
                         "- GET agents — list all agents\n"
                         "- GET agents/{id} — get agent detail\n"
+                        "- POST agents — create new agent (body: {name, template_id?})\n"
                         "- PATCH agents/{id}/settings — update agent settings\n"
                         "- GET agents/{id}/files/soul.md — read agent personality\n"
                         "- PUT agents/{id}/files/soul.md — update agent personality (body: {content})\n"
@@ -1019,7 +1020,9 @@ BUILTIN_TOOLS = [
                         "- GET agents/{id}/tools — list agent tools\n"
                         "- PUT agents/{id}/tools — update tool assignments\n"
                         "- GET agents/{id}/relationships — list A2A relationships\n"
-                        "- PUT agents/{id}/relationships — set A2A relationships"
+                        "- PUT agents/{id}/relationships — set A2A relationships\n"
+                        "- GET templates — list templates (?category=my-talent)\n"
+                        "- POST agents — create agent from template"
                     ),
                 },
                 "body": {"type": "object", "description": "Request body for POST/PUT/PATCH (JSON object)"},
