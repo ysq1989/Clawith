@@ -995,6 +995,41 @@ BUILTIN_TOOLS = [
         "config_schema": {},
     },
     {
+        "name": "call_agent_admin_api",
+        "display_name": "Agent Admin API",
+        "description": "Call the Agent Admin API to manage other digital employees (agents). Use this to read/modify agent settings, soul.md (personality), memory.md, skills, tools, and A2A relationships. Returns JSON response.",
+        "category": "admin",
+        "icon": "🔧",
+        "is_default": False,
+        "parameters_schema": {
+            "type": "object",
+            "properties": {
+                "method": {"type": "string", "enum": ["GET", "POST", "PATCH", "PUT", "DELETE"], "description": "HTTP method"},
+                "path": {
+                    "type": "string",
+                    "description": (
+                        "API path relative to /api/agent-admin. Examples:\n"
+                        "- GET agents — list all agents\n"
+                        "- GET agents/{id} — get agent detail\n"
+                        "- PATCH agents/{id}/settings — update agent settings\n"
+                        "- GET agents/{id}/files/soul.md — read agent personality\n"
+                        "- PUT agents/{id}/files/soul.md — update agent personality (body: {content})\n"
+                        "- GET agents/{id}/files/memory/memory.md — read agent memory\n"
+                        "- PUT agents/{id}/files/memory/memory.md — update agent memory\n"
+                        "- GET agents/{id}/tools — list agent tools\n"
+                        "- PUT agents/{id}/tools — update tool assignments\n"
+                        "- GET agents/{id}/relationships — list A2A relationships\n"
+                        "- PUT agents/{id}/relationships — set A2A relationships"
+                    ),
+                },
+                "body": {"type": "object", "description": "Request body for POST/PUT/PATCH (JSON object)"},
+            },
+            "required": ["method", "path"],
+        },
+        "config": {},
+        "config_schema": {},
+    },
+    {
         "name": "execute_code_e2b",
         "display_name": "Code Executor (E2B Cloud)",
         "description": "Execute code (Python, Bash, Node.js) in a secure E2B cloud sandbox. Provides full network access and an isolated environment without consuming local resources. Requires an E2B API key.",

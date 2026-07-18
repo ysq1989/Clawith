@@ -868,6 +868,55 @@ AGENT_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "call_agent_admin_api",
+            "description": (
+                "Call the Agent Admin API to manage other digital employees (agents). "
+                "Use this to read/modify agent settings (name, role, model, rounds), "
+                "soul.md (personality), memory.md, skills (workspace files), "
+                "tools (enable/disable), and A2A relationships. "
+                "Returns JSON response."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "method": {
+                        "type": "string",
+                        "enum": ["GET", "POST", "PATCH", "PUT", "DELETE"],
+                        "description": "HTTP method",
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": (
+                            "API path relative to /api/agent-admin. Examples:\n"
+                            "- GET agents — list all agents\n"
+                            "- GET agents/{id} — get agent detail\n"
+                            "- PATCH agents/{id}/settings — update agent settings (body: {name, role_description, max_tool_rounds, ...})\n"
+                            "- GET agents/{id}/files/soul.md — read agent personality\n"
+                            "- PUT agents/{id}/files/soul.md — update agent personality (body: {content: '...'})\n"
+                            "- GET agents/{id}/files/memory/memory.md — read agent memory\n"
+                            "- PUT agents/{id}/files/memory/memory.md — update agent memory\n"
+                            "- GET agents/{id}/files — list workspace files\n"
+                            "- GET agents/{id}/files/skills/ — list installed skills\n"
+                            "- GET agents/{id}/files/skills/{folder}/SKILL.md — read a skill\n"
+                            "- PUT agents/{id}/files/skills/{folder}/SKILL.md — update a skill\n"
+                            "- GET agents/{id}/tools — list agent tools\n"
+                            "- PUT agents/{id}/tools — update tool assignments (body: [{tool_id, enabled}])\n"
+                            "- GET agents/{id}/relationships — list A2A relationships\n"
+                            "- PUT agents/{id}/relationships — set A2A relationships"
+                        ),
+                    },
+                    "body": {
+                        "type": "object",
+                        "description": "Request body for POST/PUT/PATCH (JSON object)",
+                    },
+                },
+                "required": ["method", "path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "execute_code_e2b",
             "description": "Execute code (Python, Bash, or Node.js) in a secure E2B cloud sandbox. The sandbox has full network access and is fully isolated from the server. Use this when local execution is insufficient or when network access is required inside the code.",
             "parameters": {
@@ -2670,6 +2719,45 @@ async def _call_erp_api(tenant_id: str | None, arguments: dict) -> str:
         return f"Error calling ERP API: {e}"
 
 
+async def _call_agent_admin_api(tenant_id: str | None, arguments: dict) -> str:
+    """Internal Agent Admin API call for agents — manages other agents."""
+    import httpx
+    logger.info(f"[call_agent_admin_api] tenant={tenant_id} method={arguments.get('method')} path={arguments.get('path')}")
+
+    method = arguments.get("method", "GET").upper()
+    path = arguments.get("path", "").lstrip("/")
+    body = arguments.get("body")
+
+    if not path:
+        return "Error: path is required"
+
+    url = f"http://127.0.0.1:8008/api/agent-admin/{path}"
+    headers = {"Content-Type": "application/json"}
+    if tenant_id:
+        headers["X-Agent-Tenant-Id"] = tenant_id
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            if method == "GET":
+                resp = await client.get(url, headers=headers)
+            elif method == "POST":
+                resp = await client.post(url, headers=headers, json=body or {})
+            elif method == "PATCH":
+                resp = await client.patch(url, headers=headers, json=body or {})
+            elif method == "PUT":
+                resp = await client.put(url, headers=headers, json=body or {})
+            elif method == "DELETE":
+                resp = await client.delete(url, headers=headers)
+            else:
+                return f"Error: unsupported method {method}"
+
+            if resp.status_code >= 400:
+                return f"API Error ({resp.status_code}): {resp.text[:500]}"
+            return resp.text[:3000]
+    except Exception as e:
+        return f"Error calling Agent Admin API: {e}"
+
+
 def _agent_workspace_root(agent_id: uuid.UUID) -> Path:
     """Return the per-agent local path without creating or hydrating it."""
     return WORKSPACE_ROOT / str(agent_id)
@@ -3172,6 +3260,8 @@ async def execute_tool(
             result = await _plaza_add_comment(agent_id, arguments)
         elif tool_name == "call_erp_api":
             result = await _call_erp_api(_agent_tenant_id, arguments)
+        elif tool_name == "call_agent_admin_api":
+            result = await _call_agent_admin_api(_agent_tenant_id, arguments)
         elif tool_name in ("execute_code", "execute_code_e2b"):
             logger.info(f"[DirectTool] Executing code ({tool_name}) with arguments: {arguments}")
             result = await _run_with_temp_workspace(
