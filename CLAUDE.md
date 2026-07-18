@@ -265,7 +265,7 @@ The ERP module is an independent sub-application within Clawith, accessible at `
 - **Frontend**: `frontend/src/pages/erp/` — 15 page components, each a default export
 - **Backend**: `backend/app/api/erp.py` (~4000 lines, 48+ endpoints, Router prefix `/api/erp`)
 - **Models**: `backend/app/models/erp.py` — 15 SQLAlchemy models (customers, suppliers, products, materials, warehouses, orders, stock, financial, BOM, production, payments, categories, settings)
-- **Migrations**: `backend/alembic/versions/060-076_*.py`
+- **Migrations**: `backend/alembic/versions/060-077_*.py`
 
 ### Key Design Decisions
 
@@ -276,7 +276,8 @@ The ERP module is an independent sub-application within Clawith, accessible at `
 - **Categories as JSON**: Warehouse/outbound/inbound categories stored as JSON arrays in `ERPSettings`, not separate tables.
 - **Fulfillment mode**: Products have `fulfillment_mode` (`mts`=按计划生产 / `mto`=按订单生产 / `null`=inherit global default). Stored in `erp_products.fulfillment_mode` and `erp_settings.default_fulfillment_mode`. Currently informational — stock operations are Agent-guided, not auto-triggered on order confirmation.
 - **Custom order statuses**: Sales/purchase/production statuses are user-defined per tenant in `erp_production_statuses` table (with `status_type` field: `sales`/`purchase`/`production`). Status names are in Chinese (草稿, 已确认, 处理中, etc.). Each type supports one `is_default` status. Status transitions are unrestricted — any enabled status can be selected.
-- **Agent ERP integration**: The `call_erp_api` tool (in `agent_tools.py`) allows agents to call ERP endpoints directly using `X-Agent-Tenant-Id` header auth (no JWT needed). ERP API in `erp.py` accepts this header as an alternative to JWT.
+- **Agent ERP integration**: The `call_erp_api` tool (in `agent_tools.py`) allows agents to call ERP endpoints directly using `X-Agent-Tenant-Id` header auth (no JWT needed). ERP API in `erp.py` accepts this header as an alternative to JWT. Tool must be registered in both `AGENT_TOOLS` (agent_tools.py) and `BUILTIN_TOOLS` (tool_seeder.py) to appear in agents' tool lists.
+- **No redundant contact fields**: `erp_customers` and `erp_suppliers` do NOT have `phone`/`email`/`contact_name` columns. All contact info lives in `erp_contacts`. Customer list display uses `default_contact_*` fields populated via JOIN with contacts table.
 
 ### ERP Helper Pattern
 
