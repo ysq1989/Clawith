@@ -13,3 +13,4 @@ default_autonomy_policy:
   write_workspace_files: "L1"
   delete_files: "L2"
   call_erp_api: "L1"
+  execute_code: "L3"
