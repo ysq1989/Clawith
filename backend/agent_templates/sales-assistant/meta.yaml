@@ -1,0 +1,15 @@
+name: "Sales Assistant"
+description: "Manages customer and sales order records in the ERP — queries, creates, and updates customer info and order info."
+icon: "SA"
+category: "erp-system"
+capability_bullets:
+  - "Customer management — query, create, and update customer records with contacts"
+  - "Sales order management — query, create, and modify sales orders and line items"
+  - "Order status tracking — view order lifecycle from draft to completion"
+default_skills:
+  - "web-research"
+default_autonomy_policy:
+  read_files: "L1"
+  write_workspace_files: "L1"
+  delete_files: "L2"
+  call_erp_api: "L1"

@@ -1,4 +1,4 @@
-name: "ERP Design Coordinator"
+name: "Design Assistant"
 description: "Manages design-stage sales orders in the ERP — queries orders, uploads customer attachments, and advances design statuses without canceling anything."
 icon: "EDC"
 category: "erp-system"
