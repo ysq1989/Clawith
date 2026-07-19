@@ -289,6 +289,7 @@ async def _background_agent_setup(
     skill_ids: list[uuid.UUID],
     template_skill_folder_names: list[str],
     template_mcp_servers: list[str],
+    template_tool_names: list[str] | None = None,
 ) -> None:
     """Run all creation tasks asynchronously with small, short-lived transactions."""
     # 1. Initialize agent file system from template
@@ -370,6 +371,32 @@ async def _background_agent_setup(
                     agent.status = "error"
                     await db.commit()
             return
+
+    # 3.5 Install template tools
+    if template_tool_names:
+        try:
+            from app.models.tool import Tool, AgentTool
+
+            async with async_session() as db:
+                tools_r = await db.execute(select(Tool).where(Tool.name.in_(template_tool_names)))
+                tools = {t.name: t.id for t in tools_r.scalars().all()}
+                for tool_name in template_tool_names:
+                    tool_id = tools.get(tool_name)
+                    if not tool_id:
+                        logger.warning(f"[create_agent] Template tool '{tool_name}' not found in DB, skipping")
+                        continue
+                    existing = await db.execute(
+                        select(AgentTool).where(AgentTool.agent_id == agent_id, AgentTool.tool_id == tool_id)
+                    )
+                    if existing.scalar_one_or_none():
+                        continue
+                    db.add(AgentTool(agent_id=agent_id, tool_id=tool_id, enabled=True, source="system"))
+                await db.commit()
+                installed = [n for n in template_tool_names if tools.get(n)]
+                if installed:
+                    logger.info(f"[create_agent] Installed template tools {installed} for agent {agent_id}")
+        except Exception as e:
+            logger.exception(f"Error installing template tools for agent {agent_id}: {e}")
 
     # 4. Install template MCP servers
     if template_mcp_servers:
@@ -555,12 +582,14 @@ async def create_agent(
     # Resolve template settings
     folder_names = []
     template_mcp_servers = []
+    template_tool_names = []
     if data.template_id:
         tpl_r = await db.execute(select(AgentTemplate).where(AgentTemplate.id == data.template_id))
         tpl = tpl_r.scalar_one_or_none()
         if tpl:
             folder_names = list(tpl.default_skills or [])
             template_mcp_servers = list(tpl.default_mcp_servers or [])
+            template_tool_names = list((tpl.default_autonomy_policy or {}).keys())
 
     # Prepare return response before transaction is committed
     out = await _agent_to_out(db, agent, current_user.id)
@@ -577,6 +606,7 @@ async def create_agent(
         skill_ids=list(data.skill_ids or []),
         template_skill_folder_names=folder_names,
         template_mcp_servers=template_mcp_servers,
+        template_tool_names=template_tool_names,
     )
 
     return out
