@@ -41,7 +41,7 @@ const FEATURED_TEMPLATE_NAMES = new Set<string>([
     'Market Intel Aggregator',
 ]);
 
-type TabId = 'popular' | 'software-development' | 'marketing' | 'office' | 'trading' | 'my-talent';
+type TabId = 'popular' | 'software-development' | 'marketing' | 'office' | 'trading' | 'erp-system' | 'my-talent';
 
 export default function TalentMarketModal({ open, onClose }: Props) {
     const { t, i18n } = useTranslation();
@@ -66,6 +66,7 @@ export default function TalentMarketModal({ open, onClose }: Props) {
         { id: 'marketing', label: t('talentMarket.tabMarketing', isChinese ? '营销' : 'Marketing') },
         { id: 'office', label: t('talentMarket.tabOffice', isChinese ? '办公通用' : 'Office') },
         { id: 'trading', label: t('talentMarket.tabTrading', isChinese ? '交易投资' : 'Trading') },
+        { id: 'erp-system', label: t('talentMarket.tabERP', isChinese ? 'ERP系统' : 'ERP System') },
     ];
 
     useEffect(() => {

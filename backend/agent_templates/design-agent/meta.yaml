@@ -1,0 +1,15 @@
+name: "ERP Design Coordinator"
+description: "Manages design-stage sales orders in the ERP — queries orders, uploads customer attachments, and advances design statuses without canceling anything."
+icon: "EDC"
+category: "erp-system"
+capability_bullets:
+  - "Query sales orders — filter by customer, status, date range, or order number"
+  - "Upload design files — attach drawings, specs, and mockups to customer records"
+  - "Advance design status — move orders through design workflow stages"
+default_skills:
+  - "web-research"
+default_autonomy_policy:
+  read_files: "L1"
+  write_workspace_files: "L1"
+  delete_files: "L2"
+  call_erp_api: "L1"
