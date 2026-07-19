@@ -621,6 +621,8 @@ RUNTIME_TYPED_APPLICATION_TOOL_NAMES = frozenset(
         "feishu_user_search",
         "feishu_approval_query",
         "feishu_approval_get",
+        "call_erp_api",
+        "call_agent_admin_api",
         "read_emails",
         "send_email",
         "reply_email",
