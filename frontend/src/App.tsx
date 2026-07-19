@@ -37,6 +37,7 @@ const ERPSettings = lazy(() => import('./pages/erp/Settings'));
 const ERPBOM = lazy(() => import('./pages/erp/BOM'));
 const ERPProduction = lazy(() => import('./pages/erp/Production'));
 const ERPPayments = lazy(() => import('./pages/erp/Payments'));
+const GroupsPage = lazy(() => import('./pages/groups/GroupsPage'));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const token = useAuthStore((s) => s.token);
@@ -296,13 +297,17 @@ export default function App() {
                 <Route path="/setup-company" element={<CompanySetup />} />
                 <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
                 <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-                    <Route index element={<Navigate to="/plaza" replace />} />
+                    <Route index element={<Navigate to="/dashboard" replace />} />
                     <Route path="dashboard" element={<Dashboard />} />
                     <Route path="plaza" element={<Plaza />} />
                     <Route path="agents/new" element={<AgentCreate />} />
                     <Route path="agents/:id" element={<Navigate to="chat" replace />} />
                     <Route path="agents/:id/chat" element={<AgentDetail />} />
+                    <Route path="agents/:id/directory" element={<AgentDetail />} />
                     <Route path="agents/:id/settings" element={<AgentDetail />} />
+                    <Route path="groups" element={<GroupsPage />} />
+                    <Route path="groups/:groupId" element={<GroupsPage />} />
+                    <Route path="groups/:groupId/:sessionId" element={<GroupsPage />} />
                     <Route path="messages" element={<Messages />} />
                     <Route path="enterprise" element={<CompanyAdminRoute><EnterpriseSettings /></CompanyAdminRoute>} />
                     <Route path="okr" element={<OKR />} />
