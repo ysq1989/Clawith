@@ -3556,6 +3556,47 @@ _DEPLOY_BUILTIN_TOOL_DEFINITIONS = [
 _BUILTIN_TOOL_SOURCE = [
     *_BUILTIN_TOOL_SOURCE,
     *_DEPLOY_BUILTIN_TOOL_DEFINITIONS,
+    # ── Future Staff custom tools (registered in DB as source=builtin) ──
+    {
+        "name": "call_erp_api",
+        "display_name": "Call ERP API",
+        "description": "Call the Future Staff ERP API directly with automatic authentication. Use method (GET/POST/PATCH/DELETE), path (relative to /api/erp, e.g. 'customers', 'sales-orders', 'products?search=xxx'), and body for POST/PATCH.",
+        "category": "erp",
+        "icon": "📊",
+        "is_default": False,
+        "parameters_schema": {
+            "type": "object",
+            "properties": {
+                "method": {"type": "string", "enum": ["GET", "POST", "PATCH", "DELETE"], "description": "HTTP method"},
+                "path": {"type": "string", "description": "API path relative to /api/erp, e.g. 'customers', 'sales-orders', 'products?search=xxx'"},
+                "body": {"type": "object", "description": "Request body for POST/PATCH (JSON object)"},
+            },
+            "required": ["method", "path"],
+            "additionalProperties": False,
+        },
+        "config": {},
+        "config_schema": {},
+    },
+    {
+        "name": "call_agent_admin_api",
+        "display_name": "Call Agent Admin API",
+        "description": "Call the Future Staff Agent Admin API to manage agents, templates, tools, and relationships.",
+        "category": "admin",
+        "icon": "🤖",
+        "is_default": False,
+        "parameters_schema": {
+            "type": "object",
+            "properties": {
+                "method": {"type": "string", "enum": ["GET", "POST", "PATCH", "DELETE"], "description": "HTTP method"},
+                "path": {"type": "string", "description": "API path relative to /api/agent-admin, e.g. 'agents', 'templates'"},
+                "body": {"type": "object", "description": "Request body for POST/PATCH (JSON object)"},
+            },
+            "required": ["method", "path"],
+            "additionalProperties": False,
+        },
+        "config": {},
+        "config_schema": {},
+    },
 ]
 
 
