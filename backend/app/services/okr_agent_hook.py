@@ -79,7 +79,11 @@ async def hook_new_agent(db: AsyncSession, new_agent_id: uuid.UUID, tenant_id: u
         .where(Agent.id == new_agent_id)
     )
     agent = agent_res.scalar_one_or_none()
-    if not agent or getattr(agent, "is_system", False):
+    if not agent:
+        return
+    # Refresh to avoid MissingGreenlet on expired attributes after prior flushes
+    await db.refresh(agent)
+    if getattr(agent, "is_system", False):
         return
     if (getattr(agent, "access_mode", None) or "company") != "company":
         return  # Do not bind private/custom agents into tenant-wide OKR relationships
