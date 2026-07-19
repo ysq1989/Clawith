@@ -10,20 +10,20 @@
   var LANG = document.documentElement.lang === 'zh-CN' ? 'zh' : 'en';
   var COPY = {
     zh: {
-      brand: 'Future Staff',
-      tagline: 'AI 驱动的数字员工平台，让每个小企业都雇得起数字员工。',
+      brand: 'Future Staff Story',
+      tagline: '未来员工市集 — 数字员工人才市集平台，让每个企业都雇得起 AI 员工。',
       loginTitle: '登录',
       loginDesc: '欢迎回来，请登录你的账户',
       registerTitle: '注册',
-      registerDesc: '创建你的 Future Staff 账户',
+      registerDesc: '创建你的 Future Staff Story 账户',
     },
     en: {
-      brand: 'Future Staff',
-      tagline: 'AI-powered digital employee platform. AI employees for every small business.',
+      brand: 'Future Staff Story',
+      tagline: 'Digital Employee Talent Marketplace — AI employees for every business.',
       loginTitle: 'Sign in',
       loginDesc: 'Welcome back! Sign in to your account.',
       registerTitle: 'Create account',
-      registerDesc: 'Set up your Future Staff account.',
+      registerDesc: 'Set up your Future Staff Story account.',
     }
   };
   var t = COPY[LANG] || COPY.en;
@@ -214,7 +214,7 @@
       '<div id="fs-form-inner">' +
         '<div id="fs-form-brand">' +
           '<div class="fs-logo-row">' +
-            '<div class="fs-logo-icon">FS</div>' +
+            '<div class="fs-logo-icon">FSS</div>' +
             '<div class="fs-brand-name">' + t.brand + '</div>' +
           '</div>' +
           '<p class="fs-brand-tagline">' + t.tagline + '</p>' +

@@ -323,7 +323,7 @@ export default function AgentCreate() {
                 }}
             >
                 <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '4px' }}>{t('openclaw.nativeTitle', 'Platform Hosted')}</div>
-                <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>{t('openclaw.nativeDesc', 'Full agent running on Future Staff platform')}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>{t('openclaw.nativeDesc', 'Full agent running on Future Staff Story platform')}</div>
             </div>
             <div
                 onClick={() => { setAgentType('openclaw'); setStep(0); }}

@@ -1,12 +1,12 @@
 {
   "app": {
-    "name": "Future Staff",
-    "tagline": "Enterprise Digital Employee Platform"
+    "name": "Future Staff Story",
+    "tagline": "数字员工人才市集平台"
   },
   "login": {
     "hero": {
       "badge": "开源 · 多智能体协作",
-      "title": "Future Staff",
+      "title": "Future Staff Story",
       "subtitle": "Your Agent Company.",
       "welcome": "欢迎，",
       "founder": "Founder",
@@ -1374,7 +1374,7 @@
         "list_triggers": "列出所有活动触发器的详细信息。",
         "send_file_to_agent": "将文件发送给特定人员或返回当前对话。",
         "send_feishu_message": "向飞书用户或群组发送消息。",
-        "send_platform_message": "在 Future Staff 平台（网页或 App）上向用户发送主动消息。",
+        "send_platform_message": "在 Future Staff Story 平台（网页或 App）上向用户发送主动消息。",
         "send_message_to_agent": "向数字员工同事发送消息并接收回复。",
         "web_search": "使用可配置的搜索引擎搜索互联网。",
         "jina_search": "使用 Jina AI 搜索互联网。",
@@ -1571,16 +1571,16 @@
       "saved": "邮件模板已保存",
       "emailVerification": "邮箱验证码",
       "emailVerificationDesc": "用户注册并需要验证邮箱地址时发送。",
-      "emailVerificationSubject": "验证您的 Future Staff 邮箱地址",
-      "emailVerificationBody": "您好 {{display_name}}，\n\n欢迎来到 Future Staff！请使用以下 6 位数字验证码验证您的邮箱地址：\n\n验证码：{{verification_code}}\n\n此验证码将在 {{expiry_minutes}} 分钟后过期。如果您没有创建账号，可以忽略此邮件。",
+      "emailVerificationSubject": "验证您的 Future Staff Story 邮箱地址",
+      "emailVerificationBody": "您好 {{display_name}}，\n\n欢迎来到 Future Staff Story！请使用以下 6 位数字验证码验证您的邮箱地址：\n\n验证码：{{verification_code}}\n\n此验证码将在 {{expiry_minutes}} 分钟后过期。如果您没有创建账号，可以忽略此邮件。",
       "passwordReset": "密码重置",
       "passwordResetDesc": "用户请求重置密码时发送。",
-      "passwordResetSubject": "重置您的 Future Staff 密码",
-      "passwordResetBody": "您好 {{display_name}}，\n\n我们收到了重置您 Future Staff 密码的请求。\n\n重置链接：{{reset_url}}\n\n此链接将在 {{expiry_minutes}} 分钟后过期。如果您没有提出此请求，可以忽略此邮件。",
+      "passwordResetSubject": "重置您的 Future Staff Story 密码",
+      "passwordResetBody": "您好 {{display_name}}，\n\n我们收到了重置您 Future Staff Story 密码的请求。\n\n重置链接：{{reset_url}}\n\n此链接将在 {{expiry_minutes}} 分钟后过期。如果您没有提出此请求，可以忽略此邮件。",
       "companyInvitation": "公司邀请",
       "companyInvitationDesc": "管理员邀请用户加入公司时发送。",
-      "companyInvitationSubject": "{{inviter_name}} 邀请您加入 {{company_name}} 的 Future Staff 团队",
-      "companyInvitationBody": "您好，\n\n{{inviter_name}} 邀请您加入他们在 Future Staff 的团队\"{{company_name}}\"。\n\n要接受邀请并创建您的账号，请点击以下链接：\n\n{{invite_url}}\n\n如果您不想加入此团队或没有预期此邀请，可以忽略此邮件。"
+      "companyInvitationSubject": "{{inviter_name}} 邀请您加入 {{company_name}} 的 Future Staff Story 团队",
+      "companyInvitationBody": "您好，\n\n{{inviter_name}} 邀请您加入他们在 Future Staff Story 的团队\"{{company_name}}\"。\n\n要接受邀请并创建您的账号，请点击以下链接：\n\n{{invite_url}}\n\n如果您不想加入此团队或没有预期此邀请，可以忽略此邮件。"
     },
     "users": {
       "user": "用户",
@@ -1881,7 +1881,7 @@
     "keyNote": "API Key 已嵌入在上方指令中。如需手动配置可单独保存。",
     "goToAgent": "前往 Agent 页面",
     "nativeTitle": "平台托管",
-    "nativeDesc": "在 Future Staff 平台上运行的完整 Agent",
+    "nativeDesc": "在 Future Staff Story 平台上运行的完整 Agent",
     "openclawTitle": "连接 OpenClaw",
     "openclawDesc": "连接你现有的 OpenClaw Agent",
     "basicTitle": "连接 OpenClaw Agent",
@@ -1991,7 +1991,7 @@
     "wechat": {
       "step1": "点击下方“Generate QR Code”，申请新的微信 iLink 登录二维码。",
       "step2": "用手机微信扫码，并在手机端确认 Bot 登录。",
-      "step3": "确认后，Future Staff 会保存返回的 bot token，并自动启动 getupdates 长轮询。",
+      "step3": "确认后，Future Staff Story 会保存返回的 bot token，并自动启动 getupdates 长轮询。",
       "step4": "给该微信 iLink Bot 发送一条私信，验证入站轮询和出站回复是否正常。",
       "note": "该通道遵循 iLink Bot 协议：二维码登录、token 长轮询，以及基于入站 context_token 的回复路由。"
     },
@@ -2171,7 +2171,7 @@
     "configureModels": "配置模型",
     "creationFailed": "创建失败",
     "externalCreated": "连接已创建",
-    "externalCreatedDesc": "把下面的连接指令交给外部 Agent，它就能通过网关收发 Future Staff 消息。",
+    "externalCreatedDesc": "把下面的连接指令交给外部 Agent，它就能通过网关收发 Future Staff Story 消息。",
     "gatewayKeyEmbedded": "API Key 已包含在连接指令中",
     "copyKey": "复制 Key",
     "noKeyReturned": "未返回 API Key，请进入 Agent 页面重新生成。",
@@ -2222,7 +2222,7 @@
     "redirectingToLogin": "正在跳转到安全登录...",
     "error": "错误",
     "completingLogin": "正在完成登录...",
-    "loginTitle": "登录 Future Staff",
+    "loginTitle": "登录 Future Staff Story",
     "selectLoginMethod": "选择登录方式",
     "loginWith": "使用 {{provider}} 登录",
     "noProviders": "未配置 SSO 提供商。"
