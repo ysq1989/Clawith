@@ -1,0 +1,248 @@
+/* ═══════════════════════════════════════════════════════
+   Future Staff — Login Page Complete Override
+   Hides Clawith elements and injects new design.
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Hide all original Clawith elements ───────────── */
+.atlas-page .atlas-frame-top {
+  display: none !important;
+}
+.atlas-login-hero {
+  display: none !important;
+}
+.atlas-screen-split {
+  display: block !important;
+}
+.atlas-screen-form {
+  width: 100% !important;
+  max-width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 100dvh !important;
+  padding: 0 !important;
+}
+.atlas-login-form-wrapper {
+  max-width: 440px !important;
+  width: 100% !important;
+  padding: 40px !important;
+}
+.atlas-login-split .atlas-login-form-pane {
+  background: #0B1120 !important;
+}
+
+/* ── Injected: FS Login Container ─────────────────── */
+#fs-login-root {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  background: #0B1120;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  overflow: hidden;
+}
+
+/* ── Left: Brand Panel ────────────────────────────── */
+#fs-login-brand {
+  flex: 0 0 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 60px;
+  position: relative;
+  background: linear-gradient(160deg, #0B1120 0%, #1E1B4B 40%, #312E81 70%, #4C1D95 100%);
+  overflow: hidden;
+}
+
+/* Animated gradient orbs */
+#fs-login-brand::before {
+  content: '';
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.25) 0%, transparent 70%);
+  top: -150px;
+  right: -100px;
+  animation: fs-orb-1 10s ease-in-out infinite alternate;
+}
+
+#fs-login-brand::after {
+  content: '';
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.2) 0%, transparent 70%);
+  bottom: -100px;
+  left: -80px;
+  animation: fs-orb-2 8s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes fs-orb-1 {
+  0% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+  100% { transform: translate(30px, 20px) scale(1.2); opacity: 0.8; }
+}
+@keyframes fs-orb-2 {
+  0% { transform: translate(0, 0) scale(1); opacity: 0.4; }
+  100% { transform: translate(-20px, -30px) scale(1.15); opacity: 0.7; }
+}
+
+/* Logo */
+#fs-login-logo {
+  position: relative;
+  z-index: 1;
+  width: 88px;
+  height: 88px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #2563EB, #7C3AED);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.02em;
+  margin-bottom: 32px;
+  box-shadow: 0 8px 32px rgba(37, 99, 235, 0.3), 0 0 60px rgba(124, 58, 237, 0.15);
+}
+
+/* Brand text */
+#fs-login-brand h1 {
+  position: relative;
+  z-index: 1;
+  font-size: 38px;
+  font-weight: 700;
+  color: #F1F5F9;
+  margin: 0 0 12px;
+  letter-spacing: -0.02em;
+}
+
+#fs-login-brand p {
+  position: relative;
+  z-index: 1;
+  font-size: 16px;
+  color: #94A3B8;
+  margin: 0;
+  line-height: 1.6;
+  max-width: 360px;
+  text-align: center;
+}
+
+/* Feature list */
+#fs-login-features {
+  position: relative;
+  z-index: 1;
+  margin-top: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.fs-feature-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+}
+
+.fs-feature-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.2), rgba(124, 58, 237, 0.2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.fs-feature-text {
+  font-size: 14px;
+  color: #CBD5E1;
+  line-height: 1.4;
+}
+
+.fs-feature-text strong {
+  color: #F1F5F9;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 2px;
+}
+
+/* ── Right: Form Panel ────────────────────────────── */
+#fs-login-form {
+  flex: 0 0 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 60px;
+  background: #0F172A;
+  position: relative;
+}
+
+/* Subtle grid pattern */
+#fs-login-form::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+
+#fs-login-form-inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 380px;
+}
+
+/* Form title */
+#fs-login-form-inner h2 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #F1F5F9;
+  margin: 0 0 8px;
+  letter-spacing: -0.01em;
+}
+
+#fs-login-form-inner .fs-subtitle {
+  font-size: 14px;
+  color: #64748B;
+  margin: 0 0 36px;
+}
+
+/* ── Responsive ───────────────────────────────────── */
+@media (max-width: 900px) {
+  #fs-login-root {
+    flex-direction: column;
+  }
+  #fs-login-brand {
+    flex: 0 0 auto;
+    padding: 40px 30px;
+    min-height: auto;
+  }
+  #fs-login-brand::before,
+  #fs-login-brand::after {
+    display: none;
+  }
+  #fs-login-features {
+    display: none;
+  }
+  #fs-login-form {
+    flex: 1;
+    padding: 40px 30px;
+  }
+}
