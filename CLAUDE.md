@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Clawith is an open-source multi-agent collaboration platform — a "digital employee" system where AI agents have persistent identity (`soul.md`), long-term memory (`memory.md`), autonomous awareness (cron/interval/webhook triggers), and can communicate with each other (A2A) and with humans via omni-channel integrations (Feishu, DingTalk, WeCom, Slack, Discord).
+Future Staff (formerly Clawith) is an open-source multi-agent collaboration platform — a "digital employee" system where AI agents have persistent identity (`soul.md`), long-term memory (`memory.md`), autonomous awareness (cron/interval/webhook triggers), and can communicate with each other (A2A) and with humans via omni-channel integrations (Feishu, DingTalk, WeCom, Slack, Discord).
 
 ## Commands
 
@@ -93,6 +93,8 @@ docker compose up -d
 |-----------|---------|
 | `api/` | ~30 FastAPI route modules (one per domain) |
 | `services/` | Business logic (~30+ modules) |
+| `services/agent_runtime/` | **v1.11** Single-agent runtime (LangGraph-based), handles tool execution, model steps, A2A completion, group handoff |
+| `services/llm/` | Unified LLM abstraction (`client.py`, `caller.py`, `failover.py`) |
 | `models/` | SQLAlchemy 2.0 async ORM entities |
 | `schemas/` | Pydantic request/response schemas |
 | `dao/` | Data access layer |
@@ -104,17 +106,17 @@ docker compose up -d
 **Critical files:**
 - `api/websocket.py` — Tool-calling loop (up to 50 iterations: LLM → Tool → Context reassembly), LLM streaming
 - `api/gateway.py` — OpenClaw edge node protocol (poll/report/send for local agents)
-- `services/agent_tools.py` — All file-based tools (`read_file`, `write_file`, `send_message_to_agent`, etc.)
+- `services/agent_tools.py` — All file-based tools (`read_file`, `write_file`, `send_message_to_agent`, `call_erp_api`, `call_agent_admin_api`, etc.)
 - `services/agent_context.py` — Assembles LLM context from `soul.md`, system prompts, `memory.md`
 - `services/trigger_daemon.py` — Background scheduler for the Aware Engine (cron/interval/poll/on_message triggers)
-- `services/llm/` — Unified LLM abstraction (`client.py`, `caller.py`, `failover.py`)
-- `config.py` — Pydantic-settings based configuration (reads `.env`)
+- `services/builtin_tool_definitions.py` — **v1.11** Canonical tool definitions (replaces hardcoded AGENT_TOOLS list)
+- `services/agent_runtime/graph.py` — **v1.11** LangGraph agent execution graph
 
 ### Frontend Structure (`frontend/src/`)
 
 | Directory | Purpose |
 |-----------|---------|
-| `pages/` | Page components (19+ pages) |
+| `pages/` | Page components (20+ pages) |
 | `pages/agent-detail/` | Agent chat UI extracted sub-modules |
 | `pages/enterprise-settings/` | Enterprise config sub-modules |
 | `pages/erp/` | **ERP module** (15 page components, independent dashboard) |
@@ -125,6 +127,7 @@ docker compose up -d
 | `i18n/` | Internationalization (en, zh, ja, ko, es, ar) |
 | `types/` | Shared TypeScript types |
 | `utils/` | Utility functions |
+| `skin/` | **Future Staff brand overrides** — CSS files that override Atlas/main theme without touching source |
 
 **Path alias:** `@/` maps to `src/` (configured in `tsconfig.json` and `vite.config.ts`).
 
@@ -152,6 +155,15 @@ Every database entity includes `tenant_id`. All queries must filter by tenant. T
 
 The core LLM execution in `api/websocket.py` runs up to 50 iterations. Each iteration: call LLM → parse tool calls → execute tools → reassemble context → repeat. Resource warnings fire at 80% of the round limit. High-risk tools (`write_file`, `delete_file`) have hard parameter validation.
 
+### Agent Runtime (v1.11)
+
+The new Agent Runtime (`services/agent_runtime/`) uses LangGraph for stateful agent execution:
+- `graph.py` — Defines the execution graph (model step → tool step → model step loop)
+- `tool_step_service.py` — Executes tool calls and manages tool results
+- `model_step_service.py` — Calls the LLM and parses responses
+- `checkpointer.py` — LangGraph checkpoint storage for session persistence
+- `group_*.py` — Group/shared-group agent coordination
+
 ### Agent Workspace
 
 Each agent has a private file workspace under `agent_template/`. The files `soul.md` (personality) and `memory.md` (long-term memory) are injected into every LLM context via `services/agent_context.py`. Workspace data persists in `backend/agent_data/<agent-uuid>/`.
@@ -164,6 +176,7 @@ The `PROCESS_ROLE` env var controls which subsystems a backend instance runs. Va
 
 - **Backend**: Python 3.11+, FastAPI, SQLAlchemy 2.0 (async), PostgreSQL 15+ / SQLite (dev), Redis 7+
 - **Frontend**: React 19, TypeScript (strict), Vite 6, Zustand 5, TanStack Query 5, React Router 7, i18next, Recharts, Tabler Icons
+- **Runtime**: LangGraph 1.2, LangGraph Checkpoint Postgres 3.1
 - **LLM**: Unified abstraction in `services/llm/` supporting OpenAI, Anthropic Claude, DeepSeek, and others
 - **Integrations**: Feishu/Lark, DingTalk, WeCom, Slack, Discord, Jira/Confluence, Microsoft Teams
 - **Linting**: Ruff (Python, line-length 120, target py311), TypeScript strict mode
@@ -255,10 +268,11 @@ ssh -i scripts/bt/8.134.178.82_id_ed25519 root@8.134.178.82 "cd /www/wwwroot/Cla
 - **ERP helper pattern**: Use `_xxx_to_out()` dict helpers (not Pydantic `model_validate()`) for ERP entity responses to avoid UUID/datetime serialization issues.
 - **No `.agents/` directory in this fork**: The upstream `AGENTS.md` references `.agents/rules/` and `.agents/workflows/` — these directories do not exist in the forked repo. Do not attempt to read them.
 - **ERP attachment parent_type**: Valid values are `customer`, `supplier`, `sales_order`, `purchase_order`. Validation exists in both `upload_attachment` and `list_attachments` endpoints.
+- **Tool system**: Tools are defined in `services/builtin_tool_definitions.py` (canonical) and seeded into DB via `services/tool_seeder.py`. Custom tools (like `call_erp_api`, `call_agent_admin_api`) are appended to the list in `services/agent_tools.py`.
 
 ## ERP Module
 
-The ERP module is an independent sub-application within Clawith, accessible at `/erp`. It has its own layout (`ERPLayout.tsx`) with a separate sidebar, independent from the main Clawith navigation.
+The ERP module is an independent sub-application within Future Staff, accessible at `/erp`. It has its own layout (`ERPLayout.tsx`) with a separate sidebar, independent from the main navigation.
 
 ### Architecture
 
@@ -300,3 +314,36 @@ This avoids Pydantic `model_validate()` UUID/datetime serialization issues.
 ### User Manual
 
 Full user manual at `docs/ERP_USER_MANUAL.md` with business logic and case study.
+
+## Agent Admin System
+
+An internal API at `/api/agent-admin` allows agents to manage other agents.
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/agent-admin/agents` | List all agents in tenant |
+| `GET` | `/api/agent-admin/agents/{id}` | Get agent detail |
+| `POST` | `/api/agent-admin/agents` | Create new agent (from template or custom) |
+| `PATCH` | `/api/agent-admin/agents/{id}/settings` | Update agent settings |
+| `GET/PUT` | `/api/agent-admin/agents/{id}/files/{path}` | Read/write workspace files (soul.md, skills, etc.) |
+| `GET/PUT` | `/api/agent-admin/agents/{id}/tools` | Manage agent tools |
+| `GET/PUT` | `/api/agent-admin/agents/{id}/relationships` | Manage A2A relationships |
+| `GET` | `/api/agent-admin/templates` | List available templates |
+
+### Auth
+
+Uses `X-Agent-Tenant-Id` header (same pattern as ERP API). Scoped to caller's tenant.
+
+## Skin System (Future Staff Branding)
+
+Brand overrides live in `frontend/src/skin/` and `frontend/public/skin/`. These override CSS variables and inject custom DOM without modifying source code.
+
+- `skin/atlas-override.css` — Login page dark theme override (loaded via main.tsx import)
+- `skin/theme-override.css` — Global color variables override (loaded via main.tsx import)
+- `public/skin/login-override.css` — Login page complete layout override
+- `public/skin/login-inject.js` — DOM injection script for login page redesign
+- `main.tsx` — Only source change: +2 lines to import skin CSS files
+
+When updating from upstream, the skin files and i18n brand strings need to be re-applied manually.
