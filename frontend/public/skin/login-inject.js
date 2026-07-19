@@ -196,7 +196,7 @@
     var root = document.createElement('div');
     root.id = 'fs-login-root';
 
-    // Left: Globe panel
+    // Left: Globe panel (globe only, no brand)
     var globePanel = document.createElement('div');
     globePanel.id = 'fs-globe-panel';
     globePanel.innerHTML =
@@ -205,20 +205,20 @@
       '<div class="fs-particle"></div>' +
       '<div class="fs-particle"></div>' +
       '<div class="fs-particle"></div>' +
-      '<canvas id="globe-canvas"></canvas>' +
-      '<div id="fs-globe-brand">' +
-        '<div class="fs-logo-row">' +
-          '<div class="fs-logo-icon">FS</div>' +
-          '<div class="fs-brand-name">' + t.brand + '</div>' +
-        '</div>' +
-        '<div class="fs-brand-tagline">' + t.tagline + '</div>' +
-      '</div>';
+      '<canvas id="globe-canvas"></canvas>';
 
-    // Right: Form panel
+    // Right: Form panel with brand above form
     var formPanel = document.createElement('div');
     formPanel.id = 'fs-form-panel';
     formPanel.innerHTML =
       '<div id="fs-form-inner">' +
+        '<div id="fs-form-brand">' +
+          '<div class="fs-logo-row">' +
+            '<div class="fs-logo-icon">FS</div>' +
+            '<div class="fs-brand-name">' + t.brand + '</div>' +
+          '</div>' +
+          '<p class="fs-brand-tagline">' + t.tagline + '</p>' +
+        '</div>' +
         '<h2 id="fs-form-title">' + t.loginTitle + '</h2>' +
         '<p class="fs-form-desc">' + t.loginDesc + '</p>' +
       '</div>';
