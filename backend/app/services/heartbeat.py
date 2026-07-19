@@ -61,6 +61,7 @@ Heartbeat privacy policy:
 async def _build_heartbeat_instruction(
     db: AsyncSession,
     agent: "Agent",
+    agent_access_mode: str = "company",
 ) -> tuple[str, dict[str, list[dict[str, str]]]]:
     """Build a short directive plus bounded data and drain notifications."""
     instruction = DEFAULT_HEARTBEAT_INSTRUCTION
@@ -82,7 +83,7 @@ async def _build_heartbeat_instruction(
                 exc,
             )
 
-    is_private = (getattr(agent, "access_mode", None) or "company") != "company"
+    is_private = agent_access_mode != "company"
     if is_private:
         instruction += PRIVATE_AGENT_HEARTBEAT_APPEND
 
@@ -228,6 +229,10 @@ async def _heartbeat_tick():
                     agent.status = "stopped"
                     continue
 
+                # Cache agent name before any flush expires attributes
+                agent_name = agent.name
+                agent_access_mode = getattr(agent, "access_mode", None) or "company"
+
                 # Resolve timezone
                 tenant = tenants_by_id.get(agent.tenant_id)
                 tz_name = get_agent_timezone_sync(agent, tenant)
@@ -249,7 +254,7 @@ async def _heartbeat_tick():
                 if not runtime_decision.use_v2:
                     logger.error(
                         "Heartbeat for {} remains due because Runtime is disabled ({})",
-                        agent.name,
+                        agent_name,
                         runtime_decision.reason,
                     )
                     continue
@@ -276,6 +281,7 @@ async def _heartbeat_tick():
                         instruction, heartbeat_context = await _build_heartbeat_instruction(
                             db,
                             agent,
+                            agent_access_mode=agent_access_mode,
                         )
                         runtime_handle = await enqueue_heartbeat_runtime(
                             db,
@@ -294,7 +300,7 @@ async def _heartbeat_tick():
                 except HeartbeatRuntimeIntakeError as exc:
                     logger.error(
                         "Heartbeat Runtime intake failed for {} ({}): {}",
-                        agent.name,
+                        agent_name,
                         exc.code,
                         exc,
                     )
@@ -302,21 +308,21 @@ async def _heartbeat_tick():
                 except Exception as exc:
                     logger.exception(
                         "Heartbeat claim failed for {}: {}",
-                        agent.name,
+                        agent_name,
                         exc,
                     )
                     continue
 
                 logger.info(
                     "💓 Queued heartbeat for {} as Runtime Run {}",
-                    agent.name,
+                    agent_name,
                     runtime_handle.run_id,
                 )
                 try:
                     await write_audit_log(
                         "heartbeat_fire",
                         {
-                            "agent_name": agent.name,
+                            "agent_name": agent_name,
                             "runtime_type": runtime_handle.runtime_type,
                             "run_id": str(runtime_handle.run_id),
                         },
@@ -325,7 +331,7 @@ async def _heartbeat_tick():
                 except Exception as exc:
                     logger.warning(
                         "Failed to write heartbeat_fire audit log for {}: {}",
-                        agent.name,
+                        agent_name,
                         exc,
                     )
                 triggered += 1
