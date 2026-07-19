@@ -1,248 +1,280 @@
 /* ═══════════════════════════════════════════════════════
-   Future Staff — Login Page Complete Override
-   Hides Clawith elements and injects new design.
+   Future Staff — Login Page v2: White + Blue + 3D Globe
    ═══════════════════════════════════════════════════════ */
 
-/* ── Hide all original Clawith elements ───────────── */
-.atlas-page .atlas-frame-top {
-  display: none !important;
-}
-.atlas-login-hero {
-  display: none !important;
-}
-.atlas-screen-split {
-  display: block !important;
-}
+/* ── Kill all Clawith layout ──────────────────────── */
+.atlas-page .atlas-frame-top,
+.atlas-login-hero,
+.atlas-screen-split { display: none !important; }
 .atlas-screen-form {
-  width: 100% !important;
-  max-width: 100% !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  min-height: 100dvh !important;
-  padding: 0 !important;
+  width: 100% !important; max-width: 100% !important;
+  display: flex !important; align-items: center !important;
+  justify-content: center !important; min-height: 100dvh !important;
+  padding: 0 !important; background: #fff !important;
 }
 .atlas-login-form-wrapper {
-  max-width: 440px !important;
-  width: 100% !important;
-  padding: 40px !important;
-}
-.atlas-login-split .atlas-login-form-pane {
-  background: #0B1120 !important;
+  max-width: 100% !important; width: 100% !important; padding: 0 !important;
 }
 
-/* ── Injected: FS Login Container ─────────────────── */
+/* ── Root Container ───────────────────────────────── */
 #fs-login-root {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: flex;
-  background: #0B1120;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  overflow: hidden;
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; background: #fff;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-/* ── Left: Brand Panel ────────────────────────────── */
-#fs-login-brand {
-  flex: 0 0 50%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: 60px;
+/* ── Left: Globe Panel ────────────────────────────── */
+#fs-globe-panel {
+  flex: 0 0 55%;
   position: relative;
-  background: linear-gradient(160deg, #0B1120 0%, #1E1B4B 40%, #312E81 70%, #4C1D95 100%);
-  overflow: hidden;
-}
-
-/* Animated gradient orbs */
-#fs-login-brand::before {
-  content: '';
-  position: absolute;
-  width: 500px;
-  height: 500px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(37, 99, 235, 0.25) 0%, transparent 70%);
-  top: -150px;
-  right: -100px;
-  animation: fs-orb-1 10s ease-in-out infinite alternate;
-}
-
-#fs-login-brand::after {
-  content: '';
-  position: absolute;
-  width: 400px;
-  height: 400px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(124, 58, 237, 0.2) 0%, transparent 70%);
-  bottom: -100px;
-  left: -80px;
-  animation: fs-orb-2 8s ease-in-out infinite alternate-reverse;
-}
-
-@keyframes fs-orb-1 {
-  0% { transform: translate(0, 0) scale(1); opacity: 0.5; }
-  100% { transform: translate(30px, 20px) scale(1.2); opacity: 0.8; }
-}
-@keyframes fs-orb-2 {
-  0% { transform: translate(0, 0) scale(1); opacity: 0.4; }
-  100% { transform: translate(-20px, -30px) scale(1.15); opacity: 0.7; }
-}
-
-/* Logo */
-#fs-login-logo {
-  position: relative;
-  z-index: 1;
-  width: 88px;
-  height: 88px;
-  border-radius: 22px;
-  background: linear-gradient(135deg, #2563EB, #7C3AED);
+  background: linear-gradient(135deg, #F0F7FF 0%, #E8F1FD 40%, #DBEAFE 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 36px;
-  font-weight: 700;
-  color: #fff;
-  letter-spacing: 0.02em;
-  margin-bottom: 32px;
-  box-shadow: 0 8px 32px rgba(37, 99, 235, 0.3), 0 0 60px rgba(124, 58, 237, 0.15);
+  overflow: hidden;
 }
 
-/* Brand text */
-#fs-login-brand h1 {
+/* Subtle dot grid background */
+#fs-globe-panel::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: radial-gradient(circle, #BFDBFE 1px, transparent 1px);
+  background-size: 24px 24px;
+  opacity: 0.4;
+}
+
+/* Globe canvas */
+#globe-canvas {
   position: relative;
   z-index: 1;
-  font-size: 38px;
-  font-weight: 700;
-  color: #F1F5F9;
-  margin: 0 0 12px;
+  width: 480px;
+  height: 480px;
+}
+
+/* Floating particles */
+.fs-particle {
+  position: absolute;
+  border-radius: 50%;
+  background: #3B82F6;
+  opacity: 0.15;
+  animation: fs-float 6s ease-in-out infinite;
+}
+.fs-particle:nth-child(2) { width: 8px; height: 8px; top: 20%; left: 15%; animation-delay: -1s; animation-duration: 7s; }
+.fs-particle:nth-child(3) { width: 6px; height: 6px; top: 70%; left: 25%; animation-delay: -3s; animation-duration: 5s; }
+.fs-particle:nth-child(4) { width: 10px; height: 10px; top: 30%; left: 80%; animation-delay: -2s; animation-duration: 8s; }
+.fs-particle:nth-child(5) { width: 5px; height: 5px; top: 80%; left: 70%; animation-delay: -4s; animation-duration: 6s; }
+
+@keyframes fs-float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-20px) scale(1.1); }
+}
+
+/* Brand overlay on globe panel */
+#fs-globe-brand {
+  position: absolute;
+  bottom: 48px;
+  left: 48px;
+  z-index: 2;
+}
+
+#fs-globe-brand .fs-logo-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+#fs-globe-brand .fs-logo-icon {
+  width: 56px; height: 56px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #2563EB, #3B82F6);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 700; color: #fff;
+  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.3);
+}
+
+#fs-globe-brand .fs-brand-name {
+  font-size: 28px; font-weight: 700; color: #1E3A5F;
   letter-spacing: -0.02em;
 }
 
-#fs-login-brand p {
-  position: relative;
-  z-index: 1;
-  font-size: 16px;
-  color: #94A3B8;
-  margin: 0;
-  line-height: 1.6;
-  max-width: 360px;
-  text-align: center;
-}
-
-/* Feature list */
-#fs-login-features {
-  position: relative;
-  z-index: 1;
-  margin-top: 48px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 100%;
-  max-width: 320px;
-}
-
-.fs-feature-item {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 18px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  backdrop-filter: blur(8px);
-}
-
-.fs-feature-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.2), rgba(124, 58, 237, 0.2));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  flex-shrink: 0;
-}
-
-.fs-feature-text {
-  font-size: 14px;
-  color: #CBD5E1;
-  line-height: 1.4;
-}
-
-.fs-feature-text strong {
-  color: #F1F5F9;
-  font-weight: 600;
-  display: block;
-  margin-bottom: 2px;
+#fs-globe-brand .fs-brand-tagline {
+  font-size: 15px; color: #64748B;
+  max-width: 320px; line-height: 1.6;
 }
 
 /* ── Right: Form Panel ────────────────────────────── */
-#fs-login-form {
-  flex: 0 0 50%;
+#fs-form-panel {
+  flex: 0 0 45%;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   padding: 60px;
-  background: #0F172A;
+  background: #fff;
   position: relative;
 }
 
-/* Subtle grid pattern */
-#fs-login-form::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(148, 163, 184, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
-  pointer-events: none;
-}
-
-#fs-login-form-inner {
-  position: relative;
-  z-index: 1;
+#fs-form-inner {
   width: 100%;
-  max-width: 380px;
+  max-width: 400px;
 }
 
-/* Form title */
-#fs-login-form-inner h2 {
-  font-size: 28px;
-  font-weight: 700;
-  color: #F1F5F9;
-  margin: 0 0 8px;
+/* Form title area */
+#fs-form-inner h2 {
+  font-size: 26px; font-weight: 700;
+  color: #0F172A; margin: 0 0 6px;
   letter-spacing: -0.01em;
 }
 
-#fs-login-form-inner .fs-subtitle {
-  font-size: 14px;
-  color: #64748B;
-  margin: 0 0 36px;
+#fs-form-inner .fs-form-desc {
+  font-size: 14px; color: #64748B;
+  margin: 0 0 32px;
+}
+
+/* ── Style overrides for React form elements ──────── */
+
+/* Inputs: clean bottom-border style */
+.atlas-page .atlas-input,
+.atlas-page input[type="text"],
+.atlas-page input[type="email"],
+.atlas-page input[type="password"],
+.atlas-page input[type="tel"] {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1.5px solid #E2E8F0 !important;
+  border-radius: 0 !important;
+  padding: 12px 0 !important;
+  color: #0F172A !important;
+  font-family: 'Inter', sans-serif !important;
+  font-size: 14px !important;
+  transition: border-color 0.2s !important;
+}
+
+.atlas-page .atlas-input:focus,
+.atlas-page input:focus {
+  border-bottom-color: #2563EB !important;
+  box-shadow: 0 1px 0 0 #2563EB !important;
+  outline: none !important;
+}
+
+.atlas-page .atlas-input::placeholder,
+.atlas-page input::placeholder {
+  color: #94A3B8 !important;
+}
+
+/* Labels */
+.atlas-page .atlas-label {
+  color: #475569 !important;
+  font-family: 'Inter', sans-serif !important;
+  font-weight: 500 !important;
+  font-size: 12px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.06em !important;
+}
+
+/* Submit button */
+.atlas-page .atlas-btn-primary {
+  background: linear-gradient(135deg, #2563EB, #3B82F6) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 10px !important;
+  height: 48px !important;
+  font-family: 'Inter', sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  letter-spacing: 0.01em;
+  transition: all 0.2s !important;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25) !important;
+}
+
+.atlas-page .atlas-btn-primary:hover {
+  background: linear-gradient(135deg, #1D4ED8, #2563EB) !important;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.35) !important;
+  transform: translateY(-1px);
+}
+
+/* Ghost buttons (register, forgot password) */
+.atlas-page .atlas-btn-ghost {
+  color: #2563EB !important;
+  border: 1px solid #DBEAFE !important;
+  background: transparent !important;
+  border-radius: 10px !important;
+}
+
+.atlas-page .atlas-btn-ghost:hover {
+  background: #EFF6FF !important;
+  border-color: #BFDBFE !important;
+}
+
+/* Social login buttons */
+.atlas-page .atlas-social-btn {
+  border: 1px solid #E2E8F0 !important;
+  background: #fff !important;
+  color: #334155 !important;
+  border-radius: 10px !important;
+}
+
+.atlas-page .atlas-social-btn:hover {
+  background: #F8FAFC !important;
+  border-color: #CBD5E1 !important;
+}
+
+/* Divider */
+.atlas-page .atlas-divider {
+  border-color: #E2E8F0 !important;
+}
+
+.atlas-page .atlas-divider-text {
+  color: #94A3B8 !important;
+  background: #fff !important;
+  font-size: 12px !important;
+}
+
+/* Links */
+.atlas-page a, .atlas-page .atlas-link {
+  color: #2563EB !important;
+}
+
+.atlas-page a:hover, .atlas-page .atlas-link:hover {
+  color: #1D4ED8 !important;
+}
+
+/* Error messages */
+.atlas-page .atlas-error,
+.atlas-page [class*="error"] {
+  color: #DC2626 !important;
+}
+
+/* Password visibility toggle */
+.atlas-page .atlas-input-group-btn {
+  color: #94A3B8 !important;
+}
+
+/* ── Spinner ──────────────────────────────────────── */
+.login-spinner {
+  border-color: #DBEAFE !important;
+  border-top-color: #2563EB !important;
 }
 
 /* ── Responsive ───────────────────────────────────── */
-@media (max-width: 900px) {
-  #fs-login-root {
-    flex-direction: column;
-  }
-  #fs-login-brand {
+@media (max-width: 1024px) {
+  #fs-globe-panel { flex: 0 0 45%; }
+  #fs-form-panel { flex: 0 0 55%; }
+  #globe-canvas { width: 320px; height: 320px; }
+}
+
+@media (max-width: 768px) {
+  #fs-login-root { flex-direction: column; }
+  #fs-globe-panel {
     flex: 0 0 auto;
-    padding: 40px 30px;
-    min-height: auto;
+    height: 240px;
+    padding: 0;
   }
-  #fs-login-brand::before,
-  #fs-login-brand::after {
-    display: none;
-  }
-  #fs-login-features {
-    display: none;
-  }
-  #fs-login-form {
-    flex: 1;
-    padding: 40px 30px;
-  }
+  #globe-canvas { width: 200px; height: 200px; }
+  #fs-globe-brand { bottom: 16px; left: 20px; }
+  #fs-globe-brand .fs-brand-name { font-size: 20px; }
+  #fs-globe-brand .fs-brand-tagline { display: none; }
+  #fs-form-panel { flex: 1; padding: 32px 24px; }
+  .fs-particle { display: none; }
 }
