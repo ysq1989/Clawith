@@ -661,7 +661,7 @@ AGENT_TOOLS = [
         "type": "function",
         "function": {
             "name": "send_platform_message",
-            "description": "Send a message to a user on the Clawith first-party platform (web or app). The message will appear in their platform chat history and be pushed in real-time if they are online. Use this to proactively notify platform users.",
+            "description": "Send a message to a user on the Future Staff first-party platform (web or app). The message will appear in their platform chat history and be pushed in real-time if they are online. Use this to proactively notify platform users.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -843,7 +843,7 @@ AGENT_TOOLS = [
         "type": "function",
         "function": {
             "name": "call_erp_api",
-            "description": "Call the Clawith ERP API directly with automatic authentication. Use this to create/read/update customers, suppliers, products, orders, inventory, etc. Returns JSON response.",
+            "description": "Call the Future Staff ERP API directly with automatic authentication. Use this to create/read/update customers, suppliers, products, orders, inventory, etc. Returns JSON response.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -3800,7 +3800,7 @@ async def _read_webpage(arguments: dict) -> str:
     include_links = bool(arguments.get("include_links", False))
     max_bytes = 2_000_000
     headers = {
-        "User-Agent": "ClawithBot/1.0 (+https://clawith.ai) Mozilla/5.0",
+        "User-Agent": "FutureStaffBot/1.0 (+https://futurestaff.ai) Mozilla/5.0",
         "Accept": "text/html, text/plain, application/json, application/xml;q=0.9, text/*;q=0.8, */*;q=0.5",
     }
 
@@ -13092,7 +13092,7 @@ async def _agentbay_file_transfer(agent_id: Optional[uuid.UUID], ws: Path, argum
       - env        → workspace: download_file(remote_path, local_workspace_path) [single SDK call]
       - env A      → env B:    download to /tmp/<uuid>, upload to env B, cleanup /tmp [transparent]
 
-    The 'local' side of the SDK calls is always the Clawith backend server,
+    The 'local' side of the SDK calls is always the Future Staff backend server,
     which has access to the agent workspace directory.
     """
     if not agent_id:

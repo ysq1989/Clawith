@@ -1480,8 +1480,8 @@ async def wecom_org_sync_verify(
 
     Configure URL in WeCom: {BASE_URL}/api/enterprise/org/wecom-verify/{provider_id}
 
-    Required provider config keys (set via Clawith WeCom config page):
-      - verify_token:   the Token string set in both WeCom and Clawith
+    Required provider config keys (set via Future Staff WeCom config page):
+      - verify_token:   the Token string set in both WeCom and Future Staff
       - verify_aes_key: the EncodingAESKey provided by WeCom (43 chars, base64url)
     """
     from fastapi.responses import Response as _Response

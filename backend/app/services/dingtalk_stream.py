@@ -465,8 +465,8 @@ class DingTalkStreamManager:
         retries = 0
         manager_self = self
 
-        class ClawithChatbotHandler(dingtalk_stream.ChatbotHandler):
-            """Custom handler that dispatches messages to the Clawith LLM pipeline."""
+        class FutureStaffChatbotHandler(dingtalk_stream.ChatbotHandler):
+            """Custom handler that dispatches messages to the Future Staff LLM pipeline."""
 
             async def process(self, callback: dingtalk_stream.CallbackMessage):
                 """Handle incoming bot message from DingTalk Stream.
@@ -561,7 +561,7 @@ class DingTalkStreamManager:
                 client = dingtalk_stream.DingTalkStreamClient(credential=credential)
                 client.register_callback_handler(
                     dingtalk_stream.chatbot.ChatbotMessage.TOPIC,
-                    ClawithChatbotHandler(),
+                    FutureStaffChatbotHandler(),
                 )
 
                 logger.info(

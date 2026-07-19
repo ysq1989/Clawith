@@ -890,14 +890,14 @@ If the user only requests static frontend pages without a database or backend AP
   1. Visit https://vercel.com/signup to register (supports GitHub / Email sign up).
   2. Once logged in, go to https://vercel.com/account/tokens.
   3. Click "Create" to generate a new token (suggested name: "clawith", Scope: "Full Account").
-  4. Copy the generated token, return to the Clawith tool settings page, and paste it into the "Vercel Access Token" configuration field for "Deploy to Vercel" or any other Vercel tools.
+  4. Copy the generated token, return to the Future Staff tool settings page, and paste it into the "Vercel Access Token" configuration field for "Deploy to Vercel" or any other Vercel tools.
 
 ### 0.3 Guide the User to Sign Up for Neon and Get an API Key
 - If the project requires a database (Postgres), guide the user:
   1. Visit https://neon.tech to register (recommending GitHub OAuth for instant registration).
   2. Once registered, go to the API Keys section in the console settings (https://console.neon.tech/app/settings/api-keys).
   3. Click "Create new API Key", name it (e.g., "clawith"), and copy the generated key.
-  4. Return to the Clawith tool settings page, find the `Create Postgres Database` tool, and paste the key into the "Neon API Key" configuration field.
+  4. Return to the Future Staff tool settings page, find the `Create Postgres Database` tool, and paste the key into the "Neon API Key" configuration field.
 
 ---
 

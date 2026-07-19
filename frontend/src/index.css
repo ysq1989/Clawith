@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════
-   Clawith — Design System (Linear-inspired Dark Theme)
+   Future Staff — Design System (Linear-inspired Dark Theme)
    ═══════════════════════════════════════════════════════ */
 
 :root,
@@ -40,8 +40,8 @@
   --error-subtle: rgba(239, 68, 68, 0.12);
   --info: #3b82f6;
   --info-subtle: rgba(59, 130, 246, 0.12);
-  --info-card-accent: #818cf8;
-  --info-card-accent-end: #a78bfa;
+  --info-card-accent: #2563EB;
+  --info-card-accent-end: #7C3AED;
 
   /* Status colors */
   --status-running: #22c55e;
@@ -251,10 +251,10 @@
   --warning-subtle: rgba(217, 119, 6, 0.08);
   --error: #dc2626;
   --error-subtle: rgba(220, 38, 38, 0.08);
-  --info: #2563eb;
+  --info: #2563EB;
   --info-subtle: rgba(37, 99, 235, 0.08);
-  --info-card-accent: #6366f1;
-  --info-card-accent-end: #8b5cf6;
+  --info-card-accent: #2563EB;
+  --info-card-accent-end: #7C3AED;
 
   --status-running: #16a34a;
   --status-idle: #9898a8;

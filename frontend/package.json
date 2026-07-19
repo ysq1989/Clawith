@@ -1,6 +1,6 @@
 {
-  "name": "clawith-frontend",
-  "description": "Frontend workspace for the Clawith platform.",
+  "name": "future-staff-frontend",
+  "description": "Frontend workspace for the Future Staff platform.",
   "private": true,
   "version": "0.1.0",
   "type": "module",

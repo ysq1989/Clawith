@@ -484,7 +484,7 @@ BUILTIN_TOOLS = [
     {
         "name": "send_platform_message",
         "display_name": "Platform Message",
-        "description": "Send a proactive message to a user on the Clawith first-party platform (web or app). The message appears in their platform chat history and is pushed in real-time if they are online.",
+        "description": "Send a proactive message to a user on the Future Staff platform (web or app). The message appears in their platform chat history and is pushed in real-time if they are online.",
         "category": "communication",
         "icon": "🌐",
         "is_default": True,
@@ -978,7 +978,7 @@ BUILTIN_TOOLS = [
     {
         "name": "call_erp_api",
         "display_name": "ERP API",
-        "description": "Call the Clawith ERP system API directly with automatic authentication. Use this to create/read/update customers, suppliers, products, orders, inventory, and other ERP data. Returns JSON response.",
+        "description": "Call the Future Staff ERP system API directly with automatic authentication. Use this to create/read/update customers, suppliers, products, orders, inventory, and other ERP data. Returns JSON response.",
         "category": "erp",
         "icon": "📋",
         "is_default": True,
