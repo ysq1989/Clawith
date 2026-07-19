@@ -1,0 +1,80 @@
+/* ═══════════════════════════════════════════════════════
+   Future Staff — Skin: Global Theme Override
+   Overrides CSS variables for the main app theme.
+   Loaded AFTER index.css to take precedence.
+   ═══════════════════════════════════════════════════════ */
+
+/* ─── Dark Theme Overrides ────────────────────────── */
+:root,
+[data-theme="dark"] {
+  --accent-primary: #818CF8;
+  --accent-hover: #A5B4FC;
+  --accent-subtle: rgba(99, 102, 241, 0.1);
+  --accent-text: #C7D2FE;
+
+  --info: #3B82F6;
+  --info-card-accent: #2563EB;
+  --info-card-accent-end: #7C3AED;
+
+  --bg-primary: #0B1120;
+  --bg-secondary: #111827;
+  --bg-tertiary: #1F2937;
+  --bg-elevated: #1E293B;
+  --bg-hover: #283548;
+  --bg-active: #334155;
+
+  --border-default: #1E3A5F;
+  --border-subtle: #172554;
+  --border-strong: #2563EB40;
+
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-tertiary: #64748B;
+}
+
+/* ─── Light Theme Overrides ───────────────────────── */
+[data-theme="light"] {
+  --accent-primary: #2563EB;
+  --accent-hover: #1D4ED8;
+  --accent-subtle: rgba(37, 99, 235, 0.08);
+  --accent-text: #1E40AF;
+
+  --info: #2563EB;
+  --info-card-accent: #2563EB;
+  --info-card-accent-end: #7C3AED;
+
+  --bg-primary: #F8FAFC;
+  --bg-secondary: #F1F5F9;
+  --bg-tertiary: #E2E8F0;
+  --bg-elevated: #FFFFFF;
+  --bg-hover: #E2E8F0;
+  --bg-active: #CBD5E1;
+
+  --border-default: #CBD5E1;
+  --border-subtle: #E2E8F0;
+  --border-strong: #93C5FD;
+
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-tertiary: #94A3B8;
+}
+
+/* ─── Global Button Accent Override ───────────────── */
+.btn-primary {
+  background: linear-gradient(135deg, #2563EB, #7C3AED) !important;
+  border: none !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  transition: all 0.15s ease;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #3B82F6, #8B5CF6) !important;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+  transform: translateY(-0.5px);
+}
+
+/* ─── Sidebar Active Indicator ────────────────────── */
+.nav-item-active,
+[data-active="true"] {
+  border-left-color: #2563EB !important;
+}
