@@ -187,6 +187,61 @@ def _extract_wechat_text(item_list: list[dict[str, Any]] | None) -> str:
     return "\n".join(parts).strip()
 
 
+def _extract_voice_item(item_list: list[dict[str, Any]] | None) -> dict[str, Any] | None:
+    """Return the first voice item (type 3) from item_list, or None."""
+    for item in item_list or []:
+        if item.get("type") == 3:
+            return item.get("voice_item") or {}
+    return None
+
+
+async def _download_wechat_voice(
+    *,
+    token: str,
+    base_url: str,
+    route_tag: str | None,
+    msg: dict[str, Any],
+    voice_item: dict[str, Any],
+) -> bytes | None:
+    """Try to download voice audio from iLink Bot API.
+
+    Attempts (in order):
+    1. Direct voice_url from voice_item
+    2. /ilink/bot/get_media with the message_id
+    Returns raw audio bytes or None on failure.
+    """
+    # Attempt 1: direct URL
+    voice_url = str(voice_item.get("voice_url") or "").strip()
+    if voice_url:
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.get(voice_url)
+                if resp.status_code == 200 and resp.content:
+                    return resp.content
+        except Exception as exc:
+            logger.warning(f"[WeChat] Failed to download voice from URL: {exc}")
+
+    # Attempt 2: get_media endpoint
+    msg_id = next(
+        (str(msg.get(f) or "").strip() for f in ("message_id", "msg_id", "client_id") if msg.get(f)),
+        None,
+    )
+    if msg_id:
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(
+                    f"{base_url.rstrip('/')}/ilink/bot/get_media",
+                    headers=build_wechat_headers(token, route_tag=route_tag),
+                    json={"message_id": msg_id},
+                )
+                if resp.status_code == 200 and resp.content:
+                    return resp.content
+        except Exception as exc:
+            logger.warning(f"[WeChat] Failed to download voice via get_media: {exc}")
+
+    return None
+
+
 async def _process_wechat_message(agent_id: uuid.UUID, msg: dict[str, Any], config: ChannelConfig) -> None:
     from app.api.feishu import _load_agent_and_model
 
@@ -194,7 +249,38 @@ async def _process_wechat_message(agent_id: uuid.UUID, msg: dict[str, Any], conf
     if not from_user_id or from_user_id == (config.app_id or "").strip():
         return
 
-    user_text = _extract_wechat_text(msg.get("item_list"))
+    item_list = msg.get("item_list")
+    user_text = _extract_wechat_text(item_list)
+
+    # Handle voice messages (type 3) when no text is present
+    if not user_text:
+        voice_item = _extract_voice_item(item_list)
+        if voice_item:
+            extra = config.extra_config or {}
+            token = str(extra.get("bot_token") or "").strip()
+            base_url = str(extra.get("baseurl") or WECHAT_ILINK_BASE_URL).strip()
+            route_tag = str(extra.get("route_tag") or "").strip() or None
+            duration = voice_item.get("voice_duration", "unknown")
+            audio_bytes = await _download_wechat_voice(
+                token=token, base_url=base_url, route_tag=route_tag, msg=msg, voice_item=voice_item,
+            )
+            if audio_bytes:
+                from app.services.storage import store_agent_upload
+
+                ext = "silk"
+                filename = f"wechat_voice_{uuid.uuid4().hex[:8]}.{ext}"
+                _, workspace_path, _ = await store_agent_upload(agent_id, filename, audio_bytes)
+                user_text = f"[User sent a voice message, duration {duration}s, saved to {filename}]"
+                logger.info(f"[WeChat] Voice message saved to {workspace_path} ({len(audio_bytes)} bytes)")
+            else:
+                user_text = f"[User sent a voice message, duration {duration}s, but it could not be downloaded]"
+                logger.warning(f"[WeChat] Voice message could not be downloaded for agent {agent_id}")
+        else:
+            # Unsupported message type — log and skip
+            types_seen = [str(item.get("type")) for item in (item_list or [])]
+            logger.info(f"[WeChat] Unsupported message types {types_seen} from {from_user_id}, skipping")
+            return
+
     if not user_text:
         return
 
