@@ -8,6 +8,7 @@ from typing import Callable, Literal, cast
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent import Agent
@@ -746,21 +747,20 @@ def _add_event(
         if request.group_handoff_intent is not None
         else None
     )
-    db.add(
-        AgentRunEvent(
-            id=_event_id(run.id, request.idempotency_key),
-            tenant_id=run.tenant_id,
-            run_id=run.id,
-            agent_id=run.agent_id,
-            event_type=("delivery_succeeded" if receipt.status == "delivered" else "delivery_failed"),
-            summary=("Runtime delivery succeeded" if receipt.status == "delivered" else "Runtime delivery failed"),
-            payload=payload,
-            artifact_refs=[],
-            idempotency_key=request.idempotency_key,
-            source_checkpoint_id=request.checkpoint_id,
-            created_at=clock(),
-        )
+    event = AgentRunEvent(
+        id=_event_id(run.id, request.idempotency_key),
+        tenant_id=run.tenant_id,
+        run_id=run.id,
+        agent_id=run.agent_id,
+        event_type=("delivery_succeeded" if receipt.status == "delivered" else "delivery_failed"),
+        summary=("Runtime delivery succeeded" if receipt.status == "delivered" else "Runtime delivery failed"),
+        payload=payload,
+        artifact_refs=[],
+        idempotency_key=request.idempotency_key,
+        source_checkpoint_id=request.checkpoint_id,
+        created_at=clock(),
     )
+    db.add(event)
 
 
 async def _record_failure(
@@ -958,7 +958,11 @@ async def deliver_runtime_message(
         actual_session=session,
         clock=now,
     )
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError:
+        # Duplicate delivery event from concurrent request — safe to ignore
+        await db.rollback()
     return receipt
 
 
