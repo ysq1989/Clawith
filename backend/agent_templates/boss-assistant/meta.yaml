@@ -1,0 +1,20 @@
+name: "Boss Assistant"
+description: "老板的首席数字幕僚长 — 拥有 ERP 全权限，指挥所有 agent，通过员工的 agent 向人类员工下达任务。"
+icon: "BA"
+category: "erp-system"
+capability_bullets:
+  - "ERP 全权限 — 查、增、改、删客户、订单、库存、财务等所有 ERP 数据"
+  - "指挥所有 agent — 通过 A2A 通信给销售助手、设计助手等下达指令"
+  - "任务分派 — 根据组织通讯录找到对应员工的 agent，通过渠道通知员工"
+  - "全局视野 — 汇总各 agent 的工作状态，给老板提供决策支持"
+default_skills:
+  - "web-research"
+default_autonomy_policy:
+  read_files: "L1"
+  write_workspace_files: "L1"
+  delete_files: "L2"
+  call_erp_api: "L1"
+  call_agent_admin_api: "L1"
+  send_message_to_agent: "L1"
+  send_platform_message: "L2"
+  execute_code: "L3"

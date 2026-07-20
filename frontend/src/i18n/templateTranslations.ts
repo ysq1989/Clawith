@@ -283,6 +283,15 @@ const ZH: Record<string, TemplateLocale> = {
             '订单跟踪 —— 查看订单从草稿到完成的全生命周期状态',
         ],
     },
+    'Boss Assistant': {
+        name: '老板助手',
+        description: '老板的首席数字幕僚长 —— 拥有ERP全权限，指挥所有agent，通过员工的agent向人类员工下达任务。',
+        bullets: [
+            'ERP全权限 —— 查、增、改、删客户、订单、库存、财务等所有ERP数据',
+            '指挥所有agent —— 通过A2A通信给销售助手、设计助手等下达指令',
+            '任务分派 —— 根据组织通讯录找到对应员工的agent，通过渠道通知员工',
+        ],
+    },
 };
 
 /**
