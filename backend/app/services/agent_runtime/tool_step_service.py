@@ -1321,6 +1321,79 @@ class RuntimeToolStepService:
                             )
                         )
                         continue
+                    # A2A intercept: handle send_message_to_agent BEFORE any
+                    # generic confirmation or group-failure gates so the A2A
+                    # service manages its own approval and wait/resume flow.
+                    if tool_name == "send_message_to_agent" and self._a2a_service:
+                        try:
+                            actor_user_id = (
+                                uuid.UUID(context.actor_user_id)
+                                if context.actor_user_id
+                                else None
+                            )
+                            a2a_result = await self._a2a_service.execute(
+                                tenant_id=tenant_id,
+                                source_run_id=run_id,
+                                source_agent_id=agent.id,
+                                tool_call_id=call_id,
+                                arguments=arguments,
+                                reservation=reservation,
+                                lease_owner=lease_owner,
+                                actor_user_id=actor_user_id,
+                            )
+                        except Exception as exc:
+                            from loguru import logger as _logger
+                            _logger.error(f"[ToolStep] send_message_to_agent FAILED: {type(exc).__name__}: {exc}")
+                            outcome = await self._mark_exception(
+                                tenant_id=tenant_id,
+                                reservation=reservation,
+                                lease_owner=lease_owner,
+                                policy=policy,
+                                exc=exc,
+                            )
+                            if outcome.status == "unknown":
+                                if _is_group_agent_run(state):
+                                    return self._group_unknown_failure(
+                                        run_id=run_id,
+                                        call_id=call_id,
+                                        tool_name=tool_name,
+                                        policy=policy,
+                                        outcome=outcome,
+                                        messages=messages,
+                                        pending_tool_calls=tool_calls[index + 1 :],
+                                    )
+                                return ToolStepResult(
+                                    messages=tuple(messages),
+                                    waiting_request=_waiting_request(
+                                        run_id=run_id,
+                                        call_id=call_id,
+                                        requires_confirmation=True,
+                                        error_code="tool_outcome_unknown",
+                                    ),
+                                    pending_tool_calls=tool_calls[index:],
+                                )
+                        else:
+                            if a2a_result is not None:
+                                if (
+                                    _is_group_agent_run(state)
+                                    and a2a_result.outcome.status == "unknown"
+                                ):
+                                    return self._group_unknown_failure(
+                                        run_id=run_id,
+                                        call_id=call_id,
+                                        tool_name=tool_name,
+                                        policy=policy,
+                                        outcome=a2a_result.outcome,
+                                        messages=messages,
+                                        pending_tool_calls=tool_calls[index + 1 :],
+                                    )
+                                if a2a_result.waiting_request is not None:
+                                    return ToolStepResult(
+                                        messages=tuple(messages),
+                                        waiting_request=a2a_result.waiting_request,
+                                        pending_tool_calls=tool_calls[index + 1 :],
+                                    )
+                        continue
                     if (
                         _is_group_agent_run(state)
                         and reservation.requires_confirmation
@@ -1399,6 +1472,8 @@ class RuntimeToolStepService:
                             actor_user_id=actor_user_id,
                         )
                     except Exception as exc:
+                        from loguru import logger as _logger
+                        _logger.error(f"[ToolStep] send_message_to_agent FAILED: {type(exc).__name__}: {exc}")
                         outcome = await self._mark_exception(
                             tenant_id=tenant_id,
                             reservation=reservation,
