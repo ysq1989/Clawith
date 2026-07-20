@@ -1649,9 +1649,11 @@ async def _get_agent_tenant_id(agent_id: uuid.UUID) -> str | None:
     return None
 
 
-async def _call_erp_api(tenant_id: str | None, arguments: dict) -> str:
+async def _call_erp_api(tenant_id: str | None, arguments: dict):
     """Internal ERP API call for agents — bypasses JWT auth using tenant_id."""
     import httpx
+    from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
+
     logger.info(f"[call_erp_api] tenant={tenant_id} method={arguments.get('method')} path={arguments.get('path')}")
 
     method = arguments.get("method", "GET").upper()
@@ -1659,7 +1661,7 @@ async def _call_erp_api(tenant_id: str | None, arguments: dict) -> str:
     body = arguments.get("body")
 
     if not path:
-        return "Error: path is required"
+        return ToolExecutionOutcome(status="failed", result_summary="Error: path is required", result_ref=None, error_code="missing_path")
 
     url = f"http://127.0.0.1:8008/api/erp/{path}"
     headers = {"Content-Type": "application/json"}
@@ -1677,18 +1679,20 @@ async def _call_erp_api(tenant_id: str | None, arguments: dict) -> str:
             elif method == "DELETE":
                 resp = await client.delete(url, headers=headers)
             else:
-                return f"Error: unsupported method {method}"
+                return ToolExecutionOutcome(status="failed", result_summary=f"Error: unsupported method {method}", result_ref=None)
 
             if resp.status_code >= 400:
-                return f"API Error ({resp.status_code}): {resp.text[:500]}"
-            return resp.text[:2000]
+                return ToolExecutionOutcome(status="failed", result_summary=f"API Error ({resp.status_code}): {resp.text[:500]}", result_ref=None)
+            return ToolExecutionOutcome(status="succeeded", result_summary=resp.text[:2000], result_ref=None)
     except Exception as e:
-        return f"Error calling ERP API: {e}"
+        return ToolExecutionOutcome(status="failed", result_summary=f"Error calling ERP API: {e}", result_ref=None, error_code="api_error")
 
 
-async def _call_agent_admin_api(tenant_id: str | None, arguments: dict) -> str:
+async def _call_agent_admin_api(tenant_id: str | None, arguments: dict):
     """Internal Agent Admin API call for agents — manages other agents."""
     import httpx
+    from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
+
     logger.info(f"[call_agent_admin_api] tenant={tenant_id} method={arguments.get('method')} path={arguments.get('path')}")
 
     method = arguments.get("method", "GET").upper()
@@ -1696,7 +1700,7 @@ async def _call_agent_admin_api(tenant_id: str | None, arguments: dict) -> str:
     body = arguments.get("body")
 
     if not path:
-        return "Error: path is required"
+        return ToolExecutionOutcome(status="failed", result_summary="Error: path is required", result_ref=None, error_code="missing_path")
 
     url = f"http://127.0.0.1:8008/api/agent-admin/{path}"
     headers = {"Content-Type": "application/json"}
@@ -1716,13 +1720,13 @@ async def _call_agent_admin_api(tenant_id: str | None, arguments: dict) -> str:
             elif method == "DELETE":
                 resp = await client.delete(url, headers=headers)
             else:
-                return f"Error: unsupported method {method}"
+                return ToolExecutionOutcome(status="failed", result_summary=f"Error: unsupported method {method}", result_ref=None)
 
             if resp.status_code >= 400:
-                return f"API Error ({resp.status_code}): {resp.text[:500]}"
-            return resp.text[:3000]
+                return ToolExecutionOutcome(status="failed", result_summary=f"API Error ({resp.status_code}): {resp.text[:500]}", result_ref=None)
+            return ToolExecutionOutcome(status="succeeded", result_summary=resp.text[:3000], result_ref=None)
     except Exception as e:
-        return f"Error calling Agent Admin API: {e}"
+        return ToolExecutionOutcome(status="failed", result_summary=f"Error calling Agent Admin API: {e}", result_ref=None, error_code="api_error")
 
 
 def _agent_workspace_root(agent_id: uuid.UUID) -> Path:
