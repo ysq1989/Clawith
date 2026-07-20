@@ -269,6 +269,12 @@ ssh -i scripts/bt/8.134.178.82_id_ed25519 root@8.134.178.82 "cd /www/wwwroot/Cla
 - **No `.agents/` directory in this fork**: The upstream `AGENTS.md` references `.agents/rules/` and `.agents/workflows/` — these directories do not exist in the forked repo. Do not attempt to read them.
 - **ERP attachment parent_type**: Valid values are `customer`, `supplier`, `sales_order`, `purchase_order`. Validation exists in both `upload_attachment` and `list_attachments` endpoints.
 - **Tool system**: Tools are defined in `services/builtin_tool_definitions.py` (canonical) and seeded into DB via `services/tool_seeder.py`. Custom tools (like `call_erp_api`, `call_agent_admin_api`) are appended to the list in `services/agent_tools.py`.
+- **Custom tool Runtime integration (5-layer chain)**: To work in LangGraph Runtime, custom tools must be registered in ALL of:
+  1. `BUILTIN_TOOL_DEFINITIONS` in `builtin_tool_definitions.py` — canonical definition
+  2. `RUNTIME_TYPED_APPLICATION_TOOL_NAMES` in `agent_tools.py` — Runtime whitelist
+  3. `AgentTool` DB record with `enabled=True` — per-agent assignment
+  4. `ToolExecutionOutcome` return type — not plain strings
+  5. `IntegrityError` handling in `delivery.py` — for concurrent delivery events
 
 ## ERP Module
 
@@ -290,7 +296,7 @@ The ERP module is an independent sub-application within Future Staff, accessible
 - **Categories as JSON**: Warehouse/outbound/inbound categories stored as JSON arrays in `ERPSettings`, not separate tables.
 - **Fulfillment mode**: Products have `fulfillment_mode` (`mts`=按计划生产 / `mto`=按订单生产 / `null`=inherit global default). Stored in `erp_products.fulfillment_mode` and `erp_settings.default_fulfillment_mode`. Currently informational — stock operations are Agent-guided, not auto-triggered on order confirmation.
 - **Custom order statuses**: Sales/purchase/production statuses are user-defined per tenant in `erp_production_statuses` table (with `status_type` field: `sales`/`purchase`/`production`). Status names are in Chinese (草稿, 已确认, 处理中, etc.). Each type supports one `is_default` status. Status transitions are unrestricted — any enabled status can be selected.
-- **Agent ERP integration**: The `call_erp_api` tool (in `agent_tools.py`) allows agents to call ERP endpoints directly using `X-Agent-Tenant-Id` header auth (no JWT needed). ERP API in `erp.py` accepts this header as an alternative to JWT. Tool must be registered in both `AGENT_TOOLS` (agent_tools.py) and `BUILTIN_TOOLS` (tool_seeder.py) to appear in agents' tool lists.
+- **Agent ERP integration**: The `call_erp_api` tool allows agents to call ERP endpoints directly using `X-Agent-Tenant-Id` header auth (no JWT needed). ERP API in `erp.py` accepts this header as an alternative to JWT. Tool must be registered in `BUILTIN_TOOL_DEFINITIONS`, `RUNTIME_TYPED_APPLICATION_TOOL_NAMES`, and `AgentTool` DB table. Tool handler returns `ToolExecutionOutcome` (not plain string).
 - **No redundant contact fields**: `erp_customers` and `erp_suppliers` do NOT have `phone`/`email`/`contact_name` columns. All contact info lives in `erp_contacts`. Customer list display uses `default_contact_*` fields populated via JOIN with contacts table.
 
 ### ERP Helper Pattern
