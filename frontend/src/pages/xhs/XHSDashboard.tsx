@@ -171,30 +171,26 @@ export default function XHSDashboard() {
         staleTime: 300_000,
     });
 
-    const overviewData: any = overview || {};
-    const contentStatus: Record<string, number> = overviewData.content_status || {};
-    const stats = {
-        total_views: overviewData.total_views || 0,
-        total_likes: overviewData.total_likes || 0,
-        total_comments: overviewData.total_comments || 0,
-        total_bookmarks: overviewData.total_bookmarks || 0,
-        note_count: overviewData.note_count || 0,
-        content_status: contentStatus,
-    };
+    const ov: any = overview || {};
+    const totalViews: number = Number(ov.total_views) || 0;
+    const totalLikes: number = Number(ov.total_likes) || 0;
+    const totalComments: number = Number(ov.total_comments) || 0;
+    const totalBookmarks: number = Number(ov.total_bookmarks) || 0;
+    const contentStatus: Record<string, number> = ov.content_status || {};
 
     return (
         <div style={{ maxWidth: 1200 }}>
             {/* Stat cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
-                <StatCard icon={<IconEye size={22} />} label={t('xhs.dashboard.totalViews', '总曝光')} value={stats.total_views || 0} color="#3b82f6" />
-                <StatCard icon={<IconHeart size={22} />} label={t('xhs.dashboard.totalLikes', '总点赞')} value={stats.total_likes || 0} color="#ff2442" />
-                <StatCard icon={<IconMessage size={22} />} label={t('xhs.dashboard.totalComments', '总评论')} value={stats.total_comments || 0} color="#f59e0b" />
-                <StatCard icon={<IconBookmark size={22} />} label={t('xhs.dashboard.totalBookmarks', '总收藏')} value={stats.total_bookmarks || 0} color="#10b981" />
+                <StatCard icon={<IconEye size={22} />} label={t('xhs.dashboard.totalViews', '总曝光')} value={totalViews} color="#3b82f6" />
+                <StatCard icon={<IconHeart size={22} />} label={t('xhs.dashboard.totalLikes', '总点赞')} value={totalLikes} color="#ff2442" />
+                <StatCard icon={<IconMessage size={22} />} label={t('xhs.dashboard.totalComments', '总评论')} value={totalComments} color="#f59e0b" />
+                <StatCard icon={<IconBookmark size={22} />} label={t('xhs.dashboard.totalBookmarks', '总收藏')} value={totalBookmarks} color="#10b981" />
             </div>
 
             {/* Content status + Quick actions */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
-                <ContentStatusBar status={stats.content_status} />
+                <ContentStatusBar status={contentStatus} />
                 <QuickActions />
             </div>
 
