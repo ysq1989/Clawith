@@ -171,14 +171,15 @@ export default function XHSDashboard() {
         staleTime: 300_000,
     });
 
-    const overviewData = (overview as any) || {};
+    const overviewData: any = overview || {};
+    const contentStatus: Record<string, number> = overviewData.content_status || {};
     const stats = {
         total_views: overviewData.total_views || 0,
         total_likes: overviewData.total_likes || 0,
         total_comments: overviewData.total_comments || 0,
         total_bookmarks: overviewData.total_bookmarks || 0,
         note_count: overviewData.note_count || 0,
-        content_status: overviewData.content_status || {} as Record<string, number>,
+        content_status: contentStatus,
     };
 
     return (
