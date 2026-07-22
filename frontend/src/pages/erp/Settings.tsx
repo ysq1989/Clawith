@@ -112,7 +112,7 @@ function CategoryTab({ type, isChinese }: { type: 'customer' | 'supplier'; isChi
                 if (msg.includes('已被使用') || msg.includes('400')) {
                     dialog.alert(
                         isChinese ? '无法删除' : 'Cannot delete',
-                        { content: isChinese ? '该分类已被使用，请先移除关联的记录' : 'This category is in use. Remove associated records first.' },
+                        { type: 'error', details: isChinese ? '该分类已被使用，请先移除关联的记录' : 'This category is in use. Remove associated records first.' },
                     );
                 }
             }

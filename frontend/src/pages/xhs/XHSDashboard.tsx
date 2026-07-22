@@ -171,7 +171,7 @@ export default function XHSDashboard() {
         staleTime: 300_000,
     });
 
-    const stats = (overview as any) || { total_views: 0, total_likes: 0, total_comments: 0, total_bookmarks: 0, note_count: 0, content_status: {} };
+    const stats: any = overview || { total_views: 0, total_likes: 0, total_comments: 0, total_bookmarks: 0, note_count: 0, content_status: {} };
 
     return (
         <div style={{ maxWidth: 1200 }}>
