@@ -171,7 +171,7 @@ export default function XHSDashboard() {
         staleTime: 300_000,
     });
 
-    const stats: any = overview || { total_views: 0, total_likes: 0, total_comments: 0, total_bookmarks: 0, note_count: 0, content_status: {} };
+    const stats = (overview as any) || { total_views: 0, total_likes: 0, total_comments: 0, total_bookmarks: 0, note_count: 0, content_status: {} as Record<string, number> };
 
     return (
         <div style={{ maxWidth: 1200 }}>
@@ -185,7 +185,7 @@ export default function XHSDashboard() {
 
             {/* Content status + Quick actions */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
-                <ContentStatusBar status={stats.content_status || {}} />
+                <ContentStatusBar status={(stats.content_status || {}) as Record<string, number>} />
                 <QuickActions />
             </div>
 
