@@ -1090,6 +1090,12 @@ export default function Layout() {
                             </span>
                             <span className="sidebar-item-text">{t('nav.erp', 'ERP')}</span>
                         </NavLink>
+                        <NavLink to="/xhs" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
+                            <span className="sidebar-item-icon" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                📕
+                            </span>
+                            <span className="sidebar-item-text">{t('nav.xhs', '小红书')}</span>
+                        </NavLink>
                     </div>
                 </div>
                 

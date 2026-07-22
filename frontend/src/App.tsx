@@ -37,6 +37,14 @@ const ERPSettings = lazy(() => import('./pages/erp/Settings'));
 const ERPBOM = lazy(() => import('./pages/erp/BOM'));
 const ERPProduction = lazy(() => import('./pages/erp/Production'));
 const ERPPayments = lazy(() => import('./pages/erp/Payments'));
+const XHSLayout = lazy(() => import('./pages/xhs/XHSLayout'));
+const XHSDashboard = lazy(() => import('./pages/xhs/XHSDashboard'));
+const XHSContentList = lazy(() => import('./pages/xhs/ContentList'));
+const XHSContentCalendar = lazy(() => import('./pages/xhs/ContentCalendar'));
+const XHSAnalytics = lazy(() => import('./pages/xhs/AnalyticsBoard'));
+const XHSAccounts = lazy(() => import('./pages/xhs/AccountManager'));
+const XHSInteractions = lazy(() => import('./pages/xhs/InteractionsPage'));
+const XHSSettings = lazy(() => import('./pages/xhs/XHSSettings'));
 const GroupsPage = lazy(() => import('./pages/groups/GroupsPage'));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -335,6 +343,15 @@ export default function App() {
                     <Route path="reports" element={<ERPReports />} />
                     <Route path="settings" element={<ERPSettings />} />
                     <Route path="settings/:tab" element={<ERPSettings />} />
+                </Route>
+                <Route path="/xhs" element={<ProtectedRoute><XHSLayout /></ProtectedRoute>}>
+                    <Route index element={<XHSDashboard />} />
+                    <Route path="content" element={<XHSContentList />} />
+                    <Route path="content/calendar" element={<XHSContentCalendar />} />
+                    <Route path="analytics" element={<XHSAnalytics />} />
+                    <Route path="accounts" element={<XHSAccounts />} />
+                    <Route path="interactions" element={<XHSInteractions />} />
+                    <Route path="settings" element={<XHSSettings />} />
                 </Route>
             </Routes>
             </Suspense>

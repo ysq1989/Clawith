@@ -181,6 +181,7 @@ async def lifespan(app: FastAPI):
             import app.models.okr            # noqa
             import app.models.onboarding     # noqa
             import app.models.erp            # noqa
+            import app.models.xhs            # noqa
 
             import app.models.identity       # noqa
             if settings.DATABASE_AUTO_CREATE_TABLES:
@@ -414,6 +415,7 @@ from app.api.agentbay_control import router as agentbay_control_router
 from app.api.okr import router as okr_router
 from app.api.onboarding import router as onboarding_router
 from app.api.erp import router as erp_router
+from app.api.xhs import router as xhs_router
 from app.api.agent_admin import router as agent_admin_router
 
 app.include_router(auth_router, prefix=settings.API_PREFIX)
@@ -465,6 +467,7 @@ app.include_router(credentials_router, prefix=settings.API_PREFIX)
 app.include_router(agentbay_control_router, prefix=settings.API_PREFIX)
 app.include_router(okr_router)  # OKR — self-prefixed at /api/okr
 app.include_router(erp_router)  # ERP — self-prefixed at /api/erp
+app.include_router(xhs_router)  # Xiaohongshu — self-prefixed at /api/xhs
 app.include_router(agent_admin_router)  # Agent Admin — self-prefixed at /api/agent-admin
 app.include_router(onboarding_router, prefix=settings.API_PREFIX)
 
