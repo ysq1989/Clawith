@@ -102,7 +102,7 @@ function CategoryTab({ type, isChinese }: { type: 'customer' | 'supplier'; isChi
     const handleDelete = async (cat: Category) => {
         const ok = await dialog.confirm(
             isChinese ? `确定删除分类"${cat.name}"吗？` : `Delete category "${cat.name}"?`,
-            isChinese ? '已使用的分类无法删除' : 'Categories in use cannot be deleted',
+            { title: isChinese ? '已使用的分类无法删除' : 'Categories in use cannot be deleted' },
         );
         if (ok) {
             try {
@@ -112,7 +112,7 @@ function CategoryTab({ type, isChinese }: { type: 'customer' | 'supplier'; isChi
                 if (msg.includes('已被使用') || msg.includes('400')) {
                     dialog.alert(
                         isChinese ? '无法删除' : 'Cannot delete',
-                        isChinese ? '该分类已被使用，请先移除关联的记录' : 'This category is in use. Remove associated records first.',
+                        { content: isChinese ? '该分类已被使用，请先移除关联的记录' : 'This category is in use. Remove associated records first.' },
                     );
                 }
             }
@@ -283,7 +283,7 @@ export default function ERPSettingsPage() {
                 ))}
             </div>
 
-            {categoryTabs.includes(activeTab) && <CategoryTab type={categoryType} isChinese={isChinese} />}
+            {categoryTabs.includes(activeTab) && <CategoryTab type={categoryType as 'customer' | 'supplier'} isChinese={isChinese} />}
             {activeTab === 'code-settings' && <CodeSettingsTab isChinese={isChinese} />}
             {activeTab === 'sales-statuses' && <OrderStatusTab statusType="sales" isChinese={isChinese} />}
             {activeTab === 'purchase-statuses' && <OrderStatusTab statusType="purchase" isChinese={isChinese} />}

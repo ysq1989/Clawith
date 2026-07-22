@@ -129,7 +129,7 @@ export default function AnalyticsBoard() {
                                 <ResponsiveContainer width="100%" height={220}>
                                     <PieChart>
                                         <Pie data={STATUS_PIE_DATA} cx="50%" cy="50%" innerRadius={50} outerRadius={80}
-                                            paddingAngle={2} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                            paddingAngle={2} dataKey="value" label={({ name, percent }: any) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
                                             labelLine={false} style={{ fontSize: 11 }}>
                                             {STATUS_PIE_DATA.map((_, i) => (
                                                 <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
