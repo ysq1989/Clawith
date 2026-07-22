@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision = "080_xhs_init"
-down_revision = ("add_experience_revision_drafts", "077_remove_contact_fields")
+down_revision = ("078_fix_agnes_tool_capability", "077_remove_contact_fields")
 branch_labels = None
 depends_on = None
 

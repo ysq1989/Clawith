@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "078_fix_agnes_tool_capability"
-down_revision = ("add_experience_revision_drafts", "202607161200")
+down_revision = "add_experience_revision_drafts"
 branch_labels = None
 depends_on = None
 
