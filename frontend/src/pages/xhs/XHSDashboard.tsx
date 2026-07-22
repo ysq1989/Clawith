@@ -171,7 +171,7 @@ export default function XHSDashboard() {
         staleTime: 300_000,
     });
 
-    const ov: any = overview || {};
+    const ov = (overview ?? {}) as any;
     const totalViews: number = Number(ov.total_views) || 0;
     const totalLikes: number = Number(ov.total_likes) || 0;
     const totalComments: number = Number(ov.total_comments) || 0;
