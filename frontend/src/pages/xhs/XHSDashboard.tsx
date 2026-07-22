@@ -171,7 +171,15 @@ export default function XHSDashboard() {
         staleTime: 300_000,
     });
 
-    const stats = (overview as any) || { total_views: 0, total_likes: 0, total_comments: 0, total_bookmarks: 0, note_count: 0, content_status: {} as Record<string, number> };
+    const overviewData = (overview as any) || {};
+    const stats = {
+        total_views: overviewData.total_views || 0,
+        total_likes: overviewData.total_likes || 0,
+        total_comments: overviewData.total_comments || 0,
+        total_bookmarks: overviewData.total_bookmarks || 0,
+        note_count: overviewData.note_count || 0,
+        content_status: overviewData.content_status || {} as Record<string, number>,
+    };
 
     return (
         <div style={{ maxWidth: 1200 }}>
@@ -185,7 +193,7 @@ export default function XHSDashboard() {
 
             {/* Content status + Quick actions */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
-                <ContentStatusBar status={(stats.content_status || {}) as Record<string, number>} />
+                <ContentStatusBar status={stats.content_status} />
                 <QuickActions />
             </div>
 
