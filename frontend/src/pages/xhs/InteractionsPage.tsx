@@ -40,7 +40,10 @@ function NoteDetailPanel({ noteId, xsecToken, onClose }: {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content, xsec_token: xsecToken }),
         }),
-        onSuccess: () => { setComment(''); queryClient.invalidateQueries({ queryKey: ['xhs-note-detail', noteId]); },
+        onSuccess: () => {
+            setComment('');
+            queryClient.invalidateQueries({ queryKey: ['xhs-note-detail', noteId] });
+        },
     });
 
     return (
