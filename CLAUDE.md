@@ -95,6 +95,8 @@ docker compose up -d
 | `services/` | Business logic (~30+ modules) |
 | `services/agent_runtime/` | **v1.11** Single-agent runtime (LangGraph-based), handles tool execution, model steps, A2A completion, group handoff |
 | `services/llm/` | Unified LLM abstraction (`client.py`, `caller.py`, `failover.py`) |
+| `api/erp.py` | ERP module (~4000 lines, 48+ endpoints) |
+| `api/xhs.py` | Xiaohongshu operations (~600 lines, 25+ endpoints) |
 | `models/` | SQLAlchemy 2.0 async ORM entities |
 | `schemas/` | Pydantic request/response schemas |
 | `dao/` | Data access layer |
@@ -120,6 +122,7 @@ docker compose up -d
 | `pages/agent-detail/` | Agent chat UI extracted sub-modules |
 | `pages/enterprise-settings/` | Enterprise config sub-modules |
 | `pages/erp/` | **ERP module** (15 page components, independent dashboard) |
+| `pages/xhs/` | **Xiaohongshu operations** (8 page components, independent dashboard) |
 | `components/` | Reusable UI components |
 | `stores/` | Zustand global state (auth, permissions, i18n) |
 | `services/` | Axios API client |
@@ -216,6 +219,57 @@ To enable thinking for a provider, add `extra_body={"chat_template_kwargs": {"en
 
 Current providers in `PROVIDER_REGISTRY`: agnes, anthropic, openai, openai-response, azure, deepseek, qwen, minimax, openrouter, zhipu, baidu, gemini, kimi, vllm, ollama, sglang, custom.
 
+## Platform Architecture (Multi-Module Design)
+
+Clawith is a **multi-module business platform** where the AI Agent platform is the foundation, and business modules (ERP, XHS, etc.) are independent applications on top.
+
+### Module Registration Convention
+
+Each module requires registration in these locations:
+
+```
+# 1. Frontend route — App.tsx (lazy import + Route)
+# 2. Frontend sidebar — Layout.tsx (NavLink entry)
+# 3. Backend router — main.py (import + include_router)
+# 4. Database migration — alembic/versions/
+# 5. Agent tools (optional) — builtin_tool_definitions.py
+```
+
+### Module Directory Structure
+
+```
+frontend/src/pages/<module>/
+├── <Module>Layout.tsx      # Independent Layout with Sidebar + Outlet
+├── <Module>Dashboard.tsx   # Module homepage
+├── *.tsx                   # Feature pages
+└── components/             # Module-specific components
+
+backend/app/
+├── api/<module>.py         # FastAPI router (self-prefixed at /api/<module>)
+├── models/<module>.py      # SQLAlchemy models
+├── schemas/<module>.py     # Pydantic schemas (optional)
+└── services/<module>/      # Business logic (optional)
+
+backend/alembic/versions/
+└── NNN_<module>_init.py    # Initial migration
+```
+
+### Key Patterns
+
+- **Independent Layout**: Each module has its own Layout component with dedicated sidebar, registered as a top-level route in App.tsx (e.g., `/erp/*`, `/xhs/*`)
+- **Self-prefixed Router**: Module routers use `APIRouter(prefix="/api/<module>")` and are registered without `settings.API_PREFIX`
+- **Multi-tenant isolation**: All module tables include `tenant_id`; all queries must filter by tenant
+- **Helper dict pattern**: Use `_xxx_to_out()` dict helpers for API responses (not Pydantic `model_validate()`) to avoid UUID/datetime serialization issues
+- **Agent tool integration**: Custom tools must be registered in all 5 layers (see Code Guidelines)
+
+### SaaS + Local Client Pattern
+
+For modules requiring browser automation (e.g., Xiaohongshu publishing), the architecture separates:
+- **SaaS platform** (cloud): AI content generation, scheduling, data dashboards, user management
+- **Local client** (Edge Node): Chrome CDP automation, platform login state, content publishing
+
+Reference: `docs/PLATFORM_ARCHITECTURE.md`, `docs/PLATFORM_ENGINE_SELECTION.md`
+
 ## Deployment
 
 ### Server Info
@@ -230,14 +284,29 @@ Current providers in `PROVIDER_REGISTRY`: agnes, anthropic, openai, openai-respo
 
 ```bash
 # 1. Commit changes locally
-# 2. Deploy via baota script (requires jq on local machine)
-cd D:\开发工作区\Clawith
-../宝塔自动化部署/scripts/deploy.sh main "描述"
+# 2. Push to GitHub (may need proxy: git config --global http.proxy http://127.0.0.1:10809)
+git push origin main
 
-# Alternative: manual scp + restart
-scp -i scripts/bt/8.134.178.82_id_ed25519 backend/app/services/llm/client.py root@8.134.178.82:/www/wwwroot/Clawith/backend/app/services/llm/client.py
-ssh -i scripts/bt/8.134.178.82_id_ed25519 root@8.134.178.82 "cd /www/wwwroot/Clawith && bash restart.sh --source"
+# 3. SSH to server and pull
+ssh -i scripts/bt/8.134.178.82_id_ed25519 root@8.134.178.82
+cd /www/wwwroot/Clawith && git pull origin main
+
+# 4. Run migrations (if schema changed)
+cd backend && .venv/bin/alembic upgrade head
+
+# 5. Restart services
+cd /www/wwwroot/Clawith && bash restart.sh --source
 ```
+
+### Server Notes
+
+- Python venv: `/www/wwwroot/Clawith/backend/.venv/` (Python 3.11)
+- PostgreSQL: 宝塔 managed at `/www/server/pgsql/` (start with `su -s /bin/bash postgres -c '/www/server/pgsql/bin/pg_ctl -D /www/server/pgsql/data start'`)
+- Database: `clawith` user `aifactory`, password in root `.env`
+- SSH key: `scripts/bt/8.134.178.82_id_ed25519` ( regenerated 2026-07-22)
+- Git remote: Points to `ysq1989/Clawith` (fork), not upstream `dataelement/Clawith`
+- **Deploy tool dependency**: `jq` needed locally for `deploy.sh` (install from https://github.com/stedolan/jq/releases)
+- **SSH connectivity**: Intermittent "Connection reset" — may need to switch networks or check Alibaba Cloud security group
 
 ### Server Architecture
 
@@ -320,6 +389,36 @@ This avoids Pydantic `model_validate()` UUID/datetime serialization issues.
 ### User Manual
 
 Full user manual at `docs/ERP_USER_MANUAL.md` with business logic and case study.
+
+## Xiaohongshu (小红书) Operations Module
+
+The XHS module is an independent sub-application at `/xhs`, parallel to ERP. It manages Xiaohongshu content operations: publishing, search, analytics, and account management.
+
+### Architecture
+
+- **Frontend**: `frontend/src/pages/xhs/` — 8 page components (Layout, Dashboard, ContentList, AccountManager, AnalyticsBoard, etc.)
+- **Backend**: `backend/app/api/xhs.py` (~600 lines, 25+ endpoints) + `backend/app/models/xhs.py` (7 models)
+- **CDP Engine**: Uses [XiaohongshuSkills](https://github.com/white0dew/XiaohongshuSkills) scripts for browser automation (publish/search/interact)
+- **Migration**: `backend/alembic/versions/080_xhs_init.py`
+
+### XHS Data Models
+
+7 tables with `xhs_` prefix: `xhs_accounts`, `xhs_content`, `xhs_publish_logs`, `xhs_note_analytics`, `xhs_schedules`, `xhs_personas`, `xhs_knowledge`.
+
+### XHS API Endpoints
+
+All under `/api/xhs/`: content CRUD, publish, search, notes, comment, like, bookmark, analytics (overview/notes/live), accounts, personas, knowledge base.
+
+### XHS CDP Integration
+
+The backend wraps XiaohongshuSkills scripts via `_run_cdp_command()` and `_run_publish_pipeline()` async functions in `api/xhs.py`. Scripts are located at `D:/开发工作区/XiaohongshuSkills/` (configurable via `XHS_SKILLS_DIR` env var). CDP runs on `127.0.0.1:9222` (configurable via `XHS_CDP_HOST`/`XHS_CDP_PORT`).
+
+### XHS Design Principles
+
+- **CDP for publishing** (not reverse-engineered APIs) — more stable against platform changes
+- **Reverse-engineered APIs for data collection** (MediaCrawler) — higher efficiency
+- **SaaS + Local Client model** — Cloud platform for AI/scheduling, local client for browser automation
+- Reference docs: `docs/XHS_DEVELOPMENT_PLAN.md`, `docs/XHS_OPTIMAL_SELECTION.md`, `docs/PLATFORM_ARCHITECTURE.md`
 
 ## Agent Admin System
 
