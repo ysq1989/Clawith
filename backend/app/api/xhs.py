@@ -79,6 +79,32 @@ _CDP_HOST = os.environ.get("XHS_CDP_HOST", "127.0.0.1")
 _CDP_PORT = os.environ.get("XHS_CDP_PORT", "9222")
 
 
+# ─── Edge Node Routing ─────────────────────────────────────────────────────
+# When an edge node (local client) is connected, CDP operations can be
+# delegated to it instead of running locally on the server.
+
+
+async def _try_edge_node_command(tenant_id: str, command: str, args: dict | None = None, timeout: float = 120) -> dict | None:
+    """Try to send a CDP command to a connected edge node.
+
+    Returns the result dict if an edge node handled it, or None if no
+    edge node is available (caller should fall back to local CDP).
+    """
+    try:
+        from app.api.edge_node import get_tenant_nodes, send_command
+    except ImportError:
+        return None
+
+    nodes = get_tenant_nodes(str(tenant_id))
+    if not nodes:
+        return None
+
+    # Use the first available node for this tenant
+    node_id = nodes[0]["node_id"]
+    result = await send_command(node_id, command, args, timeout=timeout)
+    return result
+
+
 async def _run_cdp_command(
     args: list[str],
     timeout: int = 120,
@@ -493,7 +519,18 @@ async def search_notes(
     note_type: str | None = None,
     user=Depends(get_current_user),
 ):
-    """Search Xiaohongshu notes via CDP."""
+    """Search Xiaohongshu notes via CDP (edge node preferred, fallback to local)."""
+    # Try edge node first
+    edge_result = await _try_edge_node_command(
+        str(user.tenant_id), "xhs_search",
+        {"keyword": keyword, "sort_by": sort_by, "note_type": note_type},
+    )
+    if edge_result is not None:
+        if edge_result.get("success"):
+            return edge_result.get("result", {})
+        raise HTTPException(500, edge_result.get("error", "Edge node search failed"))
+
+    # Fallback to local CDP
     args = ["search-feeds", "--keyword", keyword]
     if sort_by:
         args.extend(["--sort-by", sort_by])
@@ -724,12 +761,31 @@ async def account_login(
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Trigger QR code login for an account. Returns QR code data URL."""
+    """Trigger QR code login for an account. Returns QR code data URL.
+    Tries edge node first (local client with Chrome), falls back to local CDP.
+    """
     # Verify account belongs to tenant
     account = await db.get(XHSAccount, account_id)
     if not account or account.tenant_id != user.tenant_id:
         raise HTTPException(404, "Account not found")
 
+    # Try edge node first
+    edge_result = await _try_edge_node_command(
+        str(user.tenant_id), "xhs_login_qrcode",
+        {"account_id": str(account_id)},
+        timeout=30,
+    )
+    if edge_result is not None:
+        if edge_result.get("success"):
+            return edge_result.get("result", {})
+        return {
+            "success": False,
+            "qrcode_data_url": "",
+            "logged_in": False,
+            "message": edge_result.get("error", "Edge node login failed"),
+        }
+
+    # Fallback to local CDP
     result = await _run_cdp_command(["get-login-qrcode"], timeout=30)
     if not result["success"]:
         return {

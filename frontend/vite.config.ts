@@ -17,6 +17,7 @@ const now = new Date()
 const buildTimestamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}.${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`
 const version = `${majorVersion}+${buildTimestamp}`
 
+const backendHost = process.env.BACKEND_HOST || 'localhost'
 const backendPort = process.env.BACKEND_PORT || '8000'
 
 export default defineConfig({
@@ -48,11 +49,11 @@ export default defineConfig({
         allowedHosts: ['ai.lingnanzhenxuan.com', 'ai.fsstory.net'],
         proxy: {
             '/api': {
-                target: `http://localhost:${backendPort}`,
+                target: `http://${backendHost}:${backendPort}`,
                 changeOrigin: true,
             },
             '/ws': {
-                target: `ws://localhost:${backendPort}`,
+                target: `ws://${backendHost}:${backendPort}`,
                 ws: true,
             },
         },

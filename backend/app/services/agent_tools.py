@@ -1740,7 +1740,11 @@ async def _call_agent_admin_api(tenant_id: str | None, arguments: dict):
 
 
 async def _xhs_api_call(tenant_id: str | None, method: str, path: str, body: dict | None = None, params: dict | None = None):
-    """Helper to call XHS API endpoints from agent tools."""
+    """Helper to call XHS API endpoints from agent tools.
+
+    Tries edge node (WebSocket) first for CDP operations,
+    falls back to local HTTP API.
+    """
     import httpx
     from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
 
@@ -1770,11 +1774,43 @@ async def _xhs_api_call(tenant_id: str | None, method: str, path: str, body: dic
 
 
 async def _xhs_search_notes(tenant_id: str | None, arguments: dict):
-    """Search Xiaohongshu notes via CDP."""
+    """Search Xiaohongshu notes via CDP.
+
+    Tries edge node (WebSocket → local Chrome) first,
+    falls back to HTTP API → local CDP.
+    """
+    from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
+
     keyword = arguments.get("keyword", "")
     if not keyword:
-        from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
         return ToolExecutionOutcome(status="failed", result_summary="Error: keyword is required", result_ref=None)
+
+    # Try edge node directly (no HTTP middleman — avoids deadlock)
+    try:
+        from app.api.edge_node import get_tenant_nodes, send_command
+        nodes = get_tenant_nodes(tenant_id) if tenant_id else []
+        if nodes:
+            result = await send_command(nodes[0]["node_id"], "xhs_search", {
+                "keyword": keyword,
+                "sort_by": arguments.get("sort_by"),
+                "note_type": arguments.get("note_type"),
+            })
+            if result.get("success"):
+                import json as _json
+                return ToolExecutionOutcome(
+                    status="succeeded",
+                    result_summary=_json.dumps(result.get("result", {}), ensure_ascii=False)[:3000],
+                    result_ref=None,
+                )
+            return ToolExecutionOutcome(
+                status="failed",
+                result_summary=f"Edge node search failed: {result.get('error', 'unknown')}",
+                result_ref=None,
+            )
+    except Exception:
+        pass
+
+    # Fallback to HTTP API
     params = {"keyword": keyword}
     if arguments.get("sort_by"):
         params["sort_by"] = arguments["sort_by"]
@@ -1802,11 +1838,39 @@ async def _xhs_generate_content(tenant_id: str | None, arguments: dict):
 
 
 async def _xhs_publish_content(tenant_id: str | None, arguments: dict):
-    """Publish content to Xiaohongshu."""
+    """Publish content to Xiaohongshu. Tries edge node first."""
+    from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
+
     content_id = arguments.get("content_id", "")
     if not content_id:
-        from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
         return ToolExecutionOutcome(status="failed", result_summary="Error: content_id is required", result_ref=None)
+
+    # Try edge node directly
+    try:
+        from app.api.edge_node import get_tenant_nodes, send_command
+        nodes = get_tenant_nodes(tenant_id) if tenant_id else []
+        if nodes:
+            result = await send_command(nodes[0]["node_id"], "xhs_publish", {
+                "content_id": content_id,
+                "account_id": arguments.get("account_id"),
+                "preview": arguments.get("preview", False),
+            }, timeout=180)  # Publishing can take a while
+            if result.get("success"):
+                import json as _json
+                return ToolExecutionOutcome(
+                    status="succeeded",
+                    result_summary=_json.dumps(result.get("result", {}), ensure_ascii=False)[:3000],
+                    result_ref=None,
+                )
+            return ToolExecutionOutcome(
+                status="failed",
+                result_summary=f"Edge node publish failed: {result.get('error', 'unknown')}",
+                result_ref=None,
+            )
+    except Exception:
+        pass
+
+    # Fallback to HTTP API
     body = {"content_id": content_id}
     if arguments.get("account_id"):
         body["account_id"] = arguments["account_id"]
@@ -1866,11 +1930,33 @@ async def _xhs_manage_content(tenant_id: str | None, arguments: dict):
 
 
 async def _xhs_get_note_detail(tenant_id: str | None, arguments: dict):
-    """Get note detail from Xiaohongshu."""
+    """Get note detail from Xiaohongshu. Tries edge node first."""
+    from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
+
     note_id = arguments.get("note_id", "")
     if not note_id:
-        from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
         return ToolExecutionOutcome(status="failed", result_summary="Error: note_id is required", result_ref=None)
+
+    # Try edge node directly
+    try:
+        from app.api.edge_node import get_tenant_nodes, send_command
+        nodes = get_tenant_nodes(tenant_id) if tenant_id else []
+        if nodes:
+            result = await send_command(nodes[0]["node_id"], "xhs_get_note", {
+                "note_id": note_id,
+                "xsec_token": arguments.get("xsec_token"),
+            })
+            if result.get("success"):
+                import json as _json
+                return ToolExecutionOutcome(
+                    status="succeeded",
+                    result_summary=_json.dumps(result.get("result", {}), ensure_ascii=False)[:3000],
+                    result_ref=None,
+                )
+    except Exception:
+        pass
+
+    # Fallback to HTTP API
     params = {}
     if arguments.get("xsec_token"):
         params["xsec_token"] = arguments["xsec_token"]
@@ -1878,13 +1964,39 @@ async def _xhs_get_note_detail(tenant_id: str | None, arguments: dict):
 
 
 async def _xhs_interact_note(tenant_id: str | None, arguments: dict):
-    """Like, bookmark, or comment on a Xiaohongshu note."""
+    """Like, bookmark, or comment on a Xiaohongshu note. Tries edge node first."""
+    from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
+
     note_id = arguments.get("note_id", "")
     action = arguments.get("action", "")
     if not note_id or not action:
-        from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
         return ToolExecutionOutcome(status="failed", result_summary="Error: note_id and action are required", result_ref=None)
 
+    # Try edge node directly
+    try:
+        from app.api.edge_node import get_tenant_nodes, send_command
+        nodes = get_tenant_nodes(tenant_id) if tenant_id else []
+        if nodes:
+            cmd_map = {"like": "xhs_like", "bookmark": "xhs_bookmark", "comment": "xhs_comment"}
+            command = cmd_map.get(action)
+            if command:
+                args = {"note_id": note_id}
+                if action == "comment":
+                    args["content"] = arguments.get("content", "")
+                if arguments.get("xsec_token"):
+                    args["xsec_token"] = arguments["xsec_token"]
+                result = await send_command(nodes[0]["node_id"], command, args)
+                if result.get("success"):
+                    import json as _json
+                    return ToolExecutionOutcome(
+                        status="succeeded",
+                        result_summary=_json.dumps(result.get("result", {}), ensure_ascii=False)[:3000],
+                        result_ref=None,
+                    )
+    except Exception:
+        pass
+
+    # Fallback to HTTP API
     if action == "like":
         return await _xhs_api_call(tenant_id, "POST", f"notes/{note_id}/like")
     elif action == "bookmark":
@@ -1892,14 +2004,12 @@ async def _xhs_interact_note(tenant_id: str | None, arguments: dict):
     elif action == "comment":
         content = arguments.get("content", "")
         if not content:
-            from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
             return ToolExecutionOutcome(status="failed", result_summary="Error: content is required for comment", result_ref=None)
         body = {"content": content}
         if arguments.get("xsec_token"):
             body["xsec_token"] = arguments["xsec_token"]
         return await _xhs_api_call(tenant_id, "POST", f"notes/{note_id}/comment", body=body)
     else:
-        from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
         return ToolExecutionOutcome(status="failed", result_summary=f"Unknown interaction: {action}", result_ref=None)
 
 
