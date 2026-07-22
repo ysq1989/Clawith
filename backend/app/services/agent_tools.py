@@ -623,6 +623,13 @@ RUNTIME_TYPED_APPLICATION_TOOL_NAMES = frozenset(
         "feishu_approval_get",
         "call_erp_api",
         "call_agent_admin_api",
+        "xhs_search_notes",
+        "xhs_generate_content",
+        "xhs_publish_content",
+        "xhs_manage_content",
+        "xhs_get_note_detail",
+        "xhs_interact_note",
+        "xhs_get_analytics",
         "read_emails",
         "send_email",
         "reply_email",
@@ -1727,6 +1734,190 @@ async def _call_agent_admin_api(tenant_id: str | None, arguments: dict):
             return ToolExecutionOutcome(status="succeeded", result_summary=resp.text[:3000], result_ref=None)
     except Exception as e:
         return ToolExecutionOutcome(status="failed", result_summary=f"Error calling Agent Admin API: {e}", result_ref=None, error_code="api_error")
+
+
+# ─── XHS (小红书) Tool Handlers ─────────────────────────────────────────────
+
+
+async def _xhs_api_call(tenant_id: str | None, method: str, path: str, body: dict | None = None, params: dict | None = None):
+    """Helper to call XHS API endpoints from agent tools."""
+    import httpx
+    from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
+
+    url = f"http://127.0.0.1:8008/api/xhs/{path.lstrip('/')}"
+    headers = {"Content-Type": "application/json"}
+    if tenant_id:
+        headers["X-Agent-Tenant-Id"] = tenant_id
+
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            if method == "GET":
+                resp = await client.get(url, headers=headers, params=params)
+            elif method == "POST":
+                resp = await client.post(url, headers=headers, json=body or {}, params=params)
+            elif method == "PUT":
+                resp = await client.put(url, headers=headers, json=body or {})
+            elif method == "DELETE":
+                resp = await client.delete(url, headers=headers)
+            else:
+                return ToolExecutionOutcome(status="failed", result_summary=f"Unsupported method: {method}", result_ref=None)
+
+            if resp.status_code >= 400:
+                return ToolExecutionOutcome(status="failed", result_summary=f"XHS API Error ({resp.status_code}): {resp.text[:500]}", result_ref=None)
+            return ToolExecutionOutcome(status="succeeded", result_summary=resp.text[:3000], result_ref=None)
+    except Exception as e:
+        return ToolExecutionOutcome(status="failed", result_summary=f"Error calling XHS API: {e}", result_ref=None, error_code="api_error")
+
+
+async def _xhs_search_notes(tenant_id: str | None, arguments: dict):
+    """Search Xiaohongshu notes via CDP."""
+    keyword = arguments.get("keyword", "")
+    if not keyword:
+        from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
+        return ToolExecutionOutcome(status="failed", result_summary="Error: keyword is required", result_ref=None)
+    params = {"keyword": keyword}
+    if arguments.get("sort_by"):
+        params["sort_by"] = arguments["sort_by"]
+    if arguments.get("note_type"):
+        params["note_type"] = arguments["note_type"]
+    return await _xhs_api_call(tenant_id, "GET", "search", params=params)
+
+
+async def _xhs_generate_content(tenant_id: str | None, arguments: dict):
+    """Generate XHS content via AI."""
+    topic = arguments.get("topic", "")
+    if not topic:
+        from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
+        return ToolExecutionOutcome(status="failed", result_summary="Error: topic is required", result_ref=None)
+    body = {"topic": topic}
+    if arguments.get("persona_id"):
+        body["persona_id"] = arguments["persona_id"]
+    if arguments.get("account_id"):
+        body["account_id"] = arguments["account_id"]
+    if arguments.get("tone"):
+        body["tone"] = arguments["tone"]
+    if arguments.get("extra_instructions"):
+        body["extra_instructions"] = arguments["extra_instructions"]
+    return await _xhs_api_call(tenant_id, "POST", "content/generate", body=body)
+
+
+async def _xhs_publish_content(tenant_id: str | None, arguments: dict):
+    """Publish content to Xiaohongshu."""
+    content_id = arguments.get("content_id", "")
+    if not content_id:
+        from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
+        return ToolExecutionOutcome(status="failed", result_summary="Error: content_id is required", result_ref=None)
+    body = {"content_id": content_id}
+    if arguments.get("account_id"):
+        body["account_id"] = arguments["account_id"]
+    if arguments.get("preview"):
+        body["preview"] = arguments["preview"]
+    return await _xhs_api_call(tenant_id, "POST", "publish", body=body)
+
+
+async def _xhs_manage_content(tenant_id: str | None, arguments: dict):
+    """CRUD operations for XHS content."""
+    action = arguments.get("action", "")
+    if action == "list":
+        params = {}
+        if arguments.get("status"):
+            params["status"] = arguments["status"]
+        if arguments.get("account_id"):
+            params["account_id"] = arguments["account_id"]
+        return await _xhs_api_call(tenant_id, "GET", "content", params=params)
+    elif action == "get":
+        cid = arguments.get("content_id", "")
+        if not cid:
+            from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
+            return ToolExecutionOutcome(status="failed", result_summary="Error: content_id required for get", result_ref=None)
+        return await _xhs_api_call(tenant_id, "GET", f"content/{cid}")
+    elif action == "create":
+        body = {}
+        if arguments.get("title"):
+            body["title"] = arguments["title"]
+        if arguments.get("content"):
+            body["content"] = arguments["content"]
+        if arguments.get("tags"):
+            body["tags"] = arguments["tags"]
+        if arguments.get("account_id"):
+            body["account_id"] = arguments["account_id"]
+        if arguments.get("persona_id"):
+            body["persona_id"] = arguments["persona_id"]
+        return await _xhs_api_call(tenant_id, "POST", "content", body=body)
+    elif action == "update":
+        cid = arguments.get("content_id", "")
+        if not cid:
+            from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
+            return ToolExecutionOutcome(status="failed", result_summary="Error: content_id required for update", result_ref=None)
+        body = {}
+        for key in ("title", "content", "tags", "status", "account_id", "persona_id"):
+            if arguments.get(key):
+                body[key] = arguments[key]
+        return await _xhs_api_call(tenant_id, "PUT", f"content/{cid}", body=body)
+    elif action == "delete":
+        cid = arguments.get("content_id", "")
+        if not cid:
+            from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
+            return ToolExecutionOutcome(status="failed", result_summary="Error: content_id required for delete", result_ref=None)
+        return await _xhs_api_call(tenant_id, "DELETE", f"content/{cid}")
+    else:
+        from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
+        return ToolExecutionOutcome(status="failed", result_summary=f"Unknown action: {action}", result_ref=None)
+
+
+async def _xhs_get_note_detail(tenant_id: str | None, arguments: dict):
+    """Get note detail from Xiaohongshu."""
+    note_id = arguments.get("note_id", "")
+    if not note_id:
+        from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
+        return ToolExecutionOutcome(status="failed", result_summary="Error: note_id is required", result_ref=None)
+    params = {}
+    if arguments.get("xsec_token"):
+        params["xsec_token"] = arguments["xsec_token"]
+    return await _xhs_api_call(tenant_id, "GET", f"notes/{note_id}", params=params)
+
+
+async def _xhs_interact_note(tenant_id: str | None, arguments: dict):
+    """Like, bookmark, or comment on a Xiaohongshu note."""
+    note_id = arguments.get("note_id", "")
+    action = arguments.get("action", "")
+    if not note_id or not action:
+        from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
+        return ToolExecutionOutcome(status="failed", result_summary="Error: note_id and action are required", result_ref=None)
+
+    if action == "like":
+        return await _xhs_api_call(tenant_id, "POST", f"notes/{note_id}/like")
+    elif action == "bookmark":
+        return await _xhs_api_call(tenant_id, "POST", f"notes/{note_id}/bookmark")
+    elif action == "comment":
+        content = arguments.get("content", "")
+        if not content:
+            from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
+            return ToolExecutionOutcome(status="failed", result_summary="Error: content is required for comment", result_ref=None)
+        body = {"content": content}
+        if arguments.get("xsec_token"):
+            body["xsec_token"] = arguments["xsec_token"]
+        return await _xhs_api_call(tenant_id, "POST", f"notes/{note_id}/comment", body=body)
+    else:
+        from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
+        return ToolExecutionOutcome(status="failed", result_summary=f"Unknown interaction: {action}", result_ref=None)
+
+
+async def _xhs_get_analytics(tenant_id: str | None, arguments: dict):
+    """Get XHS analytics data."""
+    analytics_type = arguments.get("type", "overview")
+    if analytics_type == "overview":
+        return await _xhs_api_call(tenant_id, "GET", "analytics/overview")
+    elif analytics_type == "notes":
+        params = {}
+        if arguments.get("account_id"):
+            params["account_id"] = arguments["account_id"]
+        return await _xhs_api_call(tenant_id, "GET", "analytics/notes", params=params)
+    elif analytics_type == "live":
+        return await _xhs_api_call(tenant_id, "GET", "analytics/live")
+    else:
+        from app.services.agent_runtime.tool_execution import ToolExecutionOutcome
+        return ToolExecutionOutcome(status="failed", result_summary=f"Unknown analytics type: {analytics_type}", result_ref=None)
 
 
 def _agent_workspace_root(agent_id: uuid.UUID) -> Path:
@@ -3358,6 +3549,20 @@ async def execute_tool(
             result = await _call_erp_api(_agent_tenant_id, arguments)
         elif tool_name == "call_agent_admin_api":
             result = await _call_agent_admin_api(_agent_tenant_id, arguments)
+        elif tool_name == "xhs_search_notes":
+            result = await _xhs_search_notes(_agent_tenant_id, arguments)
+        elif tool_name == "xhs_generate_content":
+            result = await _xhs_generate_content(_agent_tenant_id, arguments)
+        elif tool_name == "xhs_publish_content":
+            result = await _xhs_publish_content(_agent_tenant_id, arguments)
+        elif tool_name == "xhs_manage_content":
+            result = await _xhs_manage_content(_agent_tenant_id, arguments)
+        elif tool_name == "xhs_get_note_detail":
+            result = await _xhs_get_note_detail(_agent_tenant_id, arguments)
+        elif tool_name == "xhs_interact_note":
+            result = await _xhs_interact_note(_agent_tenant_id, arguments)
+        elif tool_name == "xhs_get_analytics":
+            result = await _xhs_get_analytics(_agent_tenant_id, arguments)
         elif tool_name in ("execute_code", "execute_code_e2b"):
             logger.info(
                 "[DirectTool] Executing code ({}) with arguments: {}",

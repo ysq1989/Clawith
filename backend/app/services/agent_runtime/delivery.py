@@ -961,8 +961,12 @@ async def deliver_runtime_message(
     try:
         await db.flush()
     except IntegrityError:
-        # Duplicate delivery event from concurrent request — safe to ignore
+        # Duplicate delivery event from concurrent request — re-query existing receipt
         await db.rollback()
+        existing = await _existing_receipt(db, request=request)
+        if existing is not None:
+            return existing
+        raise
     return receipt
 
 

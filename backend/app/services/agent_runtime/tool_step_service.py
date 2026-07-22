@@ -1387,6 +1387,14 @@ class RuntimeToolStepService:
                                         messages=messages,
                                         pending_tool_calls=tool_calls[index + 1 :],
                                     )
+                                messages.append(
+                                    _result_message(
+                                        run_id=run_id,
+                                        call_id=call_id,
+                                        tool_name=tool_name,
+                                        outcome=a2a_result.outcome,
+                                    )
+                                )
                                 if a2a_result.waiting_request is not None:
                                     return ToolStepResult(
                                         messages=tuple(messages),

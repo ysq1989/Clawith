@@ -339,21 +339,24 @@ async def _process_wechat_message(agent_id: uuid.UUID, msg: dict[str, Any], conf
             ),
             None,
         )
-        await enqueue_channel_chat_runtime(
-            db,
-            agent=agent_obj,
-            user=platform_user,
-            session=sess,
-            model=runtime_model,
-            content=user_text,
-            source_channel="wechat",
-            channel_delivery_target={"user_id": from_user_id},
-            message_id=channel_message_id(
-                agent_id,
-                "wechat",
-                external_event_id,
-            ),
-        )
+        try:
+            await enqueue_channel_chat_runtime(
+                db,
+                agent=agent_obj,
+                user=platform_user,
+                session=sess,
+                model=runtime_model,
+                content=user_text,
+                source_channel="wechat",
+                channel_delivery_target={"user_id": from_user_id},
+                message_id=channel_message_id(
+                    agent_id,
+                    "wechat",
+                    external_event_id,
+                ),
+            )
+        except Exception as e:
+            logger.error(f"[WeChat] enqueue_channel_chat_runtime FAILED for {agent_id}: {type(e).__name__}: {e}")
 
         await db.commit()
 

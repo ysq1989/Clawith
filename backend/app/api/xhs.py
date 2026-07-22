@@ -129,8 +129,14 @@ async def _run_cdp_command(
 
 def _extract_json(text: str) -> dict | list | None:
     """Extract the last JSON block from CDP script output."""
-    # Look for common JSON markers
-    for marker in ["CONTENT_DATA_RESULT:", "SEARCH_RESULT:", "FEED_DETAIL:", "FEEDS_RESULT:"]:
+    # Look for known JSON markers from XiaohongshuSkills CDP scripts
+    for marker in [
+        "CONTENT_DATA_RESULT:",
+        "SEARCH_RESULT:",
+        "FEED_DETAIL:",
+        "FEEDS_RESULT:",
+        "GET_LOGIN_QRCODE_RESULT:",
+    ]:
         if marker in text:
             idx = text.index(marker) + len(marker)
             rest = text[idx:].strip()
@@ -718,12 +724,29 @@ async def account_login(
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Trigger QR code login for an account. Returns QR code data."""
+    """Trigger QR code login for an account. Returns QR code data URL."""
+    # Verify account belongs to tenant
+    account = await db.get(XHSAccount, account_id)
+    if not account or account.tenant_id != user.tenant_id:
+        raise HTTPException(404, "Account not found")
+
     result = await _run_cdp_command(["get-login-qrcode"], timeout=30)
+    if not result["success"]:
+        return {
+            "success": False,
+            "qrcode_data_url": "",
+            "logged_in": False,
+            "message": result.get("message", "无法生成二维码，请检查 Chrome CDP 是否已启动"),
+        }
+
+    data = result.get("data", {})
+    logged_in = data.get("logged_in", False)
+
     return {
-        "success": result["success"],
-        "qrcode": result.get("data", {}),
-        "message": result.get("message", ""),
+        "success": True,
+        "logged_in": logged_in,
+        "qrcode_data_url": data.get("qrcode_data_url", ""),
+        "message": "已登录" if logged_in else "请扫描二维码",
     }
 
 
@@ -733,12 +756,27 @@ async def account_status(
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Check account login status."""
+    """Check account login status via CDP check-login command.
+
+    The CDP script exits with code 0 if logged in, 1 if not.
+    """
+    account = await db.get(XHSAccount, account_id)
+    if not account or account.tenant_id != user.tenant_id:
+        raise HTTPException(404, "Account not found")
+
     result = await _run_cdp_command(["check-login"], timeout=30)
-    logged_in = result["success"] and "Login confirmed" in result.get("raw", "")
+    # check-login: exit 0 = logged in (result.success=True), exit 1 = not logged in
+    logged_in = result["success"]
+
+    # Update account status in DB if logged in
+    if logged_in:
+        account.status = "active"
+        account.last_login_at = datetime.utcnow()
+        await db.commit()
+
     return {
         "logged_in": logged_in,
-        "message": result.get("message", ""),
+        "message": "已登录" if logged_in else "未登录",
     }
 
 
@@ -917,3 +955,344 @@ async def delete_knowledge(
     await db.delete(item)
     await db.commit()
     return {"ok": True}
+
+
+# ─── AI Content Generation ─────────────────────────────────────────────────
+
+
+class ContentGenerateRequest(BaseModel):
+    topic: str  # 主题
+    persona_id: uuid.UUID | None = None
+    account_id: uuid.UUID | None = None
+    note_type: str = "image"  # image / video
+    tone: str | None = None  # 覆盖人设的语气
+    extra_instructions: str | None = None
+    model_id: uuid.UUID | None = None  # 指定 LLM 模型
+
+
+@router.post("/content/generate")
+async def generate_content(
+    body: ContentGenerateRequest,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Use LLM to generate Xiaohongshu content (title, body, tags)."""
+    from app.models.llm import LLMModel
+    from app.services.llm import get_model_api_key
+    from app.services.llm.client import chat_complete
+
+    # Resolve LLM model
+    model = None
+    if body.model_id:
+        model = (await db.execute(select(LLMModel).where(LLMModel.id == body.model_id))).scalar_one_or_none()
+    if not model:
+        # Pick first enabled model for the tenant
+        q = select(LLMModel).where(LLMModel.enabled == True).limit(1)
+        model = (await db.execute(q)).scalar_one_or_none()
+    if not model:
+        raise HTTPException(400, "未配置 LLM 模型，请先在企业设置中添加模型")
+
+    # Build system prompt with persona context
+    persona_ctx = ""
+    if body.persona_id:
+        persona = await db.get(XHSPersona, body.persona_id)
+        if persona:
+            persona_ctx = f"\n## 人设\n- 名称: {persona.name}\n- 语气: {persona.tone or '自然'}\n"
+            if persona.topics:
+                persona_ctx += f"- 擅长领域: {', '.join(persona.topics)}\n"
+            if persona.avoid_words:
+                persona_ctx += f"- 禁用词: {', '.join(persona.avoid_words)}\n"
+            if persona.description:
+                persona_ctx += f"- 描述: {persona.description}\n"
+
+    # Get knowledge base entries for context
+    kb_q = select(XHSKnowledge).where(XHSKnowledge.tenant_id == user.tenant_id).limit(5)
+    kb_result = await db.execute(kb_q)
+    kb_items = kb_result.scalars().all()
+    kb_ctx = ""
+    if kb_items:
+        kb_ctx = "\n## 知识库参考\n"
+        for k in kb_items:
+            kb_ctx += f"\n### {k.title}\n{k.content[:500]}\n"
+
+    system_prompt = f"""你是一个专业的小红书内容创作助手。请根据给定的主题生成小红书笔记内容。
+
+{persona_ctx}
+{kb_ctx}
+
+## 输出要求
+请以 JSON 格式输出，包含以下字段：
+{{
+  "title": "笔记标题（吸引眼球，不超过200字）",
+  "content": "正文内容（生动有趣，1000字以内，分段清晰）",
+  "tags": ["标签1", "标签2", "标签3"],
+  "note_type": "image 或 video"
+}}
+
+注意事项：
+- 标题要吸引人，可以使用 emoji
+- 正文要自然、有感染力，适合小红书平台风格
+- 标签 #开头，5-10个相关标签
+- 不要包含任何解释，只输出 JSON"""
+
+    user_prompt = f"请为以下主题生成小红书笔记内容：\n\n主题：{body.topic}"
+    if body.tone:
+        user_prompt += f"\n语气要求：{body.tone}"
+    if body.extra_instructions:
+        user_prompt += f"\n额外要求：{body.extra_instructions}"
+
+    try:
+        resp = await chat_complete(
+            provider=model.provider,
+            api_key=get_model_api_key(model),
+            model=model.model,
+            base_url=model.base_url,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.8,
+        )
+        raw_content = resp["choices"][0]["message"].get("content") or ""
+
+        # Parse JSON from response
+        import json
+        result_data = None
+        for start_char, end_char in [("{", "}"), ("[", "]")]:
+            start = raw_content.find(start_char)
+            if start == -1:
+                continue
+            depth = 0
+            for i in range(start, len(raw_content)):
+                if raw_content[i] == start_char:
+                    depth += 1
+                elif raw_content[i] == end_char:
+                    depth -= 1
+                    if depth == 0:
+                        try:
+                            result_data = json.loads(raw_content[start : i + 1])
+                            break
+                        except json.JSONDecodeError:
+                            break
+            if result_data:
+                break
+
+        if not result_data:
+            raise HTTPException(500, "AI 生成内容解析失败，请重试")
+
+        # Create content draft
+        item = XHSContent(
+            tenant_id=user.tenant_id,
+            account_id=body.account_id,
+            persona_id=body.persona_id,
+            title=result_data.get("title", "")[:200],
+            content=result_data.get("content", ""),
+            note_type=result_data.get("note_type", body.note_type),
+            tags=result_data.get("tags", []),
+            status="draft",
+            ai_generated=True,
+        )
+        db.add(item)
+        await db.commit()
+        await db.refresh(item)
+
+        return {
+            "success": True,
+            "content": _content_to_dict(item),
+            "raw_response": raw_content,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"AI 生成失败: {str(e)}")
+
+
+# ─── Schedule Management ───────────────────────────────────────────────────
+
+
+@router.get("/schedules")
+async def list_schedules(
+    status: str | None = None,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all scheduled publish jobs."""
+    q = select(XHSSchedule).where(XHSSchedule.tenant_id == user.tenant_id)
+    if status:
+        q = q.where(XHSSchedule.status == status)
+    q = q.order_by(XHSSchedule.scheduled_at.asc())
+    result = await db.execute(q)
+    items = result.scalars().all()
+
+    return {
+        "items": [
+            {
+                "id": str(s.id),
+                "content_id": str(s.content_id),
+                "account_id": str(s.account_id),
+                "scheduled_at": s.scheduled_at.isoformat() if s.scheduled_at else None,
+                "status": s.status,
+                "retry_count": s.retry_count,
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+            }
+            for s in items
+        ]
+    }
+
+
+@router.delete("/schedules/{schedule_id}")
+async def cancel_schedule(
+    schedule_id: uuid.UUID,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cancel a pending schedule."""
+    item = await db.get(XHSSchedule, schedule_id)
+    if not item or item.tenant_id != user.tenant_id:
+        raise HTTPException(404, "Schedule not found")
+    if item.status != "pending":
+        raise HTTPException(400, "只能取消待执行的排期")
+    item.status = "cancelled"
+    content = await db.get(XHSContent, item.content_id)
+    if content and content.status == "scheduled":
+        content.status = "draft"
+        content.scheduled_at = None
+    await db.commit()
+    return {"ok": True}
+
+
+# ─── Scheduled Publishing Executor ─────────────────────────────────────────
+
+_schedule_executor_task: asyncio.Task | None = None
+_SCHEDULE_TICK_INTERVAL = 60  # seconds
+
+
+async def _execute_schedule(schedule: XHSSchedule, db: AsyncSession):
+    """Execute a single scheduled publish job."""
+    schedule.status = "processing"
+    await db.commit()
+
+    content = await db.get(XHSContent, schedule.content_id)
+    if not content:
+        schedule.status = "failed"
+        await db.commit()
+        return
+
+    account = await db.get(XHSAccount, schedule.account_id)
+    if not account:
+        schedule.status = "failed"
+        await db.commit()
+        return
+
+    image_urls = []
+    if content.images:
+        for img in content.images:
+            if isinstance(img, dict) and img.get("url"):
+                image_urls.append(img["url"])
+
+    content.status = "publishing"
+    await db.commit()
+
+    result = await _run_publish_pipeline(
+        title=content.title,
+        content=content.content or "",
+        image_urls=image_urls if image_urls else None,
+        account=account.alias if account else None,
+    )
+
+    if result["success"]:
+        content.status = "published"
+        content.published_at = datetime.utcnow()
+        schedule.status = "completed"
+    else:
+        schedule.retry_count += 1
+        if schedule.retry_count >= 3:
+            content.status = "failed"
+            content.publish_log = result.get("message", "")
+            schedule.status = "failed"
+        else:
+            content.status = "draft"
+            schedule.status = "pending"
+
+    log = XHSPublishLog(
+        tenant_id=schedule.tenant_id,
+        content_id=content.id,
+        account_id=schedule.account_id,
+        status="success" if result["success"] else "failed",
+        error_message=result.get("message") if not result["success"] else None,
+        published_at=datetime.utcnow() if result["success"] else None,
+    )
+    db.add(log)
+    await db.commit()
+
+
+async def _schedule_executor_loop():
+    """Background loop that picks up due schedules and publishes them."""
+    from loguru import logger as _logger
+
+    while True:
+        try:
+            async with async_session() as db:
+                now = datetime.utcnow()
+                q = (
+                    select(XHSSchedule)
+                    .where(XHSSchedule.status == "pending")
+                    .where(XHSSchedule.scheduled_at <= now)
+                    .order_by(XHSSchedule.scheduled_at.asc())
+                    .limit(5)
+                )
+                result = await db.execute(q)
+                due_schedules = result.scalars().all()
+
+                for schedule in due_schedules:
+                    try:
+                        await _execute_schedule(schedule, db)
+                    except Exception as e:
+                        _logger.error(f"XHS schedule execution failed: {schedule.id} - {e}")
+                        schedule.status = "failed"
+                        await db.commit()
+        except Exception as e:
+            from loguru import logger as _logger
+            _logger.error(f"XHS schedule executor tick error: {e}")
+
+        await asyncio.sleep(_SCHEDULE_TICK_INTERVAL)
+
+
+@router.on_event("startup")
+async def _start_schedule_executor():
+    global _schedule_executor_task
+    _schedule_executor_task = asyncio.create_task(_schedule_executor_loop())
+
+
+# ─── Chrome CDP Health Check ────────────────────────────────────────────────
+
+
+@router.get("/cdp/health")
+async def cdp_health_check(
+    user=Depends(get_current_user),
+):
+    """Check if Chrome CDP is reachable and XHS is logged in."""
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"http://{_CDP_HOST}:{_CDP_PORT}/json/version")
+            if resp.status_code == 200:
+                version_info = resp.json()
+                # Also check login status
+                login_result = await _run_cdp_command(["check-login"], timeout=15)
+                return {
+                    "cdp_connected": True,
+                    "chrome_version": version_info.get("Browser", "unknown"),
+                    "logged_in": login_result["success"],
+                    "message": "Chrome CDP 已连接" + ("，已登录小红书" if login_result["success"] else "，未登录小红书"),
+                }
+            return {"cdp_connected": False, "logged_in": False, "message": f"Chrome CDP 响应异常: {resp.status_code}"}
+    except httpx.ConnectError:
+        return {
+            "cdp_connected": False,
+            "logged_in": False,
+            "message": f"无法连接 Chrome CDP ({_CDP_HOST}:{_CDP_PORT})。请确保 Chrome 已开启远程调试模式。",
+        }
+    except Exception as e:
+        return {"cdp_connected": False, "logged_in": False, "message": f"CDP 检查失败: {str(e)}"}

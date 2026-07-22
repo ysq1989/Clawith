@@ -59,7 +59,9 @@
     "language": "Language",
     "plaza": "Plaza",
     "okr": "OKR",
-    "groups": "Groups"
+    "groups": "Groups",
+    "xhs": "RedNote",
+    "erp": "ERP"
   },
   "talentMarket": {
     "title": "Talent Market",

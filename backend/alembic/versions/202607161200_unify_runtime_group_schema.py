@@ -1655,6 +1655,7 @@ _LEGACY_TOOL_CALLING_PROVIDERS = (
     "baidu",
     "gemini",
     "kimi",
+    "agnes",
 )
 
 

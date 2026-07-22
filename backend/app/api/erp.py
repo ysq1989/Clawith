@@ -3066,10 +3066,16 @@ async def upload_attachment(
     tenant_dir = os.path.join(_ATTACHMENTS_DIR, str(user.tenant_id))
     os.makedirs(tenant_dir, exist_ok=True)
 
-    # 用 UUID 前缀防止文件名冲突
+    # 用 UUID 前缀防止文件名冲突，过滤路径穿越字符
     file_uuid = uuid.uuid4()
-    safe_name = file.filename or "unnamed"
-    saved_name = f"{file_uuid}_{safe_name}"
+    raw_name = file.filename or "unnamed"
+    safe_name = os.path.basename(raw_name).replace("\\", "_").replace("/", "_").strip(".")
+    if not safe_name:
+        safe_name = "unnamed"
+    stem = os.path.splitext(safe_name)[0]
+    suffix = os.path.splitext(safe_name)[1]
+    short_uuid = str(file_uuid)[:8]
+    saved_name = f"{stem}_{short_uuid}{suffix}"
     file_path = os.path.join(tenant_dir, saved_name)
 
     # 异步写入文件
