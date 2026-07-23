@@ -792,7 +792,10 @@ async def account_login(
         }
 
     # Fallback to local CDP
-    result = await _run_cdp_command(["get-login-qrcode"], timeout=30)
+    result = await _run_cdp_command([
+        "get-login-qrcode",
+        "--url", "https://www.xiaohongshu.com",
+    ], timeout=30)
     if not result["success"]:
         return {
             "success": False,
