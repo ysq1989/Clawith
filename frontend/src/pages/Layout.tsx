@@ -819,7 +819,7 @@ export default function Layout() {
         </div>
     );
 
-    const tenantMenuContent = showTenantMenu && typeof document !== 'undefined' && createPortal(
+    const tenantMenuContent = showTenantMenu && typeof document !== 'undefined' ? createPortal(
         <div
             ref={tenantMenuPortalRef}
             className="tenant-switcher-popover"
@@ -893,7 +893,7 @@ export default function Layout() {
             )}
         </div>,
         document.body,
-    );
+    ) : null;
 
     const q = sidebarSearch.trim().toLowerCase();
     const sortedAgents = [...agents].filter((a: any) => {
@@ -993,7 +993,7 @@ export default function Layout() {
         </>
     );
 
-    const agentDrawer = isSidebarCollapsed && agentDrawerOpen && typeof document !== 'undefined' && createPortal(
+    const agentDrawer = isSidebarCollapsed && agentDrawerOpen && typeof document !== 'undefined' ? createPortal(
         <div
             className="sidebar-agent-drawer"
             onMouseEnter={openAgentDrawer}
@@ -1018,7 +1018,7 @@ export default function Layout() {
             </div>
         </div>,
         document.body,
-    );
+    ) : null;
 
     return (
         <div className={`app-layout ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
