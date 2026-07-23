@@ -198,13 +198,14 @@ export default function AccountManager() {
     const [loginAccountId, setLoginAccountId] = useState<string | null>(null);
     const [loginAccountName, setLoginAccountName] = useState('');
 
-    // CDP health check
-    const { data: cdpHealth } = useQuery({
-        queryKey: ['xhs-cdp-health'],
-        queryFn: () => fetchJson('/xhs/cdp/health'),
-        staleTime: 30_000,
+    // Edge node connection check (client-side Chrome CDP)
+    const { data: edgeNodesData } = useQuery({
+        queryKey: ['xhs-edge-nodes'],
+        queryFn: () => fetchJson('/edge-nodes'),
+        staleTime: 10_000,
     });
-    const health = cdpHealth as any;
+    const edgeNodes = (edgeNodesData as any)?.nodes || [];
+    const hasConnectedClient = edgeNodes.length > 0;
 
     const { data, isLoading } = useQuery({
         queryKey: ['xhs-accounts'],
@@ -259,38 +260,27 @@ export default function AccountManager() {
                 </button>
             </div>
 
-            {/* CDP Health Status Banner */}
-            {health && !health.cdp_connected && (
-                <div style={{
-                    padding: '12px 16px', borderRadius: 8, marginBottom: 16,
-                    background: '#fef3cd', border: '1px solid #ffc107',
-                    fontSize: 13, color: '#856404', lineHeight: 1.6,
-                }}>
-                    ⚠️ <strong>Chrome CDP 未连接</strong><br />
-                    {health.message}<br />
-                    <span style={{ fontSize: 12, color: '#a67c00' }}>
-                        启动命令：<code style={{ background: '#fff3cd', padding: '1px 4px', borderRadius: 3 }}>
-                            chrome.exe --remote-debugging-port=9222
-                        </code>
-                    </span>
-                </div>
-            )}
-            {health && health.cdp_connected && !health.logged_in && (
-                <div style={{
-                    padding: '10px 16px', borderRadius: 8, marginBottom: 16,
-                    background: '#e0f2fe', border: '1px solid #0ea5e9',
-                    fontSize: 13, color: '#0369a1',
-                }}>
-                    ℹ️ Chrome CDP 已连接，但小红书未登录。请点击账号的「扫码登录」按钮完成认证。
-                </div>
-            )}
-            {health && health.cdp_connected && health.logged_in && (
+            {/* Edge Node Connection Status */}
+            {hasConnectedClient ? (
                 <div style={{
                     padding: '10px 16px', borderRadius: 8, marginBottom: 16,
                     background: '#d1fae5', border: '1px solid #10b981',
                     fontSize: 13, color: '#065f46',
                 }}>
-                    ✅ Chrome CDP 已连接，小红书已登录。{health.chrome_version && `Chrome: ${health.chrome_version}`}
+                    ✅ 客户端已连接 ({edgeNodes[0]?.node_id}) · Chrome CDP 就绪 · 平台: {edgeNodes[0]?.meta?.platform}
+                </div>
+            ) : (
+                <div style={{
+                    padding: '12px 16px', borderRadius: 8, marginBottom: 16,
+                    background: '#fef3cd', border: '1px solid #ffc107',
+                    fontSize: 13, color: '#856404', lineHeight: 1.6,
+                }}>
+                    ⚠️ <strong>未检测到客户端连接</strong><br />
+                    请启动 Future Staff 客户端（electron-egg）以启用本地 Chrome CDP 功能。
+                    <br />
+                    <span style={{ fontSize: 12, color: '#a67c00' }}>
+                        提示：客户端会自动连接到服务器，无需额外配置。
+                    </span>
                 </div>
             )}
 
