@@ -777,7 +777,13 @@ async def account_login(
     )
     if edge_result is not None:
         if edge_result.get("success"):
-            return edge_result.get("result", {})
+            result_data = edge_result.get("result", {})
+            return {
+                "success": True,
+                "logged_in": result_data.get("logged_in", False),
+                "qrcode_data_url": result_data.get("qrcode_data_url", ""),
+                "message": "已登录" if result_data.get("logged_in") else "请扫描二维码",
+            }
         return {
             "success": False,
             "qrcode_data_url": "",
