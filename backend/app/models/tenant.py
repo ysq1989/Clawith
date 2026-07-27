@@ -63,6 +63,10 @@ class Tenant(Base):
         UUID(as_uuid=True), ForeignKey("llm_models.id", ondelete="SET NULL"), nullable=True,
     )
 
+    # Module access control — list of enabled module IDs (e.g. ["erp", "xhs", "product_hub"]).
+    # null or empty list = all modules enabled (backward compatible).
+    enabled_modules = mapped_column(JSON, nullable=True)
+
     @property
     def logo_url(self) -> str | None:
         """Tenant logo URL stored in flexible tenant config."""
