@@ -274,6 +274,7 @@ export default function SuppliersPage() {
                                         >
                                             {s.is_active ? (isChinese ? '禁用' : 'Disable') : (isChinese ? '启用' : 'Enable')}
                                         </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))
