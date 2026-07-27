@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.auth import get_current_user as _jwt_get_current_user
 from app.database import async_session, get_db
 from app.models.wecom_album import WecomAlbumAccount, WecomAlbumSupplier, WecomAlbumProduct
+from app.models.product_hub import ProductHubProduct
 from app.services.wecom_album.szwego_client import WecomAlbumSzwegoClient
 from app.services.wecom_album.sync_service import test_connection, sync_suppliers, sync_products
 from app.services.wecom_album.ai_clean_service import clean_single, clean_batch, clean_supplier_products
@@ -500,3 +501,68 @@ async def api_ai_clean_supplier(
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result.get("error", "AI清洗失败"))
     return result
+
+
+# ─── Push to Product Hub ──────────────────────────────────────────────────────
+
+
+@router.post("/push-to-pool")
+async def api_push_to_pool(
+    request: Request,
+    user=Depends(require_admin),
+):
+    """Push cleaned products to Product Hub selection pool.
+
+    Body: {"product_ids": ["uuid", ...]} or {"status": "pending_sync"} to push all pending.
+    """
+    body = await request.json()
+    product_ids = body.get("product_ids", [])
+    push_all = body.get("status") == "pending_sync"
+
+    async with async_session() as db:
+        if push_all:
+            result = await db.execute(
+                select(WecomAlbumProduct).where(
+                    WecomAlbumProduct.tenant_id == user.tenant_id,
+                    WecomAlbumProduct.status == "pending_sync",
+                )
+            )
+        elif product_ids:
+            ids = [uuid.UUID(pid) for pid in product_ids]
+            result = await db.execute(
+                select(WecomAlbumProduct).where(
+                    WecomAlbumProduct.id.in_(ids),
+                    WecomAlbumProduct.status == "pending_sync",
+                )
+            )
+        else:
+            raise HTTPException(status_code=400, detail="product_ids or status=pending_sync required")
+
+        products = result.scalars().all()
+
+        pushed = 0
+        for p in products:
+            # Create ProductHubProduct
+            ph_product = ProductHubProduct(
+                tenant_id=user.tenant_id,
+                title=p.clean_title or p.title,
+                description="",
+                price=p.clean_price or p.price,
+                images=p.images,
+                main_image=p.main_image,
+                _source_url=p.source_url,
+                _source_shop_name=p.shop_name,
+                _source_shop_id=p.shop_id,
+                tags=p.tags or [],
+                supply_chain_name=p.shop_name,
+                status="active",
+            )
+            db.add(ph_product)
+
+            # Update wecom-album product status
+            p.status = "synced"
+            pushed += 1
+
+        await db.commit()
+
+        return {"success": True, "pushed": pushed}

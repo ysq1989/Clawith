@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchJson } from '../../services/api';
 import { useToast } from '../../components/Toast/ToastProvider';
-import { IconSearch, IconX, IconPackage } from '@tabler/icons-react';
+import { IconSearch, IconX, IconPackage, IconSend } from '@tabler/icons-react';
 
 interface Product {
     id: string;
@@ -52,6 +52,25 @@ export default function WecomAlbumProductsPage() {
         },
         onError: (err: any) => {
             toast.error(err?.detail || (isChinese ? '删除失败' : 'Delete failed'));
+        },
+    });
+
+    const pushMutation = useMutation({
+        mutationFn: async () => {
+            return fetchJson<any>('/wecom-album/push-to-pool', {
+                method: 'POST',
+                body: JSON.stringify({ status: 'pending_sync' }),
+            });
+        },
+        onSuccess: (data) => {
+            toast.success(isChinese
+                ? `推送完成: ${data.pushed} 个商品已同步到选品池`
+                : `Push done: ${data.pushed} products synced to pool`);
+            queryClient.invalidateQueries({ queryKey: ['wecom-album-products'] });
+            queryClient.invalidateQueries({ queryKey: ['wecom-album-stats'] });
+        },
+        onError: (err: any) => {
+            toast.error(err?.detail || (isChinese ? '推送失败' : 'Push failed'));
         },
     });
 
@@ -107,6 +126,33 @@ export default function WecomAlbumProductsPage() {
                 >
                     <IconSearch size={16} />
                     {isChinese ? '搜索' : 'Search'}
+                </button>
+                <button
+                    onClick={() => {
+                        if (confirm(isChinese ? '将所有「待同步」商品推送到选品池？' : 'Push all "Pending Sync" products to pool?')) {
+                            pushMutation.mutate();
+                        }
+                    }}
+                    disabled={pushMutation.isPending}
+                    style={{
+                        padding: '8px 16px',
+                        background: '#059669',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontSize: 14,
+                        fontWeight: 500,
+                        opacity: pushMutation.isPending ? 0.6 : 1,
+                    }}
+                >
+                    <IconSend size={16} />
+                    {pushMutation.isPending
+                        ? (isChinese ? '推送中...' : 'Pushing...')
+                        : (isChinese ? '推送到选品池' : 'Push to Pool')}
                 </button>
             </div>
 
