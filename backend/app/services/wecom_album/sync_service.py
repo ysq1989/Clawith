@@ -202,16 +202,14 @@ async def sync_products(tenant_id: uuid.UUID) -> dict:
             return {"success": False, "error": "No active szwego account configured"}
 
         # Compute cutoff timestamp for incremental sync (milliseconds)
-        cutoff_ts = None
-        if account.last_product_sync_at and account.product_sync_stale_hours:
-            cutoff_dt = account.last_product_sync_at - timedelta(hours=account.product_sync_stale_hours)
-            cutoff_ts = int(cutoff_dt.timestamp() * 1000)
-            logger.info(
-                f"[WecomAlbum] Incremental sync: cutoff = {cutoff_dt.isoformat()}, "
-                f"stale_hours = {account.product_sync_stale_hours}"
-            )
-        else:
-            logger.info("[WecomAlbum] Full sync (no previous sync or stale_hours=0)")
+        # Always filter by last N hours, even on first sync
+        stale_hours = account.product_sync_stale_hours or 1
+        cutoff_dt = datetime.now(timezone.utc) - timedelta(hours=stale_hours)
+        cutoff_ts = int(cutoff_dt.timestamp() * 1000)
+        logger.info(
+            f"[WecomAlbum] Sync cutoff: {cutoff_dt.isoformat()}, "
+            f"stale_hours = {stale_hours}"
+        )
 
         try:
             client = WecomAlbumSzwegoClient(account.token)
