@@ -7,7 +7,7 @@ Create Date: 2026-07-27
 from alembic import op
 import sqlalchemy as sa
 
-revision = "083_wecom_album_supplier_discount"
+revision = "083_wecom_discount"
 down_revision = ("082_wecom_album_init",)
 branch_labels = None
 depends_on = None
