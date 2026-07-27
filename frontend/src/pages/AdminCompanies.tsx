@@ -6,6 +6,7 @@ import { saveAccentColor, getSavedAccentColor } from '../utils/theme';
 import { IconFilter, IconShieldCheck } from '@tabler/icons-react';
 import PlatformDashboard from './PlatformDashboard';
 import PlatformAppsTab from './platform-apps/PlatformAppsTab';
+import AppAuthTab from './platform-apps/AppAuthTab';
 import LinearCopyButton from '../components/LinearCopyButton';
 import { useDialog } from '../components/Dialog/DialogProvider';
 // Helper for authenticated JSON fetch
@@ -64,6 +65,7 @@ export default function AdminCompanies() {
         { key: 'dashboard' as const, label: t('admin.tab.dashboard', 'Dashboard') },
         { key: 'platform' as const, label: t('admin.tab.platform', 'Platform') },
         { key: 'apps' as const, label: t('admin.tab.apps', '应用管理') },
+        { key: 'auth' as const, label: t('admin.tab.auth', '应用授权') },
         { key: 'companies' as const, label: t('admin.tab.companies', 'Companies') },
     ];
 
@@ -94,6 +96,7 @@ export default function AdminCompanies() {
                 {activeTab === 'dashboard' && <PlatformDashboard />}
                 {activeTab === 'platform' && <PlatformTab />}
                 {activeTab === 'apps' && <PlatformAppsTab />}
+                {activeTab === 'auth' && <AppAuthTab />}
                 {activeTab === 'companies' && <CompaniesTab />}
             </div>
         </div>

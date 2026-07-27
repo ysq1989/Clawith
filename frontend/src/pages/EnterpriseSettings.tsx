@@ -11,7 +11,6 @@ import OrgTab from './enterprise-settings/tabs/OrgTab';
 import SkillsTab from './enterprise-settings/tabs/SkillsTab';
 import OkrTab from './enterprise-settings/tabs/OkrTab';
 import LlmTab from './enterprise-settings/tabs/LlmTab';
-import AppAuthTab from './enterprise-settings/tabs/AppAuthTab';
 import EnterpriseKBBrowser from './enterprise-settings/components/EnterpriseKBBrowser';
 import { A2AAsyncToggle, CompanyLogoEditor, CompanyNameEditor, CompanyTimezoneEditor } from './enterprise-settings/components/CompanyInfoEditors';
 import {
@@ -127,8 +126,8 @@ export default function EnterpriseSettings() {
     const dialog = useDialog();
     const toast = useToast();
     const qc = useQueryClient();
-    type TabKey = 'llm' | 'org' | 'info' | 'approvals' | 'audit' | 'tools' | 'skills' | 'quotas' | 'users' | 'invites' | 'okr' | 'apps';
-    const VALID_TABS: TabKey[] = ['info', 'llm', 'tools', 'skills', 'okr', 'invites', 'quotas', 'users', 'org', 'approvals', 'audit', 'apps'];
+    type TabKey = 'llm' | 'org' | 'info' | 'approvals' | 'audit' | 'tools' | 'skills' | 'quotas' | 'users' | 'invites' | 'okr';
+    const VALID_TABS: TabKey[] = ['info', 'llm', 'tools', 'skills', 'okr', 'invites', 'quotas', 'users', 'org', 'approvals', 'audit'];
     const getTabFromHash = (): TabKey => {
         const hash = window.location.hash.replace('#', '') as TabKey;
         return VALID_TABS.includes(hash) ? hash : 'info';
@@ -478,7 +477,7 @@ export default function EnterpriseSettings() {
                 </div>
 
                 <div className="tabs">
-                    {(['info', 'llm', 'tools', 'skills', 'okr', 'invites', 'quotas', 'users', 'org', 'approvals', 'audit', 'apps'] as const).map(tab => (
+                    {(['info', 'llm', 'tools', 'skills', 'okr', 'invites', 'quotas', 'users', 'org', 'approvals', 'audit'] as const).map(tab => (
                         <div
                             key={tab}
                             className={`tab ${activeTab === tab ? 'active' : ''}`}
@@ -488,7 +487,7 @@ export default function EnterpriseSettings() {
                                 setActiveTab(tab);
                             }}
                         >
-                            {tab === 'quotas' ? t('enterprise.tabs.quotas', 'Quotas') : tab === 'users' ? t('enterprise.tabs.users', 'Users') : tab === 'invites' ? t('enterprise.tabs.invites', 'Invitations') : tab === 'okr' ? t('nav.okr', 'OKR') : tab === 'apps' ? t('enterprise.tabs.apps', '应用授权') : t(`enterprise.tabs.${tab}`)}
+                            {tab === 'quotas' ? t('enterprise.tabs.quotas', 'Quotas') : tab === 'users' ? t('enterprise.tabs.users', 'Users') : tab === 'invites' ? t('enterprise.tabs.invites', 'Invitations') : tab === 'okr' ? t('nav.okr', 'OKR') : t(`enterprise.tabs.${tab}`)}
                         </div>
                     ))}
                 </div>
@@ -584,11 +583,6 @@ export default function EnterpriseSettings() {
                         })}
                         {filteredAuditLogs.length === 0 && <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-tertiary)' }}>{t('common.noData')}</div>}
                     </div>
-                )}
-
-                {/* ── App Authorization ── */}
-                {activeTab === 'apps' && (
-                    <AppAuthTab selectedTenantId={selectedTenantId} />
                 )}
 
                 {/* ── Company Management ── */}
