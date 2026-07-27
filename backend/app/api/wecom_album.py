@@ -124,6 +124,7 @@ def _product_to_out(p) -> dict:
         "shop_name": p.shop_name,
         "source_url": p.source_url,
         "tags": p.tags or [],
+        "status": p.status,
         "ai_cleaned_at": p.ai_cleaned_at.isoformat() if p.ai_cleaned_at else None,
         "szwego_created_at": p.szwego_created_at.isoformat() if p.szwego_created_at else None,
         "synced_at": p.synced_at.isoformat() if p.synced_at else None,
@@ -324,6 +325,7 @@ async def list_products(
     request: Request,
     keyword: str = Query("", description="Search keyword"),
     supplier_id: uuid.UUID | None = Query(None),
+    status: str = Query("", description="Filter by status"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     user=Depends(get_current_user),
@@ -336,6 +338,8 @@ async def list_products(
             base_q = base_q.where(WecomAlbumProduct.title.ilike(f"%{keyword}%"))
         if supplier_id:
             base_q = base_q.where(WecomAlbumProduct.supplier_id == supplier_id)
+        if status:
+            base_q = base_q.where(WecomAlbumProduct.status == status)
 
         # Total count
         count_q = select(func.count()).select_from(base_q.subquery())
@@ -428,10 +432,24 @@ async def get_stats(request: Request, user=Depends(get_current_user)):
             )
         ).scalar() or 0
 
+        # Product status counts
+        status_counts = {}
+        for s in ("pending_clean", "pending_sync", "synced"):
+            cnt = (
+                await db.execute(
+                    select(func.count()).select_from(WecomAlbumProduct).where(
+                        WecomAlbumProduct.tenant_id == user.tenant_id,
+                        WecomAlbumProduct.status == s,
+                    )
+                )
+            ).scalar() or 0
+            status_counts[s] = cnt
+
         return {
             "supplier_count": supplier_count,
             "active_supplier_count": active_supplier_count,
             "product_count": product_count,
+            "status_counts": status_counts,
         }
 
 

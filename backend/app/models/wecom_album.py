@@ -147,6 +147,10 @@ class WecomAlbumProduct(Base):
     clean_price: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     ai_cleaned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # ── Status ──
+    status: Mapped[str] = mapped_column(String(20), default="pending_clean")
+    # pending_clean = 待清洗, pending_sync = 待同步, synced = 已同步
+
     # ── Sync tracking ──
     source_hash: Mapped[str | None] = mapped_column(String(40), nullable=True)
     synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

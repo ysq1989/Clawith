@@ -170,6 +170,7 @@ async def clean_single(product_id: uuid.UUID) -> dict:
                 except (ValueError, TypeError):
                     product.clean_price = 0
                 product.ai_cleaned_at = datetime.now(timezone.utc)
+                product.status = "pending_sync"
                 await db.commit()
                 return {
                     "success": True,
@@ -222,6 +223,7 @@ async def clean_batch(product_ids: list[uuid.UUID]) -> dict:
                     except (ValueError, TypeError):
                         p.clean_price = 0
                     p.ai_cleaned_at = datetime.now(timezone.utc)
+                    p.status = "pending_sync"
                     cleaned += 1
 
             await db.commit()

@@ -30,13 +30,14 @@ export default function WecomAlbumProductsPage() {
     const [keyword, setKeyword] = useState('');
     const [searchInput, setSearchInput] = useState('');
     const [page, setPage] = useState(1);
+    const [statusTab, setStatusTab] = useState('');
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
     const { data, isLoading } = useQuery({
-        queryKey: ['wecom-album-products', keyword, page],
+        queryKey: ['wecom-album-products', keyword, page, statusTab],
         queryFn: () =>
             fetchJson<any>(
-                `/wecom-album/products?page=${page}&page_size=20${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`
+                `/wecom-album/products?page=${page}&page_size=20${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}${statusTab ? `&status=${statusTab}` : ''}`
             ),
     });
 
@@ -109,6 +110,34 @@ export default function WecomAlbumProductsPage() {
                 </button>
             </div>
 
+            {/* Status tabs */}
+            <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border-primary)', paddingBottom: 0 }}>
+                {[
+                    { key: '', label: isChinese ? '全部' : 'All' },
+                    { key: 'pending_clean', label: isChinese ? '待清洗' : 'Pending Clean' },
+                    { key: 'pending_sync', label: isChinese ? '待同步' : 'Pending Sync' },
+                    { key: 'synced', label: isChinese ? '已同步' : 'Synced' },
+                ].map((tab) => (
+                    <button
+                        key={tab.key}
+                        onClick={() => { setStatusTab(tab.key); setPage(1); }}
+                        style={{
+                            padding: '8px 16px',
+                            background: 'none',
+                            border: 'none',
+                            borderBottom: statusTab === tab.key ? '2px solid #4f46e5' : '2px solid transparent',
+                            color: statusTab === tab.key ? '#4f46e5' : 'var(--text-secondary)',
+                            fontWeight: statusTab === tab.key ? 600 : 400,
+                            fontSize: 14,
+                            cursor: 'pointer',
+                            marginBottom: -1,
+                        }}
+                    >
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+
             {/* Product grid */}
             {isLoading ? (
                 <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-tertiary)' }}>
@@ -173,6 +202,18 @@ export default function WecomAlbumProductsPage() {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <span style={{ fontSize: 15, fontWeight: 600, color: '#ef4444' }}>
                                         {p.price ? `¥${p.price}` : '-'}
+                                    </span>
+                                    <span
+                                        style={{
+                                            padding: '1px 6px',
+                                            borderRadius: 4,
+                                            fontSize: 10,
+                                            fontWeight: 500,
+                                            background: p.status === 'synced' ? '#f0fdf4' : p.status === 'pending_sync' ? '#eff6ff' : '#fefce8',
+                                            color: p.status === 'synced' ? '#16a34a' : p.status === 'pending_sync' ? '#2563eb' : '#ca8a04',
+                                        }}
+                                    >
+                                        {p.status === 'pending_clean' ? (isChinese ? '待清洗' : 'To Clean') : p.status === 'pending_sync' ? (isChinese ? '待同步' : 'To Sync') : (isChinese ? '已同步' : 'Synced')}
                                     </span>
                                     {p.shop_name && (
                                         <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
