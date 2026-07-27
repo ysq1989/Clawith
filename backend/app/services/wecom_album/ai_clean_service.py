@@ -1,6 +1,8 @@
 """WeChat Business Album — AI title cleaning service.
 
-Uses the company's configured LLM to clean product titles and extract cost prices.
+Uses the company's configured LLM (optimized for Agnes AI) to clean product
+titles and extract cost prices. Supports vision (product images) for better
+accuracy when the model supports it.
 """
 
 from __future__ import annotations
@@ -20,27 +22,61 @@ from app.models.wecom_album import WecomAlbumAccount, WecomAlbumProduct
 
 AI_TIMEOUT = 60
 
-SYSTEM_PROMPT = "你是商品标题清洗助手，负责清洗商品标题并提取成本价。请严格按要求返回 JSON，不要输出任何解释。"
+# ─── Optimized prompts (Role + Task + Context + Requirements + Output Format) ───
 
-USER_PROMPT_TEMPLATE = """请清洗以下商品标题并提取成本价。
-规则：
-1) clean_title 保留品牌/规格/数量等关键信息，去掉营销词、联系方式、表情、重复符号和多余空格；
-2) cost 仅返回数字，可小数；无法判断返回 0；
-3) 只输出 JSON 对象：{{"clean_title":"...","cost":0}}
-商品标题：{title}"""
+DEFAULT_SYSTEM_PROMPT = """你是一位资深珠宝玉石行业商品数据专家，负责清洗微商相册商品标题并提取成本价。
 
-BATCH_USER_PROMPT_TEMPLATE = """请清洗以下商品标题并提取成本价。
-规则：
-1) clean_title 保留品牌/规格/数量等关键信息，去掉营销词、联系方式、表情、重复符号和多余空格；
-2) cost 仅返回数字，可小数；无法判断返回 0；
-3) 只输出 JSON 数组：[{{"item_id":"xxx","clean_title":"...","cost":0}},...]
-商品列表：{items_json}"""
+## 核心能力
+1. 理解珠宝玉石行业术语（翡翠、和田玉、钻石、黄金等）
+2. 从混乱的营销标题中提取商品核心信息
+3. 准确识别价格描述并转换为数字
+
+## 清洗规则
+- 保留：品牌名、材质、规格（尺寸/重量/克拉）、数量、品质描述
+- 去除：营销词（秒杀/私域/完美/真实/诚信/厂家直销）、联系方式、表情符号、重复符号、多余空格
+- 价格：仅提取成本价/批发价数字，忽略零售价、市场价等
+
+## 输出格式
+严格输出 JSON，不要输出任何解释或思考过程。"""
+
+DEFAULT_USER_PROMPT_TEMPLATE = """请清洗以下商品标题并提取成本价。
+
+## 商品标题
+{title}
+
+## 输出要求
+严格输出 JSON 对象，不要输出任何其他内容：
+{{"clean_title": "清洗后的标题", "cost": 0}}
+
+## 示例
+输入：🌴正圈冰飘花 完美无瑕 尺寸：55.7/12.2/8.1 价格：小六3️⃣开！起荧光
+输出：{{"clean_title": "正圈冰飘花 尺寸55.7/12.2/8.1", "cost": 0}}
+
+输入：💰翡翠A货 冰种观音 26x18x5mm 批发价3800
+输出：{{"clean_title": "翡翠A货 冰种观音 26x18x5mm", "cost": 3800}}
+
+输入：🔥工厂直发 18K金镶嵌钻石戒指 0.5ct F色 VVS1 价格12000
+输出：{{"clean_title": "18K金镶嵌钻石戒指 0.5ct F色 VVS1", "cost": 12000}}"""
+
+DEFAULT_BATCH_USER_PROMPT_TEMPLATE = """请批量清洗以下商品标题并提取成本价。
+
+## 商品列表
+{items_json}
+
+## 输出要求
+严格输出 JSON 数组，不要输出任何其他内容：
+[{{"item_id": "xxx", "clean_title": "清洗后的标题", "cost": 0}}, ...]
+
+## 清洗规则
+- 保留：品牌、材质、规格（尺寸/重量）、数量、品质关键词
+- 去除：营销词、联系方式、表情、重复符号、多余空格
+- 价格：仅提取成本价数字，无法判断返回 0
+- item_id 保持不变，直接原样输出"""
 
 
 async def _get_ai_model(tenant_id: uuid.UUID) -> LLMModel | None:
     """Get the AI model selected in the wecom-album account config."""
     async with async_session() as db:
-        # Get account's selected model
         acct_result = await db.execute(
             select(WecomAlbumAccount).where(WecomAlbumAccount.tenant_id == tenant_id)
         )
@@ -57,24 +93,64 @@ async def _get_ai_model(tenant_id: uuid.UUID) -> LLMModel | None:
         return model_result.scalar_one_or_none()
 
 
-async def _call_llm_api(model: LLMModel, system: str, user: str, timeout: int = 60) -> str:
-    """Call LLM API using the selected model's config."""
+async def _get_account_config(tenant_id: uuid.UUID) -> WecomAlbumAccount | None:
+    """Get wecom-album account config for the tenant."""
+    async with async_session() as db:
+        result = await db.execute(
+            select(WecomAlbumAccount).where(WecomAlbumAccount.tenant_id == tenant_id)
+        )
+        return result.scalar_one_or_none()
+
+
+async def _call_llm_api(
+    model: LLMModel,
+    system: str,
+    user: str,
+    timeout: int = 60,
+    images: list[str] | None = None,
+    enable_thinking: bool = False,
+) -> str:
+    """Call LLM API using the selected model's config.
+
+    Supports:
+    - Vision: pass product image URLs for better accuracy
+    - Thinking mode: enable for complex reasoning (Agnes compatible)
+    """
     base_url = model.base_url or "https://apihub.agnes-ai.com/v1"
     if not base_url.endswith("/chat/completions"):
         base_url = base_url.rstrip("/") + "/chat/completions"
 
+    # Build user message content
+    if images:
+        # Multimodal: text + images (OpenAI vision format)
+        content = [{"type": "text", "text": user}]
+        for img_url in images[:3]:  # Max 3 images per request
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": img_url},
+            })
+    else:
+        content = user
+
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": content},
+    ]
+
+    body = {
+        "model": model.model,
+        "messages": messages,
+        "temperature": 0.1,
+        "max_tokens": 2048,
+    }
+
+    # Enable thinking mode for Agnes models
+    if enable_thinking:
+        body["chat_template_kwargs"] = {"enable_thinking": True}
+
     headers = {
         "Authorization": f"Bearer {model.api_key_encrypted}",
         "Content-Type": "application/json",
-    }
-    body = {
-        "model": model.model,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        "temperature": 0.1,
-        "max_tokens": 2048,
     }
 
     async with httpx.AsyncClient(timeout=timeout) as client:
@@ -82,7 +158,16 @@ async def _call_llm_api(model: LLMModel, system: str, user: str, timeout: int = 
         resp.raise_for_status()
         data = resp.json()
 
-    return data["choices"][0]["message"]["content"]
+    choice = data["choices"][0]
+    message = choice["message"]
+
+    # Handle thinking mode response (reasoning_content)
+    content_text = message.get("content", "")
+    reasoning = message.get("reasoning_content") or message.get("provider_specific_fields", {}).get("reasoning_content")
+    if reasoning:
+        logger.debug(f"[WecomAlbum] AI thinking: {str(reasoning)[:200]}")
+
+    return content_text
 
 
 def _parse_clean_result(text: str) -> dict | None:
@@ -90,14 +175,18 @@ def _parse_clean_result(text: str) -> dict | None:
     text = text.strip()
 
     try:
-        return json.loads(text)
+        result = json.loads(text)
+        if isinstance(result, dict):
+            return result
     except json.JSONDecodeError:
         pass
 
     match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
     if match:
         try:
-            return json.loads(match.group(1).strip())
+            result = json.loads(match.group(1).strip())
+            if isinstance(result, dict):
+                return result
         except json.JSONDecodeError:
             pass
 
@@ -141,17 +230,11 @@ def _parse_batch_result(text: str) -> list | None:
     return None
 
 
-async def _get_account_config(tenant_id: uuid.UUID) -> WecomAlbumAccount | None:
-    """Get wecom-album account config for the tenant."""
-    async with async_session() as db:
-        result = await db.execute(
-            select(WecomAlbumAccount).where(WecomAlbumAccount.tenant_id == tenant_id)
-        )
-        return result.scalar_one_or_none()
-
-
 async def clean_single(product_id: uuid.UUID) -> dict:
-    """Clean a single product's title using AI."""
+    """Clean a single product's title using AI.
+
+    When images are available, sends them to the model for better accuracy.
+    """
     async with async_session() as db:
         result = await db.execute(
             select(WecomAlbumProduct).where(WecomAlbumProduct.id == product_id)
@@ -165,14 +248,20 @@ async def clean_single(product_id: uuid.UUID) -> dict:
             return {"success": False, "error": "No AI model configured in system settings"}
 
         account = await _get_account_config(product.tenant_id)
-        system_prompt = (account.ai_prompt_system if account and account.ai_prompt_system else None) or SYSTEM_PROMPT
-        user_template = (account.ai_prompt_user_template if account and account.ai_prompt_user_template else None) or USER_PROMPT_TEMPLATE
+        system_prompt = (account.ai_prompt_system if account and account.ai_prompt_system else None) or DEFAULT_SYSTEM_PROMPT
+        user_template = (account.ai_prompt_user_template if account and account.ai_prompt_user_template else None) or DEFAULT_USER_PROMPT_TEMPLATE
         timeout = account.ai_timeout_seconds if account else AI_TIMEOUT
 
         user_prompt = user_template.format(title=product.title)
 
+        # Use images for vision-capable models
+        images = product.images[:3] if product.images else None
+
         try:
-            response_text = await _call_llm_api(model, system_prompt, user_prompt, timeout=timeout)
+            response_text = await _call_llm_api(
+                model, system_prompt, user_prompt,
+                timeout=timeout, images=images,
+            )
             parsed = _parse_clean_result(response_text)
 
             if parsed:
@@ -198,7 +287,10 @@ async def clean_single(product_id: uuid.UUID) -> dict:
 
 
 async def clean_batch(product_ids: list[uuid.UUID]) -> dict:
-    """Clean multiple products' titles using AI (batch mode)."""
+    """Clean multiple products' titles using AI (batch mode).
+
+    Leverages Agnes's 512K context window for large batches.
+    """
     async with async_session() as db:
         result = await db.execute(
             select(WecomAlbumProduct).where(WecomAlbumProduct.id.in_(product_ids))
@@ -214,11 +306,13 @@ async def clean_batch(product_ids: list[uuid.UUID]) -> dict:
             return {"success": False, "error": "No AI model configured in system settings"}
 
         account = await _get_account_config(tenant_id)
-        system_prompt = (account.ai_prompt_system if account and account.ai_prompt_system else None) or SYSTEM_PROMPT
+        system_prompt = (account.ai_prompt_system if account and account.ai_prompt_system else None) or DEFAULT_SYSTEM_PROMPT
         timeout = account.ai_timeout_seconds if account else AI_TIMEOUT
 
         items = [{"item_id": str(p.id), "title": p.title} for p in products]
-        user_prompt = BATCH_USER_PROMPT_TEMPLATE.format(items_json=json.dumps(items, ensure_ascii=False))
+        user_prompt = DEFAULT_BATCH_USER_PROMPT_TEMPLATE.format(
+            items_json=json.dumps(items, ensure_ascii=False)
+        )
 
         try:
             response_text = await _call_llm_api(model, system_prompt, user_prompt, timeout=timeout)
