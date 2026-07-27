@@ -108,8 +108,9 @@ class WecomAlbumSzwegoClient:
         for page_index in range(1, max_pages + 1):
             params = {
                 "act": "attention_enc",
+                "search_value": "",
+                "tag_id": "",
                 "page_index": str(page_index),
-                "page_size": "30",
                 "_t": str(int(time.time() * 1000)),
             }
 
@@ -120,14 +121,20 @@ class WecomAlbumSzwegoClient:
                 break
 
             result = data.get("result", {})
-            shops = result.get("list", result.get("items", []))
+            shops = result.get("shop_list", [])
+
+            if page_index == 1:
+                logger.info(f"[WecomAlbum] Friends list response keys: {list(result.keys())}, shop_list count: {len(shops)}")
+                if shops:
+                    logger.info(f"[WecomAlbum] First shop keys: {list(shops[0].keys())}")
 
             if not shops:
                 break
 
             new_count = 0
             for shop in shops:
-                sid = str(shop.get("shop_id", shop.get("id", "")))
+                # album_id is the primary identifier, fallback to shop_id/user_id
+                sid = str(shop.get("album_id", shop.get("shop_id", shop.get("user_id", ""))))
                 if not sid or sid in seen_ids:
                     continue
                 # Skip deleted shops
@@ -140,10 +147,13 @@ class WecomAlbumSzwegoClient:
             if new_count == 0:
                 break
 
-            # Check hasMore
-            has_more = result.get("hasMore", True)
-            if not has_more:
-                break
+            # Check hasMore (three-tier fallback matching lnzx4.0 PHP logic)
+            if "hasMore" in result:
+                has_more = bool(result["hasMore"])
+            elif "isLoadMore" in result:
+                has_more = bool(result["isLoadMore"])
+            else:
+                has_more = len(shops) >= 28  # Heuristic: full page means likely more
 
             # Heuristic: if page returned fewer than 28 items, assume last page
             if len(shops) < 28:
@@ -238,13 +248,26 @@ def _parse_item_timestamp(item: dict) -> int | None:
 
 
 def normalize_supplier(shop: dict) -> dict:
-    """Normalize a szwego shop dict to our supplier schema."""
+    """Normalize a szwego shop dict to our supplier schema.
+
+    szwego shop item keys (from lnzx4.0 PHP analysis):
+        album_id, shop_id, user_id — identifiers (album_id is primary)
+        shop_name, user_name — display name
+        user_icon, avatar — avatar URL
+        new_goods, total_goods — product counts
+        isDel — deletion flag
+    """
+    # album_id is the primary identifier in szwego
+    album_id = str(shop.get("album_id", ""))
+    shop_id = str(shop.get("shop_id", shop.get("user_id", "")))
+    external_id = album_id or shop_id
+
     return {
-        "external_id": str(shop.get("shop_id", shop.get("id", ""))),
-        "shop_id": str(shop.get("shop_id", "")),
-        "name": shop.get("shop_name", shop.get("name", "Unknown")),
-        "avatar": shop.get("shop_icon", shop.get("avatar", "")),
-        "album_id": str(shop.get("album_id", "")),
+        "external_id": external_id,
+        "shop_id": shop_id,
+        "name": shop.get("shop_name", shop.get("user_name", "Unknown")),
+        "avatar": shop.get("user_icon", shop.get("avatar", "")),
+        "album_id": album_id,
         "total_products": int(shop.get("total_goods", 0)),
         "new_products": int(shop.get("new_goods", 0)),
     }
