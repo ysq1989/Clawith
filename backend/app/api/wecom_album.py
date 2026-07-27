@@ -32,6 +32,7 @@ from app.database import async_session, get_db
 from app.models.wecom_album import WecomAlbumAccount, WecomAlbumSupplier, WecomAlbumProduct
 from app.services.wecom_album.szwego_client import WecomAlbumSzwegoClient
 from app.services.wecom_album.sync_service import test_connection, sync_suppliers, sync_products
+from app.services.wecom_album.ai_clean_service import clean_single, clean_batch, clean_supplier_products
 
 router = APIRouter(prefix="/api/wecom-album", tags=["wecom-album"])
 
@@ -113,13 +114,16 @@ def _product_to_out(p) -> dict:
         "supplier_id": str(p.supplier_id),
         "goods_id": p.goods_id,
         "title": p.title,
+        "clean_title": p.clean_title,
         "price": str(p.price) if p.price else None,
+        "clean_price": str(p.clean_price) if p.clean_price else None,
         "images": p.images or [],
         "main_image": p.main_image,
         "video_url": p.video_url,
         "shop_name": p.shop_name,
         "source_url": p.source_url,
         "tags": p.tags or [],
+        "ai_cleaned_at": p.ai_cleaned_at.isoformat() if p.ai_cleaned_at else None,
         "szwego_created_at": p.szwego_created_at.isoformat() if p.szwego_created_at else None,
         "synced_at": p.synced_at.isoformat() if p.synced_at else None,
         "created_at": p.created_at.isoformat() if p.created_at else None,
@@ -425,3 +429,52 @@ async def get_stats(request: Request, user=Depends(get_current_user)):
             "active_supplier_count": active_supplier_count,
             "product_count": product_count,
         }
+
+
+# ─── AI Cleaning endpoints ────────────────────────────────────────────────────
+
+
+@router.post("/ai-clean/single/{product_id}")
+async def api_ai_clean_single(
+    product_id: uuid.UUID,
+    request: Request,
+    user=Depends(require_admin),
+):
+    """AI clean a single product's title."""
+    result = await clean_single(product_id)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "AI清洗失败"))
+    return result
+
+
+@router.post("/ai-clean/batch")
+async def api_ai_clean_batch(
+    request: Request,
+    user=Depends(require_admin),
+):
+    """AI clean multiple products' titles."""
+    body = await request.json()
+    product_ids = body.get("product_ids", [])
+    if not product_ids:
+        raise HTTPException(status_code=400, detail="product_ids is required")
+
+    ids = [uuid.UUID(pid) for pid in product_ids]
+    result = await clean_batch(ids)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "AI清洗失败"))
+    return result
+
+
+@router.post("/ai-clean/supplier/{supplier_id}")
+async def api_ai_clean_supplier(
+    supplier_id: uuid.UUID,
+    request: Request,
+    user=Depends(require_admin),
+):
+    """AI clean all uncleaned products for a supplier."""
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    limit = body.get("limit", 100)
+    result = await clean_supplier_products(supplier_id, limit=limit)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "AI清洗失败"))
+    return result
