@@ -1441,7 +1441,7 @@ function CompaniesTab() {
                         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
                             <button
                                 onClick={() => setAuthCompany(null)}
-                                style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-subtle)', background: 'white', cursor: 'pointer', fontSize: 13 }}
+                                style={{ padding: '8px 20px', borderRadius: 8, border: '1px solid var(--border-subtle)', background: 'white', cursor: 'pointer', fontSize: 14, color: 'var(--text-secondary)' }}
                             >
                                 取消
                             </button>
@@ -1451,7 +1451,7 @@ function CompaniesTab() {
                                     setAuthSaving(true);
                                     try {
                                         await fetchJson(`/tenants/${authCompany.id}`, {
-                                            method: 'PATCH',
+                                            method: 'PUT',
                                             body: JSON.stringify({ enabled_modules: authModules }),
                                         });
                                         showToast('已更新');
@@ -1462,7 +1462,7 @@ function CompaniesTab() {
                                     }
                                     setAuthSaving(false);
                                 }}
-                                style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: 'var(--color-primary)', color: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
+                                style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: '#4f46e5', color: 'white', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
                             >
                                 {authSaving ? '...' : '保存'}
                             </button>
