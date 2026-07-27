@@ -5,6 +5,7 @@ Orchestrates supplier discovery and product syncing from szwego.
 
 from __future__ import annotations
 
+import time
 import uuid
 from datetime import datetime, timezone, timedelta
 
@@ -28,13 +29,7 @@ async def test_connection(token: str) -> dict:
 
 
 async def sync_suppliers(tenant_id: uuid.UUID) -> dict:
-    """Sync suppliers (friends) from szwego.
-
-    1. Load account config
-    2. Fetch friends list from szwego
-    3. Upsert suppliers
-    4. Return sync summary
-    """
+    """Sync suppliers (friends) from szwego."""
     async with async_session() as db:
         result = await db.execute(
             select(WecomAlbumAccount).where(WecomAlbumAccount.tenant_id == tenant_id)
@@ -109,13 +104,94 @@ async def sync_suppliers(tenant_id: uuid.UUID) -> dict:
             return {"success": False, "error": str(e)}
 
 
-async def sync_products(tenant_id: uuid.UUID) -> dict:
-    """Sync products from all active suppliers' albums.
+async def _fetch_supplier_products(
+    client: WecomAlbumSzwegoClient,
+    album_id: str,
+    cutoff_ts: int | None = None,
+    max_pages: int = 50,
+) -> list[dict]:
+    """Fetch products from a specific supplier's album.
 
-    1. Load account config
-    2. Fetch products with timestamp-based pagination
-    3. Upsert products by goods_id + tenant
-    4. Return sync summary
+    Uses album/moments with album_id filter.
+    Applies client-side cutoff: stops when encountering items older than cutoff_ts.
+    """
+    all_items: list[dict] = []
+    seen_ids: set[str] = set()
+    page_timestamp = ""
+
+    for _page in range(1, max_pages + 1):
+        params: dict = {
+            "album_id": album_id,
+            "searchValue": "",
+            "searchImg": "",
+            "noCache": 0,
+            "slipType": 1,
+            "requestDataType": "",
+            "_t": str(int(time.time() * 1000)),
+        }
+        if page_timestamp:
+            params["timestamp"] = page_timestamp
+
+        try:
+            data = await client._get("https://www.szwego.com/album/moments", params=params)
+        except Exception as e:
+            logger.warning(f"[WecomAlbum] Fetch products for album {album_id} failed: {e}")
+            break
+
+        result = data.get("result", {})
+        items = result.get("items", result.get("list", []))
+
+        if not items:
+            break
+
+        new_count = 0
+        for item in items:
+            gid = str(item.get("goods_id", item.get("item_id", item.get("id", ""))))
+            if gid and gid not in seen_ids:
+                seen_ids.add(gid)
+
+                # Client-side cutoff: check item update_time
+                if cutoff_ts:
+                    item_ts = 0
+                    for key in ("update_time", "time_stamp"):
+                        val = item.get(key)
+                        if val:
+                            try:
+                                item_ts = int(val)
+                                if item_ts < 1_000_000_000_000:
+                                    item_ts *= 1000
+                                break
+                            except (ValueError, TypeError):
+                                continue
+                    if item_ts > 0 and item_ts < cutoff_ts:
+                        # Item is older than cutoff — stop scanning this supplier
+                        return all_items
+
+                all_items.append(item)
+                new_count += 1
+
+        if new_count == 0:
+            break
+
+        # Pagination
+        pagination = result.get("pagination", {})
+        if not pagination.get("isLoadMore", False):
+            break
+        next_ts = pagination.get("pageTimestamp", "")
+        if not next_ts or str(next_ts) == str(page_timestamp):
+            break
+        page_timestamp = str(next_ts)
+
+    return all_items
+
+
+async def sync_products(tenant_id: uuid.UUID) -> dict:
+    """Sync products from all active suppliers.
+
+    For each active supplier:
+      1. Call album/moments with their album_id
+      2. Apply incremental sync cutoff (last N hours)
+      3. Upsert products by goods_id + tenant
     """
     async with async_session() as db:
         result = await db.execute(
@@ -125,114 +201,125 @@ async def sync_products(tenant_id: uuid.UUID) -> dict:
         if not account or not account.is_active:
             return {"success": False, "error": "No active szwego account configured"}
 
-        # Compute cutoff for incremental sync
+        # Compute cutoff timestamp for incremental sync (milliseconds)
         cutoff_ts = None
         if account.last_product_sync_at and account.product_sync_stale_hours:
             cutoff_dt = account.last_product_sync_at - timedelta(hours=account.product_sync_stale_hours)
             cutoff_ts = int(cutoff_dt.timestamp() * 1000)
+            logger.info(
+                f"[WecomAlbum] Incremental sync: cutoff = {cutoff_dt.isoformat()}, "
+                f"stale_hours = {account.product_sync_stale_hours}"
+            )
+        else:
+            logger.info("[WecomAlbum] Full sync (no previous sync or stale_hours=0)")
 
         try:
             client = WecomAlbumSzwegoClient(account.token)
-            raw_products = await client.fetch_products(cutoff_timestamp=cutoff_ts)
 
-            # Build supplier lookup by shop_id
+            # Load active suppliers with album_id
             suppliers_result = await db.execute(
                 select(WecomAlbumSupplier).where(
                     WecomAlbumSupplier.tenant_id == tenant_id,
                     WecomAlbumSupplier.is_active == True,
+                    WecomAlbumSupplier.album_id.isnot(None),
+                    WecomAlbumSupplier.album_id != "",
                 )
             )
             suppliers = suppliers_result.scalars().all()
-            shop_to_supplier: dict[str, WecomAlbumSupplier] = {}
-            for s in suppliers:
-                if s.shop_id:
-                    shop_to_supplier[s.shop_id] = s
-                if s.external_id:
-                    shop_to_supplier[s.external_id] = s
 
-            created = 0
-            updated = 0
-            skipped = 0
+            if not suppliers:
+                return {"success": True, "total": 0, "created": 0, "updated": 0, "skipped": 0}
 
-            for raw in raw_products:
-                norm = normalize_product(raw)
-                if not norm["goods_id"]:
-                    skipped += 1
-                    continue
+            total_created = 0
+            total_updated = 0
+            total_skipped = 0
 
-                # Find matching supplier by shop_id
-                product_shop_id = norm.get("shop_id", "")
-                supplier = shop_to_supplier.get(product_shop_id)
-
-                # Skip products from disabled/unmatched suppliers
-                if not supplier:
-                    skipped += 1
-                    continue
-
-                new_hash = compute_source_hash(raw)
-
-                existing = await db.execute(
-                    select(WecomAlbumProduct).where(
-                        WecomAlbumProduct.tenant_id == tenant_id,
-                        WecomAlbumProduct.goods_id == norm["goods_id"],
-                    )
+            for supplier in suppliers:
+                album_id = supplier.album_id
+                raw_products = await _fetch_supplier_products(
+                    client, album_id, cutoff_ts=cutoff_ts, max_pages=50
                 )
-                product = existing.scalar_one_or_none()
 
-                if product:
-                    if product.source_hash == new_hash:
-                        skipped += 1
+                created = 0
+                updated = 0
+                skipped = 0
+
+                for raw in raw_products:
+                    norm = normalize_product(raw)
+                    if not norm["goods_id"]:
                         continue
-                    # Update existing product
-                    product.title = norm["title"]
-                    product.price = norm["price"]
-                    product.images = norm["images"]
-                    product.main_image = norm["main_image"]
-                    product.video_url = norm["video_url"]
-                    product.shop_name = norm["shop_name"]
-                    product.source_url = norm["source_url"]
-                    product.tags = norm["tags"]
-                    product.attributes = norm["attributes"]
-                    product.source_hash = new_hash
-                    product.szwego_created_at = norm["szwego_created_at"]
-                    if supplier:
-                        product.supplier_id = supplier.id
-                    updated += 1
-                else:
-                    product = WecomAlbumProduct(
-                        tenant_id=tenant_id,
-                        supplier_id=supplier.id if supplier else uuid.uuid4(),
-                        goods_id=norm["goods_id"],
-                        title=norm["title"],
-                        price=norm["price"],
-                        images=norm["images"],
-                        main_image=norm["main_image"],
-                        video_url=norm["video_url"],
-                        shop_name=norm["shop_name"],
-                        shop_id=norm["shop_id"],
-                        source_url=norm["source_url"],
-                        tags=norm["tags"],
-                        attributes=norm["attributes"],
-                        szwego_created_at=norm["szwego_created_at"],
-                        source_hash=new_hash,
-                    )
-                    db.add(product)
-                    created += 1
 
+                    new_hash = compute_source_hash(raw)
+
+                    existing = await db.execute(
+                        select(WecomAlbumProduct).where(
+                            WecomAlbumProduct.tenant_id == tenant_id,
+                            WecomAlbumProduct.goods_id == norm["goods_id"],
+                        )
+                    )
+                    product = existing.scalar_one_or_none()
+
+                    if product:
+                        if product.source_hash == new_hash:
+                            skipped += 1
+                            continue
+                        product.title = norm["title"]
+                        product.price = norm["price"]
+                        product.images = norm["images"]
+                        product.main_image = norm["main_image"]
+                        product.video_url = norm["video_url"]
+                        product.shop_name = norm["shop_name"]
+                        product.source_url = norm["source_url"]
+                        product.tags = norm["tags"]
+                        product.attributes = norm["attributes"]
+                        product.source_hash = new_hash
+                        product.szwego_created_at = norm["szwego_created_at"]
+                        product.supplier_id = supplier.id
+                        updated += 1
+                    else:
+                        product = WecomAlbumProduct(
+                            tenant_id=tenant_id,
+                            supplier_id=supplier.id,
+                            goods_id=norm["goods_id"],
+                            title=norm["title"],
+                            price=norm["price"],
+                            images=norm["images"],
+                            main_image=norm["main_image"],
+                            video_url=norm["video_url"],
+                            shop_name=norm["shop_name"],
+                            shop_id=norm["shop_id"],
+                            source_url=norm["source_url"],
+                            tags=norm["tags"],
+                            attributes=norm["attributes"],
+                            szwego_created_at=norm["szwego_created_at"],
+                            source_hash=new_hash,
+                        )
+                        db.add(product)
+                        created += 1
+
+                total_created += created
+                total_updated += updated
+                total_skipped += skipped
+                logger.info(
+                    f"[WecomAlbum] {supplier.name[:20]}: "
+                    f"{len(raw_products)} api, {created} new, {updated} up, {skipped} dup"
+                )
+
+            # Update sync timestamp
             account.last_product_sync_at = datetime.now(timezone.utc)
             account.last_error = None
             await db.commit()
 
             logger.info(
-                f"[WecomAlbum] Product sync for {tenant_id}: "
-                f"{created} created, {updated} updated, {skipped} skipped"
+                f"[WecomAlbum] Product sync done for {tenant_id}: "
+                f"{total_created} created, {total_updated} updated, {total_skipped} skipped"
             )
             return {
                 "success": True,
-                "total": created + updated,
-                "created": created,
-                "updated": updated,
-                "skipped": skipped,
+                "total": total_created + total_updated,
+                "created": total_created,
+                "updated": total_updated,
+                "skipped": total_skipped,
             }
 
         except Exception as e:
