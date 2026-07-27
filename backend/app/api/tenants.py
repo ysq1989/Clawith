@@ -46,6 +46,7 @@ class TenantOut(BaseModel):
     sso_domain: str | None = None
     a2a_async_enabled: bool = True
     default_model_id: uuid.UUID | None = None
+    enabled_modules: list[str] | None = None
     logo_url: str | None = None
     created_at: datetime | None = None
 
@@ -61,6 +62,7 @@ class TenantUpdate(BaseModel):
     sso_enabled: bool | None = None
     sso_domain: str | None = None
     a2a_async_enabled: bool | None = None
+    enabled_modules: list[str] | None = None
 
 
 def _tenant_logo_key(tenant_id: uuid.UUID) -> str:
@@ -571,6 +573,10 @@ async def update_tenant(
     if current_user.role == "platform_admin":
         update_data.pop("sso_enabled", None)
         update_data.pop("sso_domain", None)
+
+    # enabled_modules can only be set by platform_admin (module authorization)
+    if current_user.role != "platform_admin":
+        update_data.pop("enabled_modules", None)
 
     for field, value in update_data.items():
         setattr(tenant, field, value)

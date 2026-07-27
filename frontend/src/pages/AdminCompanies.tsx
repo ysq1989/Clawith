@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores';
 import { saveAccentColor, getSavedAccentColor } from '../utils/theme';
 import { IconFilter, IconShieldCheck } from '@tabler/icons-react';
 import PlatformDashboard from './PlatformDashboard';
+import PlatformAppsTab from './platform-apps/PlatformAppsTab';
 import LinearCopyButton from '../components/LinearCopyButton';
 import { useDialog } from '../components/Dialog/DialogProvider';
 // Helper for authenticated JSON fetch
@@ -62,6 +63,7 @@ export default function AdminCompanies() {
     const tabs = [
         { key: 'dashboard' as const, label: t('admin.tab.dashboard', 'Dashboard') },
         { key: 'platform' as const, label: t('admin.tab.platform', 'Platform') },
+        { key: 'apps' as const, label: t('admin.tab.apps', '应用管理') },
         { key: 'companies' as const, label: t('admin.tab.companies', 'Companies') },
     ];
 
@@ -91,6 +93,7 @@ export default function AdminCompanies() {
             <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                 {activeTab === 'dashboard' && <PlatformDashboard />}
                 {activeTab === 'platform' && <PlatformTab />}
+                {activeTab === 'apps' && <PlatformAppsTab />}
                 {activeTab === 'companies' && <CompaniesTab />}
             </div>
         </div>
