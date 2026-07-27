@@ -18,6 +18,14 @@ export default function AccountConfigPage() {
     const [token, setToken] = useState('');
     const [staleHours, setStaleHours] = useState(1);
     const [aiModelId, setAiModelId] = useState('');
+    const [aiBatchLimit, setAiBatchLimit] = useState(20);
+    const [aiTimeout, setAiTimeout] = useState(60);
+    const [aiMaxTokens, setAiMaxTokens] = useState(2048);
+    const [aiPromptSystem, setAiPromptSystem] = useState('');
+    const [aiPromptUser, setAiPromptUser] = useState('');
+    const [testTitle, setTestTitle] = useState('');
+    const [testResult, setTestResult] = useState<any>(null);
+    const [testing, setTesting] = useState(false);
 
     const { data: account } = useQuery({
         queryKey: ['wecom-album-account'],
@@ -33,6 +41,11 @@ export default function AccountConfigPage() {
         if (account?.configured) {
             setStaleHours(account.product_sync_stale_hours ?? 1);
             setAiModelId(account.ai_model_id ?? '');
+            setAiBatchLimit(account.ai_batch_limit ?? 20);
+            setAiTimeout(account.ai_timeout_seconds ?? 60);
+            setAiMaxTokens(account.ai_max_tokens ?? 2048);
+            setAiPromptSystem(account.ai_prompt_system ?? '');
+            setAiPromptUser(account.ai_prompt_user_template ?? '');
         }
     }, [account]);
 
@@ -44,6 +57,11 @@ export default function AccountConfigPage() {
                     token: token || account?.token || '',
                     product_sync_stale_hours: staleHours,
                     ai_model_id: aiModelId || null,
+                    ai_batch_limit: aiBatchLimit,
+                    ai_timeout_seconds: aiTimeout,
+                    ai_max_tokens: aiMaxTokens,
+                    ai_prompt_system: aiPromptSystem || null,
+                    ai_prompt_user_template: aiPromptUser || null,
                 }),
             });
         },
@@ -185,8 +203,13 @@ export default function AccountConfigPage() {
                 </span>
             </div>
 
+            {/* ── 清洗设置 ── */}
+            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16, color: 'var(--text-primary)', borderTop: '1px solid var(--border-primary)', paddingTop: 20 }}>
+                {isChinese ? '清洗设置' : 'Cleaning Settings'}
+            </h2>
+
             {/* AI Model selector */}
-            <div style={{ marginBottom: 24 }}>
+            <div style={{ marginBottom: 16 }}>
                 <label style={{ display: 'block', fontSize: 14, fontWeight: 500, marginBottom: 6, color: 'var(--text-primary)' }}>
                     {isChinese ? '清洗 AI 模型' : 'AI Cleaning Model'}
                 </label>
@@ -211,9 +234,151 @@ export default function AccountConfigPage() {
                         </option>
                     ))}
                 </select>
-                <span style={{ fontSize: 13, color: 'var(--text-tertiary)', marginTop: 4, display: 'block' }}>
-                    {isChinese ? '用于商品标题清洗和成本价提取' : 'Used for product title cleaning and cost extraction'}
-                </span>
+            </div>
+
+            {/* Batch & timeout */}
+            <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
+                <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: 14, fontWeight: 500, marginBottom: 6, color: 'var(--text-primary)' }}>
+                        {isChinese ? '批量大小' : 'Batch Size'}
+                    </label>
+                    <input
+                        type="number"
+                        value={aiBatchLimit}
+                        onChange={(e) => setAiBatchLimit(parseInt(e.target.value) || 20)}
+                        min={1}
+                        max={100}
+                        style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-primary)', borderRadius: 8, fontSize: 14, background: 'var(--bg-primary)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
+                    />
+                </div>
+                <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: 14, fontWeight: 500, marginBottom: 6, color: 'var(--text-primary)' }}>
+                        {isChinese ? '超时（秒）' : 'Timeout (s)'}
+                    </label>
+                    <input
+                        type="number"
+                        value={aiTimeout}
+                        onChange={(e) => setAiTimeout(parseInt(e.target.value) || 60)}
+                        min={10}
+                        max={300}
+                        style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-primary)', borderRadius: 8, fontSize: 14, background: 'var(--bg-primary)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
+                    />
+                </div>
+                <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: 14, fontWeight: 500, marginBottom: 6, color: 'var(--text-primary)' }}>
+                        {isChinese ? '最大输出 Token' : 'Max Tokens'}
+                    </label>
+                    <input
+                        type="number"
+                        value={aiMaxTokens}
+                        onChange={(e) => setAiMaxTokens(parseInt(e.target.value) || 2048)}
+                        min={256}
+                        max={128000}
+                        style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-primary)', borderRadius: 8, fontSize: 14, background: 'var(--bg-primary)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
+                    />
+                </div>
+            </div>
+
+            {/* System prompt */}
+            <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: 14, fontWeight: 500, marginBottom: 6, color: 'var(--text-primary)' }}>
+                    {isChinese ? 'System Prompt（留空使用默认）' : 'System Prompt (leave empty for default)'}
+                </label>
+                <textarea
+                    value={aiPromptSystem}
+                    onChange={(e) => setAiPromptSystem(e.target.value)}
+                    rows={3}
+                    placeholder={isChinese ? '你是商品标题清洗助手...' : 'You are a product title cleaning assistant...'}
+                    style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-primary)', borderRadius: 8, fontSize: 13, fontFamily: 'monospace', background: 'var(--bg-primary)', color: 'var(--text-primary)', boxSizing: 'border-box', resize: 'vertical' }}
+                />
+            </div>
+
+            {/* User prompt template */}
+            <div style={{ marginBottom: 20 }}>
+                <label style={{ display: 'block', fontSize: 14, fontWeight: 500, marginBottom: 6, color: 'var(--text-primary)' }}>
+                    {isChinese ? 'User Prompt 模板（{title} 为占位符）' : 'User Prompt Template ({title} is placeholder)'}
+                </label>
+                <textarea
+                    value={aiPromptUser}
+                    onChange={(e) => setAiPromptUser(e.target.value)}
+                    rows={5}
+                    placeholder={isChinese ? '请清洗以下商品标题并提取成本价...\n商品标题：{title}' : 'Clean the following product title...\nTitle: {title}'}
+                    style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-primary)', borderRadius: 8, fontSize: 13, fontFamily: 'monospace', background: 'var(--bg-primary)', color: 'var(--text-primary)', boxSizing: 'border-box', resize: 'vertical' }}
+                />
+            </div>
+
+            {/* Test section */}
+            <div style={{ padding: 16, background: 'var(--bg-secondary)', borderRadius: 10, marginBottom: 24 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 8, color: 'var(--text-primary)' }}>
+                    {isChinese ? '测试清洗效果' : 'Test Cleaning'}
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                    <input
+                        value={testTitle}
+                        onChange={(e) => setTestTitle(e.target.value)}
+                        placeholder={isChinese ? '输入测试标题，留空使用示例' : 'Enter test title, empty for sample'}
+                        style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border-primary)', borderRadius: 8, fontSize: 13, background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                    />
+                    <button
+                        onClick={async () => {
+                            setTesting(true);
+                            setTestResult(null);
+                            try {
+                                const res = await fetchJson<any>('/wecom-album/ai-clean/test', {
+                                    method: 'POST',
+                                    body: JSON.stringify({ title: testTitle || undefined }),
+                                });
+                                setTestResult(res);
+                            } catch (err: any) {
+                                setTestResult({ success: false, error: err?.detail || err?.message });
+                            }
+                            setTesting(false);
+                        }}
+                        disabled={testing}
+                        style={{
+                            padding: '8px 16px',
+                            background: '#7c3aed',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: 8,
+                            fontSize: 13,
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
+                        {testing ? '...' : (isChinese ? '测试' : 'Test')}
+                    </button>
+                </div>
+                {testResult && (
+                    <div style={{
+                        padding: 12,
+                        borderRadius: 8,
+                        fontSize: 13,
+                        background: testResult.success ? '#f0fdf4' : '#fef2f2',
+                        border: `1px solid ${testResult.success ? '#bbf7d0' : '#fecaca'}`,
+                        color: testResult.success ? '#166534' : '#991b1b',
+                    }}>
+                        {testResult.success ? (
+                            <div>
+                                <div style={{ marginBottom: 4 }}>
+                                    <strong>{isChinese ? '模型' : 'Model'}:</strong> {testResult.model}
+                                </div>
+                                {testResult.parsed && (
+                                    <div>
+                                        <div><strong>{isChinese ? '清洗标题' : 'Clean Title'}:</strong> {testResult.parsed.clean_title}</div>
+                                        <div><strong>{isChinese ? '成本价' : 'Cost'}:</strong> {testResult.parsed.cost}</div>
+                                    </div>
+                                )}
+                                <details style={{ marginTop: 8 }}>
+                                    <summary style={{ cursor: 'pointer', fontSize: 12 }}>{isChinese ? '原始响应' : 'Raw Response'}</summary>
+                                    <pre style={{ marginTop: 4, fontSize: 12, whiteSpace: 'pre-wrap' }}>{testResult.raw_response}</pre>
+                                </details>
+                            </div>
+                        ) : (
+                            <div>{testResult.error}</div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Action buttons */}

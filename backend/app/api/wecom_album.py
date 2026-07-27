@@ -83,6 +83,11 @@ def _account_to_out(account: WecomAlbumAccount) -> dict:
         "album_icon": account.album_icon,
         "album_id": account.album_id,
         "ai_model_id": str(account.ai_model_id) if account.ai_model_id else None,
+        "ai_batch_limit": account.ai_batch_limit,
+        "ai_timeout_seconds": account.ai_timeout_seconds,
+        "ai_max_tokens": account.ai_max_tokens,
+        "ai_prompt_system": account.ai_prompt_system,
+        "ai_prompt_user_template": account.ai_prompt_user_template,
         "product_sync_stale_hours": account.product_sync_stale_hours,
         "last_owner_sync_at": account.last_owner_sync_at.isoformat() if account.last_owner_sync_at else None,
         "last_product_sync_at": account.last_product_sync_at.isoformat() if account.last_product_sync_at else None,
@@ -148,6 +153,11 @@ class AccountUpdate(BaseModel):
     token: str
     product_sync_stale_hours: int = 1
     ai_model_id: str | None = None
+    ai_batch_limit: int = 20
+    ai_timeout_seconds: int = 60
+    ai_max_tokens: int = 2048
+    ai_prompt_system: str | None = None
+    ai_prompt_user_template: str | None = None
 
 
 # ─── Account endpoints ────────────────────────────────────────────────────────
@@ -179,12 +189,22 @@ async def update_account(body: AccountUpdate, request: Request, user=Depends(req
             account.token = body.token.strip()
             account.product_sync_stale_hours = body.product_sync_stale_hours
             account.ai_model_id = uuid.UUID(body.ai_model_id) if body.ai_model_id else None
+            account.ai_batch_limit = body.ai_batch_limit
+            account.ai_timeout_seconds = body.ai_timeout_seconds
+            account.ai_max_tokens = body.ai_max_tokens
+            account.ai_prompt_system = body.ai_prompt_system
+            account.ai_prompt_user_template = body.ai_prompt_user_template
         else:
             account = WecomAlbumAccount(
                 tenant_id=user.tenant_id,
                 token=body.token.strip(),
                 product_sync_stale_hours=body.product_sync_stale_hours,
                 ai_model_id=uuid.UUID(body.ai_model_id) if body.ai_model_id else None,
+                ai_batch_limit=body.ai_batch_limit,
+                ai_timeout_seconds=body.ai_timeout_seconds,
+                ai_max_tokens=body.ai_max_tokens,
+                ai_prompt_system=body.ai_prompt_system,
+                ai_prompt_user_template=body.ai_prompt_user_template,
             )
             db.add(account)
 
@@ -455,6 +475,45 @@ async def get_stats(request: Request, user=Depends(get_current_user)):
 
 
 # ─── AI Cleaning endpoints ────────────────────────────────────────────────────
+
+
+@router.post("/ai-clean/test")
+async def api_ai_clean_test(
+    request: Request,
+    user=Depends(require_admin),
+):
+    """Test AI cleaning with a sample title."""
+    body = await request.json()
+    test_title = body.get("title", "🌴正圈冰飘花 完美无瑕 尺寸：55.7/12.2/8.1 价格：小六3️⃣开！起荧光")
+
+    from app.services.wecom_album.ai_clean_service import _get_ai_model, _call_llm_api, _parse_clean_result, SYSTEM_PROMPT
+
+    model = await _get_ai_model(user.tenant_id)
+    if not model:
+        raise HTTPException(status_code=400, detail="未配置AI清洗模型")
+
+    # Load custom prompts from account
+    async with async_session() as db:
+        result = await db.execute(
+            select(WecomAlbumAccount).where(WecomAlbumAccount.tenant_id == user.tenant_id)
+        )
+        account = result.scalar_one_or_none()
+
+    system_prompt = (account.ai_prompt_system if account and account.ai_prompt_system else None) or SYSTEM_PROMPT
+    user_template = (account.ai_prompt_user_template if account and account.ai_prompt_user_template else None) or "请清洗以下商品标题并提取成本价。\n规则：\n1) clean_title 保留品牌/规格/数量等关键信息，去掉营销词、联系方式、表情、重复符号和多余空格；\n2) cost 仅返回数字，可小数；无法判断返回 0；\n3) 只输出 JSON 对象：{\"clean_title\":\"...\",\"cost\":0}\n商品标题：{title}"
+    user_prompt = user_prompt = user_template.format(title=test_title)
+
+    try:
+        response_text = await _call_llm_api(model, system_prompt, user_prompt, timeout=account.ai_timeout_seconds if account else 60)
+        parsed = _parse_clean_result(response_text)
+        return {
+            "success": True,
+            "model": model.label,
+            "raw_response": response_text,
+            "parsed": parsed,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"AI测试失败: {e}")
 
 
 @router.post("/ai-clean/single/{product_id}")

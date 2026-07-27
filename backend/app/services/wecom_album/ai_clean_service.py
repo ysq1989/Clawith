@@ -57,10 +57,9 @@ async def _get_ai_model(tenant_id: uuid.UUID) -> LLMModel | None:
         return model_result.scalar_one_or_none()
 
 
-async def _call_llm_api(model: LLMModel, system: str, user: str) -> str:
+async def _call_llm_api(model: LLMModel, system: str, user: str, timeout: int = 60) -> str:
     """Call LLM API using the selected model's config."""
     base_url = model.base_url or "https://apihub.agnes-ai.com/v1"
-    # Ensure base_url ends with /chat/completions
     if not base_url.endswith("/chat/completions"):
         base_url = base_url.rstrip("/") + "/chat/completions"
 
@@ -78,7 +77,6 @@ async def _call_llm_api(model: LLMModel, system: str, user: str) -> str:
         "max_tokens": 2048,
     }
 
-    timeout = model.request_timeout or AI_TIMEOUT
     async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(base_url, headers=headers, json=body)
         resp.raise_for_status()
@@ -143,6 +141,15 @@ def _parse_batch_result(text: str) -> list | None:
     return None
 
 
+async def _get_account_config(tenant_id: uuid.UUID) -> WecomAlbumAccount | None:
+    """Get wecom-album account config for the tenant."""
+    async with async_session() as db:
+        result = await db.execute(
+            select(WecomAlbumAccount).where(WecomAlbumAccount.tenant_id == tenant_id)
+        )
+        return result.scalar_one_or_none()
+
+
 async def clean_single(product_id: uuid.UUID) -> dict:
     """Clean a single product's title using AI."""
     async with async_session() as db:
@@ -157,10 +164,15 @@ async def clean_single(product_id: uuid.UUID) -> dict:
         if not model:
             return {"success": False, "error": "No AI model configured in system settings"}
 
-        user_prompt = USER_PROMPT_TEMPLATE.format(title=product.title)
+        account = await _get_account_config(product.tenant_id)
+        system_prompt = (account.ai_prompt_system if account and account.ai_prompt_system else None) or SYSTEM_PROMPT
+        user_template = (account.ai_prompt_user_template if account and account.ai_prompt_user_template else None) or USER_PROMPT_TEMPLATE
+        timeout = account.ai_timeout_seconds if account else AI_TIMEOUT
+
+        user_prompt = user_template.format(title=product.title)
 
         try:
-            response_text = await _call_llm_api(model, SYSTEM_PROMPT, user_prompt)
+            response_text = await _call_llm_api(model, system_prompt, user_prompt, timeout=timeout)
             parsed = _parse_clean_result(response_text)
 
             if parsed:
@@ -201,11 +213,15 @@ async def clean_batch(product_ids: list[uuid.UUID]) -> dict:
         if not model:
             return {"success": False, "error": "No AI model configured in system settings"}
 
+        account = await _get_account_config(tenant_id)
+        system_prompt = (account.ai_prompt_system if account and account.ai_prompt_system else None) or SYSTEM_PROMPT
+        timeout = account.ai_timeout_seconds if account else AI_TIMEOUT
+
         items = [{"item_id": str(p.id), "title": p.title} for p in products]
         user_prompt = BATCH_USER_PROMPT_TEMPLATE.format(items_json=json.dumps(items, ensure_ascii=False))
 
         try:
-            response_text = await _call_llm_api(model, SYSTEM_PROMPT, user_prompt)
+            response_text = await _call_llm_api(model, system_prompt, user_prompt, timeout=timeout)
             parsed_list = _parse_batch_result(response_text)
 
             if not parsed_list:

@@ -44,6 +44,11 @@ class WecomAlbumAccount(Base):
     ai_model_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("llm_models.id", ondelete="SET NULL"), nullable=True
     )
+    ai_batch_limit: Mapped[int] = mapped_column(Integer, default=20)
+    ai_timeout_seconds: Mapped[int] = mapped_column(Integer, default=60)
+    ai_max_tokens: Mapped[int] = mapped_column(Integer, default=2048)
+    ai_prompt_system: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai_prompt_user_template: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ── Account info (auto-populated on connect) ──
     album_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
