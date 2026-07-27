@@ -163,13 +163,13 @@ export default function SuppliersPage() {
                     <tbody>
                         {isLoading ? (
                             <tr>
-                                <td colSpan={5} style={{ padding: 32, textAlign: 'center', color: 'var(--text-tertiary)' }}>
+                                <td colSpan={6} style={{ padding: 32, textAlign: 'center', color: 'var(--text-tertiary)' }}>
                                     {isChinese ? '加载中...' : 'Loading...'}
                                 </td>
                             </tr>
                         ) : suppliers.length === 0 ? (
                             <tr>
-                                <td colSpan={5} style={{ padding: 32, textAlign: 'center', color: 'var(--text-tertiary)' }}>
+                                <td colSpan={6} style={{ padding: 32, textAlign: 'center', color: 'var(--text-tertiary)' }}>
                                     {isChinese ? '暂无供应商，请先同步' : 'No suppliers yet, please sync first'}
                                 </td>
                             </tr>
