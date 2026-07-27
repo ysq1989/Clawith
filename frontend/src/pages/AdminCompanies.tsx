@@ -6,7 +6,6 @@ import { saveAccentColor, getSavedAccentColor } from '../utils/theme';
 import { IconFilter, IconShieldCheck } from '@tabler/icons-react';
 import PlatformDashboard from './PlatformDashboard';
 import PlatformAppsTab from './platform-apps/PlatformAppsTab';
-import AppAuthTab from './platform-apps/AppAuthTab';
 import LinearCopyButton from '../components/LinearCopyButton';
 import { useDialog } from '../components/Dialog/DialogProvider';
 // Helper for authenticated JSON fetch
@@ -65,7 +64,6 @@ export default function AdminCompanies() {
         { key: 'dashboard' as const, label: t('admin.tab.dashboard', 'Dashboard') },
         { key: 'platform' as const, label: t('admin.tab.platform', 'Platform') },
         { key: 'apps' as const, label: t('admin.tab.apps', '应用管理') },
-        { key: 'auth' as const, label: t('admin.tab.auth', '应用授权') },
         { key: 'companies' as const, label: t('admin.tab.companies', 'Companies') },
     ];
 
@@ -96,7 +94,6 @@ export default function AdminCompanies() {
                 {activeTab === 'dashboard' && <PlatformDashboard />}
                 {activeTab === 'platform' && <PlatformTab />}
                 {activeTab === 'apps' && <PlatformAppsTab />}
-                {activeTab === 'auth' && <AppAuthTab />}
                 {activeTab === 'companies' && <CompaniesTab />}
             </div>
         </div>
@@ -946,6 +943,11 @@ function CompaniesTab() {
     const [createdCode, setCreatedCode] = useState('');
     const [createdCompanyName, setCreatedCompanyName] = useState('');
 
+    // Module authorization modal
+    const [authCompany, setAuthCompany] = useState<any>(null);
+    const [authModules, setAuthModules] = useState<string[]>([]);
+    const [authSaving, setAuthSaving] = useState(false);
+
     // Toast
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
     const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
@@ -1304,6 +1306,22 @@ function CompaniesTab() {
                                 className="btn btn-ghost"
                                 style={{
                                     padding: '2px 8px', fontSize: '11px', height: '24px',
+                                    color: 'var(--accent-primary)',
+                                    cursor: 'pointer',
+                                }}
+                                onClick={() => {
+                                    setAuthCompany(c);
+                                    setAuthModules(c.enabled_modules ?? []);
+                                    setAuthCompany(c);
+                                }}
+                                title="授权应用"
+                            >
+                                授权
+                            </button>
+                            <button
+                                className="btn btn-ghost"
+                                style={{
+                                    padding: '2px 8px', fontSize: '11px', height: '24px',
                                     color: c.slug === 'default' ? 'var(--text-tertiary)' : c.is_active ? 'var(--error)' : 'var(--success)',
                                     cursor: c.slug === 'default' ? 'not-allowed' : 'pointer',
                                     opacity: c.slug === 'default' ? 0.5 : 1,
@@ -1355,6 +1373,103 @@ function CompaniesTab() {
                     </div>
                 )}
             </div>
+
+            {/* Module Authorization Modal */}
+            {authCompany && (
+                <div
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}
+                    onClick={() => setAuthCompany(null)}
+                >
+                    <div className="card" style={{ padding: 24, maxWidth: 440, width: '90%' }} onClick={e => e.stopPropagation()}>
+                        <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
+                            授权应用 — {authCompany.name}
+                        </h3>
+                        <p style={{ fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 20 }}>
+                            勾选要授权给该公司的应用模块
+                        </p>
+
+                        {[
+                            { id: 'erp', icon: '📊', name: 'ERP', desc: '企业资源管理系统' },
+                            { id: 'xhs', icon: '📕', name: '小红书', desc: '小红书内容运营' },
+                            { id: 'product_hub', icon: '🛍️', name: '选品中心', desc: '商品选品与供应链管理' },
+                        ].map(mod => {
+                            const checked = authModules.length === 0 || authModules.includes(mod.id);
+                            const isExplicit = authModules.includes(mod.id);
+                            return (
+                                <label
+                                    key={mod.id}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 12,
+                                        padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
+                                        background: checked ? '#f0fdf4' : 'transparent',
+                                        border: `1px solid ${checked ? '#bbf7d0' : 'var(--border-subtle)'}`,
+                                        marginBottom: 8, transition: 'all 0.15s',
+                                    }}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={() => {
+                                            let newMods: string[];
+                                            if (authModules.length === 0) {
+                                                // Currently "all enabled" — switch to explicit mode
+                                                newMods = ['erp', 'xhs', 'product_hub'].filter(id => id !== mod.id);
+                                            } else if (authModules.includes(mod.id)) {
+                                                newMods = authModules.filter(id => id !== mod.id);
+                                            } else {
+                                                newMods = [...authModules, mod.id];
+                                            }
+                                            setAuthModules(newMods);
+                                        }}
+                                        style={{ width: 16, height: 16, accentColor: 'var(--color-primary)' }}
+                                    />
+                                    <span style={{ fontSize: 20 }}>{mod.icon}</span>
+                                    <div>
+                                        <div style={{ fontWeight: 500, fontSize: 14 }}>{mod.name}</div>
+                                        <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{mod.desc}</div>
+                                    </div>
+                                </label>
+                            );
+                        })}
+
+                        {authModules.length === 0 && (
+                            <div style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '8px 12px', background: '#fffbeb', borderRadius: 6, marginTop: 4, border: '1px solid #fde68a' }}>
+                                💡 未勾选任何模块 = 该公司可使用所有应用
+                            </div>
+                        )}
+
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
+                            <button
+                                onClick={() => setAuthCompany(null)}
+                                style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-subtle)', background: 'white', cursor: 'pointer', fontSize: 13 }}
+                            >
+                                取消
+                            </button>
+                            <button
+                                disabled={authSaving}
+                                onClick={async () => {
+                                    setAuthSaving(true);
+                                    try {
+                                        await fetchJson(`/tenants/${authCompany.id}`, {
+                                            method: 'PATCH',
+                                            body: JSON.stringify({ enabled_modules: authModules }),
+                                        });
+                                        showToast('已更新');
+                                        setAuthCompany(null);
+                                        loadCompanies();
+                                    } catch (e: any) {
+                                        showToast(e.message || 'Failed', 'error');
+                                    }
+                                    setAuthSaving(false);
+                                }}
+                                style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: 'var(--color-primary)', color: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
+                            >
+                                {authSaving ? '...' : '保存'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
