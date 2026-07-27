@@ -100,6 +100,7 @@ def _supplier_to_out(s) -> dict:
         "album_id": s.album_id,
         "total_products": s.total_products,
         "new_products": s.new_products,
+        "discount": s.discount,
         "last_sync_at": s.last_sync_at.isoformat() if s.last_sync_at else None,
         "is_active": s.is_active,
         "created_at": s.created_at.isoformat() if s.created_at else None,
@@ -280,9 +281,10 @@ async def update_supplier(
     request: Request,
     user=Depends(require_admin),
 ):
-    """Toggle supplier active status."""
+    """Toggle supplier active status or update discount."""
     body = await request.json()
     is_active = body.get("is_active")
+    discount = body.get("discount")
 
     async with async_session() as db:
         result = await db.execute(
@@ -297,6 +299,10 @@ async def update_supplier(
 
         if is_active is not None:
             supplier.is_active = is_active
+        if discount is not None:
+            if not (0 < discount <= 2):
+                raise HTTPException(status_code=400, detail="折扣范围: 0.01 ~ 2.0")
+            supplier.discount = discount
 
         await db.commit()
         return {"success": True, **_supplier_to_out(supplier)}

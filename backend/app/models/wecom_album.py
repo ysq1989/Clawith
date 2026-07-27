@@ -89,6 +89,9 @@ class WecomAlbumSupplier(Base):
     new_products: Mapped[int] = mapped_column(Integer, default=0)
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # ── Pricing ──
+    discount: Mapped[float] = mapped_column(Float, default=1.0)
+
     # ── Status ──
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
