@@ -15,7 +15,7 @@ from loguru import logger
 from sqlalchemy import select
 
 from app.database import async_session
-from app.models.llm import LLMProvider
+from app.models.llm import LLMModel
 from app.models.wecom_album import WecomAlbumProduct
 
 AGNES_BASE_URL = "https://apihub.agnes-ai.com/v1"
@@ -40,15 +40,15 @@ BATCH_USER_PROMPT_TEMPLATE = """请清洗以下商品标题并提取成本价。
 
 
 async def _get_agnes_api_key() -> str | None:
-    """Get Agnes API key from LLM providers."""
+    """Get Agnes API key from LLM models."""
     async with async_session() as db:
         result = await db.execute(
-            select(LLMProvider).where(LLMProvider.provider == "agnes")
+            select(LLMModel).where(LLMModel.provider == "agnes", LLMModel.enabled == True)
         )
-        provider = result.scalar_one_or_none()
-        if not provider:
+        model = result.scalar_one_or_none()
+        if not model:
             return None
-        return provider.api_key_encrypted
+        return model.api_key_encrypted
 
 
 async def _call_agnes(system: str, user: str, api_key: str) -> str:
