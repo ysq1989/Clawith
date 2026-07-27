@@ -2257,7 +2257,7 @@
       "dashboard": "Dashboard",
       "suppliers": "Suppliers",
       "products": "Products",
-      "config": "Account Config"
+      "config": "Settings"
     },
     "dashboard": {
       "title": "WeChat Album",
@@ -2272,8 +2272,8 @@
       "desc": "Products synced from suppliers"
     },
     "config": {
-      "title": "Account Config",
-      "desc": "Configure WeChat album (szwego) account token"
+      "title": "System Settings",
+      "desc": "Configure WeChat album account and AI cleaning model"
     }
   }
 }

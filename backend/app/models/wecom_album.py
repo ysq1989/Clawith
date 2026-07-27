@@ -40,6 +40,11 @@ class WecomAlbumAccount(Base):
     # ── szwego credentials ──
     token: Mapped[str] = mapped_column(String(500), nullable=False)
 
+    # ── AI config ──
+    ai_model_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("llm_models.id", ondelete="SET NULL"), nullable=True
+    )
+
     # ── Account info (auto-populated on connect) ──
     album_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     album_icon: Mapped[str | None] = mapped_column(String(500), nullable=True)

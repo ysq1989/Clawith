@@ -81,6 +81,7 @@ def _account_to_out(account: WecomAlbumAccount) -> dict:
         "album_name": account.album_name,
         "album_icon": account.album_icon,
         "album_id": account.album_id,
+        "ai_model_id": str(account.ai_model_id) if account.ai_model_id else None,
         "product_sync_stale_hours": account.product_sync_stale_hours,
         "last_owner_sync_at": account.last_owner_sync_at.isoformat() if account.last_owner_sync_at else None,
         "last_product_sync_at": account.last_product_sync_at.isoformat() if account.last_product_sync_at else None,
@@ -144,6 +145,7 @@ def _product_to_detail(p) -> dict:
 class AccountUpdate(BaseModel):
     token: str
     product_sync_stale_hours: int = 1
+    ai_model_id: str | None = None
 
 
 # ─── Account endpoints ────────────────────────────────────────────────────────
@@ -174,11 +176,13 @@ async def update_account(body: AccountUpdate, request: Request, user=Depends(req
         if account:
             account.token = body.token.strip()
             account.product_sync_stale_hours = body.product_sync_stale_hours
+            account.ai_model_id = uuid.UUID(body.ai_model_id) if body.ai_model_id else None
         else:
             account = WecomAlbumAccount(
                 tenant_id=user.tenant_id,
                 token=body.token.strip(),
                 product_sync_stale_hours=body.product_sync_stale_hours,
+                ai_model_id=uuid.UUID(body.ai_model_id) if body.ai_model_id else None,
             )
             db.add(account)
 

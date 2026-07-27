@@ -1,6 +1,6 @@
 """WeChat Business Album — AI title cleaning service.
 
-Uses Agnes model to clean product titles and extract cost prices.
+Uses the company's configured LLM to clean product titles and extract cost prices.
 """
 
 from __future__ import annotations
@@ -16,11 +16,9 @@ from sqlalchemy import select
 
 from app.database import async_session
 from app.models.llm import LLMModel
-from app.models.wecom_album import WecomAlbumProduct
+from app.models.wecom_album import WecomAlbumAccount, WecomAlbumProduct
 
-AGNES_BASE_URL = "https://apihub.agnes-ai.com/v1"
-AGNES_MODEL = "agnes-2.0-flash"
-AGNES_TIMEOUT = 60
+AI_TIMEOUT = 60
 
 SYSTEM_PROMPT = "你是商品标题清洗助手，负责清洗商品标题并提取成本价。请严格按要求返回 JSON，不要输出任何解释。"
 
@@ -39,26 +37,39 @@ BATCH_USER_PROMPT_TEMPLATE = """请清洗以下商品标题并提取成本价。
 商品列表：{items_json}"""
 
 
-async def _get_agnes_api_key() -> str | None:
-    """Get Agnes API key from LLM models."""
+async def _get_ai_model(tenant_id: uuid.UUID) -> LLMModel | None:
+    """Get the AI model selected in the wecom-album account config."""
     async with async_session() as db:
-        result = await db.execute(
-            select(LLMModel).where(LLMModel.provider == "agnes", LLMModel.enabled == True)
+        # Get account's selected model
+        acct_result = await db.execute(
+            select(WecomAlbumAccount).where(WecomAlbumAccount.tenant_id == tenant_id)
         )
-        model = result.scalar_one_or_none()
-        if not model:
+        account = acct_result.scalar_one_or_none()
+        if not account or not account.ai_model_id:
             return None
-        return model.api_key_encrypted
+
+        model_result = await db.execute(
+            select(LLMModel).where(
+                LLMModel.id == account.ai_model_id,
+                LLMModel.enabled == True,
+            )
+        )
+        return model_result.scalar_one_or_none()
 
 
-async def _call_agnes(system: str, user: str, api_key: str) -> str:
-    """Call Agnes API and return the response content."""
+async def _call_llm_api(model: LLMModel, system: str, user: str) -> str:
+    """Call LLM API using the selected model's config."""
+    base_url = model.base_url or "https://apihub.agnes-ai.com/v1"
+    # Ensure base_url ends with /chat/completions
+    if not base_url.endswith("/chat/completions"):
+        base_url = base_url.rstrip("/") + "/chat/completions"
+
     headers = {
-        "Authorization": f"Bearer {api_key}",
+        "Authorization": f"Bearer {model.api_key_encrypted}",
         "Content-Type": "application/json",
     }
     body = {
-        "model": AGNES_MODEL,
+        "model": model.model,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
@@ -67,12 +78,9 @@ async def _call_agnes(system: str, user: str, api_key: str) -> str:
         "max_tokens": 2048,
     }
 
-    async with httpx.AsyncClient(timeout=AGNES_TIMEOUT) as client:
-        resp = await client.post(
-            f"{AGNES_BASE_URL}/chat/completions",
-            headers=headers,
-            json=body,
-        )
+    timeout = model.request_timeout or AI_TIMEOUT
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        resp = await client.post(base_url, headers=headers, json=body)
         resp.raise_for_status()
         data = resp.json()
 
@@ -81,16 +89,13 @@ async def _call_agnes(system: str, user: str, api_key: str) -> str:
 
 def _parse_clean_result(text: str) -> dict | None:
     """Parse AI response JSON, extracting clean_title and cost."""
-    # Try to extract JSON from response
     text = text.strip()
 
-    # Try direct parse
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
 
-    # Try to find JSON in markdown code block
     match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
     if match:
         try:
@@ -98,8 +103,37 @@ def _parse_clean_result(text: str) -> dict | None:
         except json.JSONDecodeError:
             pass
 
-    # Try to find JSON object pattern
     match = re.search(r"\{[^{}]*\}", text)
+    if match:
+        try:
+            return json.loads(match.group(0))
+        except json.JSONDecodeError:
+            pass
+
+    return None
+
+
+def _parse_batch_result(text: str) -> list | None:
+    """Parse batch AI response JSON array."""
+    text = text.strip()
+
+    try:
+        result = json.loads(text)
+        if isinstance(result, list):
+            return result
+    except json.JSONDecodeError:
+        pass
+
+    match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
+    if match:
+        try:
+            result = json.loads(match.group(1).strip())
+            if isinstance(result, list):
+                return result
+        except json.JSONDecodeError:
+            pass
+
+    match = re.search(r"\[.*\]", text, re.DOTALL)
     if match:
         try:
             return json.loads(match.group(0))
@@ -111,10 +145,6 @@ def _parse_clean_result(text: str) -> dict | None:
 
 async def clean_single(product_id: uuid.UUID) -> dict:
     """Clean a single product's title using AI."""
-    api_key = await _get_agnes_api_key()
-    if not api_key:
-        return {"success": False, "error": "Agnes API key not configured"}
-
     async with async_session() as db:
         result = await db.execute(
             select(WecomAlbumProduct).where(WecomAlbumProduct.id == product_id)
@@ -123,10 +153,14 @@ async def clean_single(product_id: uuid.UUID) -> dict:
         if not product:
             return {"success": False, "error": "Product not found"}
 
+        model = await _get_ai_model(product.tenant_id)
+        if not model:
+            return {"success": False, "error": "No AI model configured in system settings"}
+
         user_prompt = USER_PROMPT_TEMPLATE.format(title=product.title)
 
         try:
-            response_text = await _call_agnes(SYSTEM_PROMPT, user_prompt, api_key)
+            response_text = await _call_llm_api(model, SYSTEM_PROMPT, user_prompt)
             parsed = _parse_clean_result(response_text)
 
             if parsed:
@@ -152,10 +186,6 @@ async def clean_single(product_id: uuid.UUID) -> dict:
 
 async def clean_batch(product_ids: list[uuid.UUID]) -> dict:
     """Clean multiple products' titles using AI (batch mode)."""
-    api_key = await _get_agnes_api_key()
-    if not api_key:
-        return {"success": False, "error": "Agnes API key not configured"}
-
     async with async_session() as db:
         result = await db.execute(
             select(WecomAlbumProduct).where(WecomAlbumProduct.id.in_(product_ids))
@@ -165,45 +195,21 @@ async def clean_batch(product_ids: list[uuid.UUID]) -> dict:
         if not products:
             return {"success": False, "error": "No products found"}
 
-        # Build batch items
+        tenant_id = products[0].tenant_id
+        model = await _get_ai_model(tenant_id)
+        if not model:
+            return {"success": False, "error": "No AI model configured in system settings"}
+
         items = [{"item_id": str(p.id), "title": p.title} for p in products]
         user_prompt = BATCH_USER_PROMPT_TEMPLATE.format(items_json=json.dumps(items, ensure_ascii=False))
 
         try:
-            response_text = await _call_agnes(SYSTEM_PROMPT, user_prompt, api_key)
+            response_text = await _call_llm_api(model, SYSTEM_PROMPT, user_prompt)
+            parsed_list = _parse_batch_result(response_text)
 
-            # Parse batch response
-            text = response_text.strip()
-            parsed_list = None
-
-            # Try direct parse
-            try:
-                parsed_list = json.loads(text)
-            except json.JSONDecodeError:
-                pass
-
-            # Try code block
             if not parsed_list:
-                match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
-                if match:
-                    try:
-                        parsed_list = json.loads(match.group(1).strip())
-                    except json.JSONDecodeError:
-                        pass
-
-            # Try array pattern
-            if not parsed_list:
-                match = re.search(r"\[.*\]", text, re.DOTALL)
-                if match:
-                    try:
-                        parsed_list = json.loads(match.group(0))
-                    except json.JSONDecodeError:
-                        pass
-
-            if not parsed_list or not isinstance(parsed_list, list):
                 return {"success": False, "error": "Failed to parse batch AI response"}
 
-            # Build lookup by item_id
             lookup = {str(item.get("item_id", "")): item for item in parsed_list}
 
             cleaned = 0
@@ -228,10 +234,6 @@ async def clean_batch(product_ids: list[uuid.UUID]) -> dict:
 
 async def clean_supplier_products(supplier_id: uuid.UUID, limit: int = 100) -> dict:
     """Clean all uncleaned products for a supplier."""
-    api_key = await _get_agnes_api_key()
-    if not api_key:
-        return {"success": False, "error": "Agnes API key not configured"}
-
     async with async_session() as db:
         result = await db.execute(
             select(WecomAlbumProduct).where(
@@ -244,7 +246,6 @@ async def clean_supplier_products(supplier_id: uuid.UUID, limit: int = 100) -> d
         if not products:
             return {"success": True, "cleaned": 0, "message": "No uncleaned products"}
 
-        # Process in batches of 20
         total_cleaned = 0
         batch_size = 20
 

@@ -1,5 +1,5 @@
 /**
- * WeChat Business Album — Account Configuration page.
+ * WeChat Business Album — System Settings page.
  */
 
 import { useState, useEffect } from 'react';
@@ -17,16 +17,22 @@ export default function AccountConfigPage() {
 
     const [token, setToken] = useState('');
     const [staleHours, setStaleHours] = useState(1);
+    const [aiModelId, setAiModelId] = useState('');
 
-    const { data: account, isLoading } = useQuery({
+    const { data: account } = useQuery({
         queryKey: ['wecom-album-account'],
         queryFn: () => fetchJson<any>('/wecom-album/account'),
     });
 
+    const { data: llmModels } = useQuery({
+        queryKey: ['llm-models'],
+        queryFn: () => fetchJson<any[]>('/enterprise/llm-models'),
+    });
+
     useEffect(() => {
         if (account?.configured) {
-            // Don't set token from masked value
             setStaleHours(account.product_sync_stale_hours ?? 1);
+            setAiModelId(account.ai_model_id ?? '');
         }
     }, [account]);
 
@@ -37,10 +43,11 @@ export default function AccountConfigPage() {
                 body: JSON.stringify({
                     token: token || account?.token || '',
                     product_sync_stale_hours: staleHours,
+                    ai_model_id: aiModelId || null,
                 }),
             });
         },
-        onSuccess: (data) => {
+        onSuccess: () => {
             toast.success(isChinese ? '保存成功' : 'Saved successfully');
             queryClient.invalidateQueries({ queryKey: ['wecom-album-account'] });
             queryClient.invalidateQueries({ queryKey: ['wecom-album-stats'] });
@@ -94,13 +101,15 @@ export default function AccountConfigPage() {
         },
     });
 
+    const models: any[] = Array.isArray(llmModels) ? llmModels : [];
+
     return (
         <div style={{ padding: 32, maxWidth: 700 }}>
             <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8, color: 'var(--text-primary)' }}>
-                {t('wecomAlbum.config.title', '账号配置')}
+                {t('wecomAlbum.config.title', '系统设置')}
             </h1>
             <p style={{ color: 'var(--text-secondary)', marginBottom: 24, fontSize: 14 }}>
-                {t('wecomAlbum.config.desc', '配置微商相册 (szwego) 账号 Token')}
+                {t('wecomAlbum.config.desc', '配置微商相册账号和AI清洗模型')}
             </p>
 
             {/* Connection status */}
@@ -130,7 +139,7 @@ export default function AccountConfigPage() {
             {/* Token input */}
             <div style={{ marginBottom: 16 }}>
                 <label style={{ display: 'block', fontSize: 14, fontWeight: 500, marginBottom: 6, color: 'var(--text-primary)' }}>
-                    {isChinese ? 'szwego Token' : 'szwego Token'}
+                    szwego Token
                 </label>
                 <input
                     type="password"
@@ -151,9 +160,9 @@ export default function AccountConfigPage() {
             </div>
 
             {/* Stale hours */}
-            <div style={{ marginBottom: 24 }}>
+            <div style={{ marginBottom: 16 }}>
                 <label style={{ display: 'block', fontSize: 14, fontWeight: 500, marginBottom: 6, color: 'var(--text-primary)' }}>
-                    {isChinese ? '增量同步窗口（小时）' : 'Incremental sync window (hours)'}
+                    {isChinese ? '同步时间窗口（小时）' : 'Sync time window (hours)'}
                 </label>
                 <input
                     type="number"
@@ -172,7 +181,38 @@ export default function AccountConfigPage() {
                     }}
                 />
                 <span style={{ fontSize: 13, color: 'var(--text-tertiary)', marginLeft: 8 }}>
-                    {isChinese ? '产品同步时，只拉取最近 N 小时更新的商品' : 'Only sync products updated in the last N hours'}
+                    {isChinese ? '同步时只拉取最近 N 小时更新的商品' : 'Only sync products updated in the last N hours'}
+                </span>
+            </div>
+
+            {/* AI Model selector */}
+            <div style={{ marginBottom: 24 }}>
+                <label style={{ display: 'block', fontSize: 14, fontWeight: 500, marginBottom: 6, color: 'var(--text-primary)' }}>
+                    {isChinese ? '清洗 AI 模型' : 'AI Cleaning Model'}
+                </label>
+                <select
+                    value={aiModelId}
+                    onChange={(e) => setAiModelId(e.target.value)}
+                    style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: '1px solid var(--border-primary)',
+                        borderRadius: 8,
+                        fontSize: 14,
+                        background: 'var(--bg-primary)',
+                        color: 'var(--text-primary)',
+                        boxSizing: 'border-box',
+                    }}
+                >
+                    <option value="">{isChinese ? '-- 请选择 --' : '-- Select --'}</option>
+                    {models.map((m: any) => (
+                        <option key={m.id} value={m.id}>
+                            {m.label || m.model} ({m.provider})
+                        </option>
+                    ))}
+                </select>
+                <span style={{ fontSize: 13, color: 'var(--text-tertiary)', marginTop: 4, display: 'block' }}>
+                    {isChinese ? '用于商品标题清洗和成本价提取' : 'Used for product title cleaning and cost extraction'}
                 </span>
             </div>
 
