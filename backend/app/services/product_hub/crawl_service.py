@@ -251,14 +251,15 @@ def _extract_price_from_title(title: str) -> float | None:
     """
     import re
     # Match price patterns: number with optional 万/w suffix
+    # IMPORTANT: 万 patterns must come BEFORE non-万 patterns to avoid partial matches
     # Each tuple: (pattern, has_wan_multiplier)
     patterns = [
         (r'💰\s*(\d+(?:\.\d+)?)\s*万', True),    # 💰1.18万
-        (r'💰\s*(\d+(?:\.\d+)?)', False),          # 💰8000
+        (r'💰\s*(\d+(?:\.\d+)?)\s*(?!万)', False), # 💰8000 (negative lookahead for 万)
         (r'🉐\s*(\d+(?:\.\d+)?)\s*万', True),     # 🀄1.18万
-        (r'🉐\s*(\d+(?:\.\d+)?)', False),           # 🀄718
+        (r'🉐\s*(\d+(?:\.\d+)?)\s*(?!万)', False), # 🀄718
         (r'秒\s*🉐\s*(\d+(?:\.\d+)?)', False),    # 秒🉐718
-        (r'(\d+(?:\.\d+)?)\s*万', True),           # 1.18万
+        (r'(\d+(?:\.\d+)?)\s*万', True),           # 2.4万
         (r'价格[：:]\s*(\d+(?:\.\d+)?)', False),   # 价格:8000
     ]
     for pattern, has_wan in patterns:
