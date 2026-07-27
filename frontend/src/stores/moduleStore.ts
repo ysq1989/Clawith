@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { fetchJson } from '../services/api';
 
-export type ModuleID = 'agent' | 'erp' | 'xhs' | 'product_hub';
+export type ModuleID = 'agent' | 'erp' | 'xhs' | 'product_hub' | 'wecom_album';
 
 export interface ModuleInfo {
     label: string;
@@ -37,7 +37,7 @@ export const useModuleStore = create<ModuleStore>((set, get) => ({
         } catch {
             // On error, default to all modules enabled (backward compat)
             set({
-                modules: ['agent', 'erp', 'xhs', 'product_hub'],
+                modules: ['agent', 'erp', 'xhs', 'product_hub', 'wecom_album'],
                 registry: {},
                 loaded: true,
             });

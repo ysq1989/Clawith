@@ -1392,6 +1392,7 @@ function CompaniesTab() {
                             { id: 'erp', icon: '📊', name: 'ERP', desc: '企业资源管理系统' },
                             { id: 'xhs', icon: '📕', name: '小红书', desc: '小红书内容运营' },
                             { id: 'product_hub', icon: '🛍️', name: '选品中心', desc: '商品选品与供应链管理' },
+                            { id: 'wecom_album', icon: '📷', name: '微商相册', desc: '微商相册供应商与商品同步' },
                         ].map(mod => {
                             const checked = authModules.length === 0 || authModules.includes(mod.id);
                             const isExplicit = authModules.includes(mod.id);
@@ -1413,7 +1414,7 @@ function CompaniesTab() {
                                             let newMods: string[];
                                             if (authModules.length === 0) {
                                                 // Currently "all enabled" — switch to explicit mode
-                                                newMods = ['erp', 'xhs', 'product_hub'].filter(id => id !== mod.id);
+                                                newMods = ['erp', 'xhs', 'product_hub', 'wecom_album'].filter(id => id !== mod.id);
                                             } else if (authModules.includes(mod.id)) {
                                                 newMods = authModules.filter(id => id !== mod.id);
                                             } else {

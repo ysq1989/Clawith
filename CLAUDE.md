@@ -97,6 +97,9 @@ docker compose up -d
 | `services/llm/` | Unified LLM abstraction (`client.py`, `caller.py`, `failover.py`) |
 | `api/erp.py` | ERP module (~4000 lines, 48+ endpoints) |
 | `api/xhs.py` | Xiaohongshu operations (~600 lines, 25+ endpoints) |
+| `api/product_hub.py` | Product Hub (~700 lines, 48+ endpoints: admin/user/agent) |
+| `core/module_registry.py` | Module definitions + `get_tenant_modules()` resolution |
+| `core/module_guard.py` | Middleware: blocks API for disabled modules |
 | `models/` | SQLAlchemy 2.0 async ORM entities |
 | `schemas/` | Pydantic request/response schemas |
 | `dao/` | Data access layer |
@@ -123,6 +126,9 @@ docker compose up -d
 | `pages/enterprise-settings/` | Enterprise config sub-modules |
 | `pages/erp/` | **ERP module** (15 page components, independent dashboard) |
 | `pages/xhs/` | **Xiaohongshu operations** (8 page components, independent dashboard) |
+| `pages/product-hub/` | **Product Hub** (6 page components, independent dashboard) |
+| `pages/platform-apps/` | **Platform app management** tabs (PlatformAppsTab for AdminCompanies) |
+| `pages/enterprise-settings/tabs/` | Enterprise settings tab components (LlmTab, SkillsTab, OkrTab, OrgTab) |
 | `components/` | Reusable UI components |
 | `stores/` | Zustand global state (auth, permissions, i18n) |
 | `services/` | Axios API client |
@@ -474,17 +480,37 @@ Agent (internal):      Search, pick, list-pools, get-pool-items (for XHS publish
 
 ### Services (`backend/app/services/product_hub/`)
 
-- `crawl_service.py` — Orchestrates crawling from WeChat business album API. Normalizes raw data, deduplicates, stores in `product_hub_products`. Runs as background task via `admin_start_crawl`.
-- `clean_service.py` — LLM-powered product cleaning pipeline. Classifies products into categories, generates tags, creates summaries, scores quality. Triggered via `admin_batch_clean` or auto-scheduled.
+- `crawl_service.py` — szwego (微商相册) API client. Fetches products via `https://www.szwego.com/album/moments` with token-based auth (URL param, not header). Pagination via `pagination.pageTimestamp` (millisecond timestamps). Price extraction handles `💰8000`, `💰1.18万`, `秒🉐718` formats. Runs as background task via `admin_start_crawl`.
+- `clean_service.py` — LLM-powered product cleaning pipeline. Classifies products into categories, generates tags, creates summaries, scores quality (0-100). Triggered via `admin_batch_clean` or auto-scheduled.
+
+### szwego API Integration
+
+The Product Hub connects to the szwego (微商相册) platform for product data:
+
+- **Base URL**: `https://www.szwego.com`
+- **Auth**: Token passed as URL query parameter (`?token=...`), NOT in headers
+- **User info**: `GET /increase/api/v3/my/findUserBasisInfo?token=...&client_type=net`
+- **Products**: `GET /album/moments?token=...&client_type=net&slipType=1` with timestamp pagination
+- **Response**: `result.items[]` array, each item has `goods_id`, `title`, `imgs[]` (image URLs), `itemNamePrice` (price in yuan), `tags[]` (`{tagName, tagId}`), `shop_name`
+- **Pagination**: Use `result.pagination.pageTimestamp` (string, ms) for next page; stop when `pagination.isLoadMore` is false
+- **Test connection**: `POST /api/product-hub/admin/test-connection` with `{"token": "..."}`
 
 ### Module Permission System
 
-Tenant-level module access is controlled via `tenants.enabled_modules`:
+Tenant-level module access is controlled via `tenants.enabled_modules` (JSON field on `Tenant` model):
 - `null` or `[]` = all modules enabled (backward compatible)
 - `["erp", "product_hub"]` = only ERP and Product Hub visible
 - Platform Admin sees all modules regardless
 
 The permission chain: `Tenant.enabled_modules` → `GET /api/auth/my-modules` → `useModuleStore` → sidebar + `<ModuleRoute>` + `ModuleGuardMiddleware`.
+
+**Platform vs Company hierarchy** (Platform → Company → Employee):
+- **Platform Settings** (`/admin/platform-settings`): Platform admins manage app configs (supply chains, szwego tokens) and authorize which companies can use which modules
+- **Company Settings** (`/enterprise#apps`): Company admins see authorized apps; no self-service module toggle
+- Company authorization: PUT `/api/tenants/{id}` with `{"enabled_modules": [...]}` — platform_admin only
+- Company list returns `enabled_modules` in `CompanyStats` response
+
+**Important API method**: The tenant update endpoint uses `PUT` (not `PATCH`). The `enabled_modules` field can only be set by `platform_admin` role.
 
 ## Edge Node / Client Architecture
 

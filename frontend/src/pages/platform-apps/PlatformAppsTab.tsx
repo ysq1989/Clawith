@@ -46,6 +46,14 @@ const APP_DEFINITIONS = [
         color: '#059669',
         hasSupplyChains: true,
     },
+    {
+        id: 'wecom_album',
+        name: '微商相册',
+        description: '微商相册供应商与商品同步',
+        icon: '📷',
+        color: '#7c3aed',
+        hasWecomAlbum: true,
+    },
 ];
 
 /* ─── Supply Chain Manager ─── */
@@ -294,6 +302,29 @@ function SupplyChainManager() {
 }
 
 
+/* ─── WeChat Album Manager ─── */
+function WecomAlbumManager() {
+    const { i18n } = useTranslation();
+    const isChinese = i18n.language?.startsWith('zh');
+
+    return (
+        <div style={{ marginTop: 24, padding: 16, background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <IconPlug size={16} style={{ color: '#7c3aed' }} />
+                <span style={{ fontWeight: 500 }}>
+                    {isChinese ? 'szwego API 对接' : 'szwego API Integration'}
+                </span>
+            </div>
+            <p style={{ margin: 0, lineHeight: 1.6 }}>
+                {isChinese
+                    ? '每个公司可在「微商相册」模块中独立配置 szwego Token。平台无需集中管理 Token，公司自行配置即可。'
+                    : 'Each company can configure their own szwego Token in the WeChat Album module. No centralized token management needed.'}
+            </p>
+        </div>
+    );
+}
+
+
 /* ─── Main Component ─── */
 export default function PlatformAppsTab() {
     const { t, i18n } = useTranslation();
@@ -341,7 +372,13 @@ export default function PlatformAppsTab() {
                             </div>
                         )}
 
-                        {!app.hasSupplyChains && (
+                        {(app as any).hasWecomAlbum && (
+                            <div style={{ padding: '0 20px 20px' }}>
+                                <WecomAlbumManager />
+                            </div>
+                        )}
+
+                        {!app.hasSupplyChains && !(app as any).hasWecomAlbum && (
                             <div style={{ padding: '16px 20px', color: 'var(--text-tertiary)', fontSize: 13 }}>
                                 {isChinese ? '该应用暂无平台级配置项' : 'No platform-level configuration for this app'}
                             </div>

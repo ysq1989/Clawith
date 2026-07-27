@@ -52,6 +52,11 @@ const ProductHubProducts = lazy(() => import('./pages/product-hub/ProductsPage')
 const ProductHubMyPools = lazy(() => import('./pages/product-hub/MyPoolsPage'));
 const ProductHubCrawlTasks = lazy(() => import('./pages/product-hub/CrawlTasksPage'));
 const ProductHubCategories = lazy(() => import('./pages/product-hub/CategoriesPage'));
+const WecomAlbumLayout = lazy(() => import('./pages/wecom-album/WecomAlbumLayout'));
+const WecomAlbumDashboard = lazy(() => import('./pages/wecom-album/WecomAlbumDashboard'));
+const WecomAlbumSuppliers = lazy(() => import('./pages/wecom-album/SuppliersPage'));
+const WecomAlbumProducts = lazy(() => import('./pages/wecom-album/ProductsPage'));
+const WecomAlbumConfig = lazy(() => import('./pages/wecom-album/AccountConfigPage'));
 const GroupsPage = lazy(() => import('./pages/groups/GroupsPage'));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -385,6 +390,12 @@ export default function App() {
                     <Route path="my-pools/:poolId" element={<ProductHubMyPools />} />
                     <Route path="crawl-tasks" element={<ProductHubCrawlTasks />} />
                     <Route path="categories" element={<ProductHubCategories />} />
+                </Route>
+                <Route path="/wecom-album" element={<ModuleRoute module="wecom_album"><ProtectedRoute><WecomAlbumLayout /></ProtectedRoute></ModuleRoute>}>
+                    <Route index element={<WecomAlbumDashboard />} />
+                    <Route path="suppliers" element={<WecomAlbumSuppliers />} />
+                    <Route path="products" element={<WecomAlbumProducts />} />
+                    <Route path="config" element={<WecomAlbumConfig />} />
                 </Route>
             </Routes>
             </Suspense>

@@ -62,7 +62,8 @@
     "groups": "Groups",
     "xhs": "RedNote",
     "erp": "ERP",
-    "productHub": "Product Hub"
+    "productHub": "Product Hub",
+    "wecomAlbum": "WeChat Album"
   },
   "talentMarket": {
     "title": "Talent Market",
@@ -2248,6 +2249,31 @@
     "categories": {
       "title": "Categories",
       "subtitle": "Manage product category taxonomy"
+    }
+  },
+  "wecomAlbum": {
+    "title": "WeChat Album",
+    "nav": {
+      "dashboard": "Dashboard",
+      "suppliers": "Suppliers",
+      "products": "Products",
+      "config": "Account Config"
+    },
+    "dashboard": {
+      "title": "WeChat Album",
+      "desc": "Manage WeChat business album account, sync suppliers and products"
+    },
+    "suppliers": {
+      "title": "Suppliers",
+      "desc": "Friends list from WeChat business album, managed as suppliers"
+    },
+    "products": {
+      "title": "Products",
+      "desc": "Products synced from suppliers"
+    },
+    "config": {
+      "title": "Account Config",
+      "desc": "Configure WeChat album (szwego) account token"
     }
   }
 }

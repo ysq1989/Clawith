@@ -34,6 +34,7 @@ import {
     IconCheck,
     IconChevronDown,
     IconShoppingBag,
+    IconCamera,
 } from '@tabler/icons-react';
 import { useAppStore } from '../stores';
 import TalentMarketModal from '../components/TalentMarketModal';
@@ -1117,6 +1118,14 @@ export default function Layout() {
                                     <IconShoppingBag size={14} stroke={1.5} />
                                 </span>
                                 <span className="sidebar-item-text">{t('nav.productHub', '选品中心')}</span>
+                            </NavLink>
+                        )}
+                        {hasModule('wecom_album') && (
+                            <NavLink to="/wecom-album" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
+                                <span className="sidebar-item-icon" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                    <IconCamera size={14} stroke={1.5} />
+                                </span>
+                                <span className="sidebar-item-text">{t('nav.wecomAlbum', '微商相册')}</span>
                             </NavLink>
                         )}
                     </div>

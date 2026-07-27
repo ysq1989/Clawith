@@ -44,7 +44,8 @@
     "groups": "群聊",
     "erp": "ERP",
     "xhs": "小红书",
-    "productHub": "选品中心"
+    "productHub": "选品中心",
+    "wecomAlbum": "微商相册"
   },
   "talentMarket": {
     "title": "人才市场",
@@ -2371,6 +2372,31 @@
     "categories": {
       "title": "分类管理",
       "subtitle": "管理商品分类体系"
+    }
+  },
+  "wecomAlbum": {
+    "title": "微商相册",
+    "nav": {
+      "dashboard": "仪表盘",
+      "suppliers": "供应商",
+      "products": "商品",
+      "config": "账号配置"
+    },
+    "dashboard": {
+      "title": "微商相册",
+      "desc": "管理微商相册账号，同步供应商和商品数据"
+    },
+    "suppliers": {
+      "title": "供应商",
+      "desc": "微商相册好友列表，作为供应商管理"
+    },
+    "products": {
+      "title": "商品",
+      "desc": "从供应商同步的商品列表"
+    },
+    "config": {
+      "title": "账号配置",
+      "desc": "配置微商相册 (szwego) 账号 Token"
     }
   }
 }

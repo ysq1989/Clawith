@@ -13,6 +13,7 @@ class ModuleID(str, Enum):
     ERP = "erp"
     XHS = "xhs"
     PRODUCT_HUB = "product_hub"
+    WECOM_ALBUM = "wecom_album"
 
 
 # Module metadata — used by both backend (guard) and frontend (sidebar/routes)
@@ -45,6 +46,13 @@ MODULE_REGISTRY: dict[str, dict[str, Any]] = {
         "path": "/product-hub",
         "required": False,
     },
+    "wecom_album": {
+        "label": "WeChat Album",
+        "label_zh": "微商相册",
+        "icon": "camera",
+        "path": "/wecom-album",
+        "required": False,
+    },
 }
 
 # API path prefixes that each module owns — used by the module guard middleware
@@ -52,6 +60,7 @@ MODULE_API_PREFIXES: dict[str, str] = {
     "erp": "/api/erp",
     "xhs": "/api/xhs",
     "product_hub": "/api/product-hub",
+    "wecom_album": "/api/wecom-album",
 }
 
 # Paths that bypass module guard (auth, health, websockets, etc.)
