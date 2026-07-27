@@ -164,6 +164,11 @@ async def sync_products(tenant_id: uuid.UUID) -> dict:
                 product_shop_id = norm.get("shop_id", "")
                 supplier = shop_to_supplier.get(product_shop_id)
 
+                # Skip products from disabled/unmatched suppliers
+                if not supplier:
+                    skipped += 1
+                    continue
+
                 new_hash = compute_source_hash(raw)
 
                 existing = await db.execute(
