@@ -61,7 +61,8 @@
     "okr": "OKR",
     "groups": "Groups",
     "xhs": "RedNote",
-    "erp": "ERP"
+    "erp": "ERP",
+    "productHub": "Product Hub"
   },
   "talentMarket": {
     "title": "Talent Market",
@@ -2214,5 +2215,39 @@
     "emptyBody": "In a chat with a digital employee, click “Distill to experience”, or create one directly — capture what the team learned and AI will retrieve it on relevant tasks.",
     "sidebarEmpty": "Once entries are published, top contributors and tags will show here.",
     "mineEmpty": "No experience under this category yet."
+  },
+  "productHub": {
+    "title": "Product Hub",
+    "nav": {
+      "dashboard": "Dashboard",
+      "products": "Products",
+      "myPools": "My Pools",
+      "crawlTasks": "Crawl Tasks",
+      "categories": "Categories"
+    },
+    "dashboard": {
+      "title": "Product Hub",
+      "subtitle": "Browse products, manage pools, connect supply chains",
+      "totalProducts": "Total Products",
+      "myPools": "My Pools",
+      "categories": "Categories",
+      "quickActions": "Quick Actions"
+    },
+    "products": {
+      "title": "Product Pool",
+      "subtitle": "Browse all supply chain products and pick your favorites"
+    },
+    "myPools": {
+      "title": "My Pools",
+      "subtitle": "Manage your curated product collections"
+    },
+    "crawlTasks": {
+      "title": "Crawl Tasks",
+      "subtitle": "View supply chain data collection task status"
+    },
+    "categories": {
+      "title": "Categories",
+      "subtitle": "Manage product category taxonomy"
+    }
   }
 }

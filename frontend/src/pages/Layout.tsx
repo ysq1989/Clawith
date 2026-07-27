@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../stores';
 import { agentApi, tenantApi, authApi, onboardingApi } from '../services/api';
+import { useModuleStore } from '../stores/moduleStore';
 import { useGroupUnread } from '../hooks/useGroupUnread';
 import { useToast } from '../components/Toast/ToastProvider';
 
@@ -32,6 +33,7 @@ import {
     IconChevronRight,
     IconCheck,
     IconChevronDown,
+    IconShoppingBag,
 } from '@tabler/icons-react';
 import { useAppStore } from '../stores';
 import TalentMarketModal from '../components/TalentMarketModal';
@@ -424,6 +426,7 @@ export default function Layout() {
     const location = useLocation();
     const { user, logout, setAuth } = useAuthStore();
     const queryClient = useQueryClient();
+    const { hasModule, fetchModules } = useModuleStore();
     const isChinese = i18n.language?.startsWith('zh');
     // Detect chat page: needs fixed-height main-content for inner scroll to work
     const isChatPage = !!useMatch('/agents/:id/chat');
@@ -473,6 +476,11 @@ export default function Layout() {
         refetchInterval: 30000,
         enabled: !!user,
     });
+
+    // Fetch enabled modules on mount
+    useEffect(() => {
+        fetchModules();
+    }, []);
     const { data: notifications = [] } = useQuery({
         queryKey: ['notifications', notifCategory],
         queryFn: () => fetchJson<any[]>(`/notifications?limit=50${notifCategory !== 'all' ? `&category=${notifCategory}` : ''}`),
@@ -1049,6 +1057,7 @@ export default function Layout() {
 
 
                     <div className="sidebar-section" data-tour-target="main-nav">
+                        {/* Core nav items — always visible (agent module) */}
                         <NavLink to="/dashboard" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
                             <span className="sidebar-item-icon" style={{ display: 'flex' }}>{SidebarIcons.home}</span>
                             <span className="sidebar-item-text">{t('nav.dashboard')}</span>
@@ -1079,23 +1088,37 @@ export default function Layout() {
                                 <span className="sidebar-item-badge">{groupUnread > 99 ? '99+' : groupUnread}</span>
                             )}
                         </NavLink>
-                        <NavLink to="/erp" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
-                            <span className="sidebar-item-icon" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <rect x="3" y="3" width="7" height="7" rx="1"/>
-                                    <rect x="14" y="3" width="7" height="7" rx="1"/>
-                                    <rect x="3" y="14" width="7" height="7" rx="1"/>
-                                    <rect x="14" y="14" width="7" height="7" rx="1"/>
-                                </svg>
-                            </span>
-                            <span className="sidebar-item-text">{t('nav.erp', 'ERP')}</span>
-                        </NavLink>
-                        <NavLink to="/xhs" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
-                            <span className="sidebar-item-icon" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                                📕
-                            </span>
-                            <span className="sidebar-item-text">{t('nav.xhs', '小红书')}</span>
-                        </NavLink>
+
+                        {/* Module-gated nav items — only visible if tenant has the module enabled */}
+                        {hasModule('erp') && (
+                            <NavLink to="/erp" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
+                                <span className="sidebar-item-icon" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="3" y="3" width="7" height="7" rx="1"/>
+                                        <rect x="14" y="3" width="7" height="7" rx="1"/>
+                                        <rect x="3" y="14" width="7" height="7" rx="1"/>
+                                        <rect x="14" y="14" width="7" height="7" rx="1"/>
+                                    </svg>
+                                </span>
+                                <span className="sidebar-item-text">{t('nav.erp', 'ERP')}</span>
+                            </NavLink>
+                        )}
+                        {hasModule('xhs') && (
+                            <NavLink to="/xhs" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
+                                <span className="sidebar-item-icon" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                    📕
+                                </span>
+                                <span className="sidebar-item-text">{t('nav.xhs', '小红书')}</span>
+                            </NavLink>
+                        )}
+                        {hasModule('product_hub') && (
+                            <NavLink to="/product-hub" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
+                                <span className="sidebar-item-icon" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                    <IconShoppingBag size={14} stroke={1.5} />
+                                </span>
+                                <span className="sidebar-item-text">{t('nav.productHub', '选品中心')}</span>
+                            </NavLink>
+                        )}
                     </div>
                 </div>
                 

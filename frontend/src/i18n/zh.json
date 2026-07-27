@@ -43,7 +43,8 @@
     "okr": "OKR",
     "groups": "群聊",
     "erp": "ERP",
-    "xhs": "小红书"
+    "xhs": "小红书",
+    "productHub": "选品中心"
   },
   "talentMarket": {
     "title": "人才市场",
@@ -2337,5 +2338,39 @@
     "emptyBody": "在与数字员工的对话里点「沉淀为经验」，或直接新建，把团队踩过的坑沉淀下来——AI 会在相关任务中自动检索复用。",
     "sidebarEmpty": "有了已发布经验后，这里会显示热门贡献者与标签。",
     "mineEmpty": "这个分类下还没有经验。"
+  },
+  "productHub": {
+    "title": "选品中心",
+    "nav": {
+      "dashboard": "仪表盘",
+      "products": "选品池",
+      "myPools": "我的货池",
+      "crawlTasks": "采集任务",
+      "categories": "分类管理"
+    },
+    "dashboard": {
+      "title": "选品中心",
+      "subtitle": "浏览商品、管理货池、对接供应链",
+      "totalProducts": "选品池商品",
+      "myPools": "我的货池",
+      "categories": "商品分类",
+      "quickActions": "快捷操作"
+    },
+    "products": {
+      "title": "选品池",
+      "subtitle": "浏览所有供应链商品，选择心仪的货品"
+    },
+    "myPools": {
+      "title": "我的货池",
+      "subtitle": "管理你精心挑选的货品集合"
+    },
+    "crawlTasks": {
+      "title": "采集任务",
+      "subtitle": "查看供应链数据采集任务状态"
+    },
+    "categories": {
+      "title": "分类管理",
+      "subtitle": "管理商品分类体系"
+    }
   }
 }

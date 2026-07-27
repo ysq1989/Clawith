@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from loguru import logger
 from app.core.security import (
     create_access_token,
@@ -14,7 +15,7 @@ from app.core.security import (
     verify_password_async,
 )
 from app.dao import identity_dao, system_setting_dao, tenant_dao, user_dao
-from app.database import transaction
+from app.database import transaction, get_db
 from app.models.user import User
 from app.schemas.schemas import (
     ForgotPasswordRequest,
@@ -1224,3 +1225,29 @@ async def resend_verification(
         await _send_verification_email_task(user, background_tasks, settings)
 
     return generic_response
+
+
+# ─── Module access ────────────────────────────────────────────────────────────
+
+
+@router.get("/my-modules")
+async def get_my_modules(
+    credentials: HTTPAuthorizationCredentials | None = Depends(HTTPBearer()),
+    db=Depends(get_db),
+):
+    """Return the list of modules enabled for the current user's tenant.
+
+    Used by the frontend to dynamically render sidebar navigation and routes.
+    """
+    user = await get_current_user(credentials, db)
+    from sqlalchemy import select as _sel
+    from app.models.tenant import Tenant
+    from app.core.module_registry import get_tenant_modules, MODULE_REGISTRY
+
+    result = await db.execute(_sel(Tenant).where(Tenant.id == user.tenant_id))
+    tenant = result.scalar_one_or_none()
+    if not tenant:
+        return {"modules": list(MODULE_REGISTRY.keys()), "registry": MODULE_REGISTRY}
+
+    enabled = get_tenant_modules(tenant.enabled_modules)
+    return {"modules": enabled, "registry": MODULE_REGISTRY}

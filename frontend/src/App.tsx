@@ -3,6 +3,7 @@ import { useAuthStore } from './stores';
 import { Suspense, lazy, useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { authApi } from './services/api';
+import { useModuleStore, type ModuleID } from './stores/moduleStore';
 
 const Login = lazy(() => import('./pages/Login'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
@@ -45,6 +46,12 @@ const XHSAnalytics = lazy(() => import('./pages/xhs/AnalyticsBoard'));
 const XHSAccounts = lazy(() => import('./pages/xhs/AccountManager'));
 const XHSInteractions = lazy(() => import('./pages/xhs/InteractionsPage'));
 const XHSSettings = lazy(() => import('./pages/xhs/XHSSettings'));
+const ProductHubLayout = lazy(() => import('./pages/product-hub/ProductHubLayout'));
+const ProductHubDashboard = lazy(() => import('./pages/product-hub/ProductHubDashboard'));
+const ProductHubProducts = lazy(() => import('./pages/product-hub/ProductsPage'));
+const ProductHubMyPools = lazy(() => import('./pages/product-hub/MyPoolsPage'));
+const ProductHubCrawlTasks = lazy(() => import('./pages/product-hub/CrawlTasksPage'));
+const ProductHubCategories = lazy(() => import('./pages/product-hub/CategoriesPage'));
 const GroupsPage = lazy(() => import('./pages/groups/GroupsPage'));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -64,6 +71,24 @@ function CompanyAdminRoute({ children }: { children: React.ReactNode }) {
     const user = useAuthStore((s) => s.user);
     const canAccessCompanySettings = user?.role === 'platform_admin' || user?.role === 'org_admin' || !!(user as any)?.is_platform_admin;
     if (!canAccessCompanySettings) return <Navigate to="/" replace />;
+    return <>{children}</>;
+}
+
+function ModuleRoute({ module: mod, children }: { module: ModuleID; children: React.ReactNode }) {
+    const { hasModule, loaded, fetchModules } = useModuleStore();
+
+    useEffect(() => {
+        if (!loaded) fetchModules();
+    }, [loaded]);
+
+    if (!loaded) {
+        return (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--text-tertiary)' }}>
+                加载中...
+            </div>
+        );
+    }
+    if (!hasModule(mod)) return <Navigate to="/dashboard" replace />;
     return <>{children}</>;
 }
 
@@ -322,7 +347,7 @@ export default function App() {
                     <Route path="invitations" element={<InvitationCodes />} />
                     <Route path="admin/platform-settings" element={<AdminCompanies />} />
                 </Route>
-                <Route path="/erp" element={<ProtectedRoute><ERPLayout /></ProtectedRoute>}>
+                <Route path="/erp" element={<ModuleRoute module="erp"><ProtectedRoute><ERPLayout /></ProtectedRoute></ModuleRoute>}>
                     <Route index element={<ERPDashboard />} />
                     <Route path="customers" element={<ERPCustomers />} />
                     <Route path="suppliers" element={<ERPSuppliers />} />
@@ -344,7 +369,7 @@ export default function App() {
                     <Route path="settings" element={<ERPSettings />} />
                     <Route path="settings/:tab" element={<ERPSettings />} />
                 </Route>
-                <Route path="/xhs" element={<ProtectedRoute><XHSLayout /></ProtectedRoute>}>
+                <Route path="/xhs" element={<ModuleRoute module="xhs"><ProtectedRoute><XHSLayout /></ProtectedRoute></ModuleRoute>}>
                     <Route index element={<XHSDashboard />} />
                     <Route path="content" element={<XHSContentList />} />
                     <Route path="content/calendar" element={<XHSContentCalendar />} />
@@ -352,6 +377,14 @@ export default function App() {
                     <Route path="accounts" element={<XHSAccounts />} />
                     <Route path="interactions" element={<XHSInteractions />} />
                     <Route path="settings" element={<XHSSettings />} />
+                </Route>
+                <Route path="/product-hub" element={<ModuleRoute module="product_hub"><ProtectedRoute><ProductHubLayout /></ProtectedRoute></ModuleRoute>}>
+                    <Route index element={<ProductHubDashboard />} />
+                    <Route path="products" element={<ProductHubProducts />} />
+                    <Route path="my-pools" element={<ProductHubMyPools />} />
+                    <Route path="my-pools/:poolId" element={<ProductHubMyPools />} />
+                    <Route path="crawl-tasks" element={<ProductHubCrawlTasks />} />
+                    <Route path="categories" element={<ProductHubCategories />} />
                 </Route>
             </Routes>
             </Suspense>

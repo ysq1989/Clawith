@@ -396,8 +396,8 @@ The XHS module is an independent sub-application at `/xhs`, parallel to ERP. It 
 
 ### Architecture
 
-- **Frontend**: `frontend/src/pages/xhs/` — 8 page components (Layout, Dashboard, ContentList, AccountManager, AnalyticsBoard, etc.)
-- **Backend**: `backend/app/api/xhs.py` (~600 lines, 25+ endpoints) + `backend/app/models/xhs.py` (7 models)
+- **Frontend**: `frontend/src/pages/xhs/` — 8 page components (Layout, Dashboard, ContentList, AccountManager, AnalyticsBoard, ContentCalendar, InteractionsPage, Settings)
+- **Backend**: `backend/app/api/xhs.py` (~900 lines, 25+ endpoints) + `backend/app/models/xhs.py` (7 models)
 - **CDP Engine**: Uses [XiaohongshuSkills](https://github.com/white0dew/XiaohongshuSkills) scripts for browser automation (publish/search/interact)
 - **Migration**: `backend/alembic/versions/080_xhs_init.py`
 
@@ -407,11 +407,26 @@ The XHS module is an independent sub-application at `/xhs`, parallel to ERP. It 
 
 ### XHS API Endpoints
 
-All under `/api/xhs/`: content CRUD, publish, search, notes, comment, like, bookmark, analytics (overview/notes/live), accounts, personas, knowledge base.
+All under `/api/xhs/`: content CRUD, publish, search, notes, comment, like, bookmark, analytics (overview/notes/live), accounts, personas, knowledge base, schedules, AI content generation, CDP health check.
 
 ### XHS CDP Integration
 
 The backend wraps XiaohongshuSkills scripts via `_run_cdp_command()` and `_run_publish_pipeline()` async functions in `api/xhs.py`. Scripts are located at `D:/开发工作区/XiaohongshuSkills/` (configurable via `XHS_SKILLS_DIR` env var). CDP runs on `127.0.0.1:9222` (configurable via `XHS_CDP_HOST`/`XHS_CDP_PORT`).
+
+**Edge Node Architecture**: CDP operations can be delegated to local clients (electron-egg) via WebSocket. When an edge node is connected, the server pushes commands to it instead of executing locally.
+
+### XHS Agent Tools (7 tools)
+
+Registered in `BUILTIN_TOOL_DEFINITIONS` and `RUNTIME_TYPED_APPLICATION_TOOL_NAMES`:
+- `xhs_search_notes` — Search Xiaohongshu notes
+- `xhs_generate_content` — AI content generation via LLM
+- `xhs_publish_content` — Publish to Xiaohongshu
+- `xhs_manage_content` — Content CRUD operations
+- `xhs_get_note_detail` — Get note details
+- `xhs_interact_note` — Like/bookmark/comment
+- `xhs_get_analytics` — Get analytics data
+
+All tools try edge node (WebSocket) first, fallback to HTTP API → local CDP.
 
 ### XHS Design Principles
 
@@ -419,6 +434,128 @@ The backend wraps XiaohongshuSkills scripts via `_run_cdp_command()` and `_run_p
 - **Reverse-engineered APIs for data collection** (MediaCrawler) — higher efficiency
 - **SaaS + Local Client model** — Cloud platform for AI/scheduling, local client for browser automation
 - Reference docs: `docs/XHS_DEVELOPMENT_PLAN.md`, `docs/XHS_OPTIMAL_SELECTION.md`, `docs/PLATFORM_ARCHITECTURE.md`
+
+## Product Hub (选品中心) Module
+
+The Product Hub is an independent sub-application at `/product-hub`, parallel to ERP and XHS. It manages product selection pools: supply chain crawling, LLM-powered cleaning/classification, and user-facing product browsing with personal pools.
+
+### Architecture
+
+- **Frontend**: `frontend/src/pages/product-hub/` — 6 page components (Layout, Dashboard, Products, MyPools, CrawlTasks, Categories)
+- **Backend**: `backend/app/api/product_hub.py` (~700 lines, 27+ endpoints) + `backend/app/models/product_hub.py` (6 models)
+- **Module Registry**: `backend/app/core/module_registry.py` — Central module definition + tenant-level access control
+- **Module Guard**: `backend/app/core/module_guard.py` — Middleware blocking API access for disabled modules
+- **Migration**: `backend/alembic/versions/081_product_hub_init.py`
+
+### Key Design Decisions
+
+- **Admin/User/Agent three-layer access**: Admin endpoints (`/admin/*`) are invisible to users; crawl tasks and raw source data are admin-only.
+- **Supply chain disguise**: `ProductHubSupplyChain` maps internal crawl sources to user-facing brand names (e.g. "华南女装供应链"). Users never see the actual data source.
+- **Tenant-level module gating**: `tenants.enabled_modules` JSON field controls which modules each tenant can access. `null`/empty = all enabled (backward compatible).
+- **Module guard middleware**: `ModuleGuardMiddleware` blocks API calls to disabled modules at the HTTP layer.
+- **Frontend dynamic rendering**: `useModuleStore` fetches enabled modules on login; sidebar and routes are filtered accordingly via `<ModuleRoute>`.
+
+### Data Models (6 tables)
+
+- `product_hub_supply_chains` — Supply chain source config (admin-only, maps crawl sources to display names)
+- `product_hub_categories` — Product category tree (supports hierarchy)
+- `product_hub_products` — Public product selection pool (cleaned products)
+- `product_hub_crawl_tasks` — Crawl task records (admin-only)
+- `product_hub_user_pools` — User's personal selection pool
+- `product_hub_user_pool_items` — Products in a user's pool
+
+### API Endpoints
+
+```
+Admin (admin/*):       Supply chains CRUD, crawl tasks, product management, categories, batch-clean
+User:                  Product search/browse, category list, personal pool CRUD
+Agent (internal):      Search, pick, list-pools, get-pool-items (for XHS publishing)
+```
+
+### Services (`backend/app/services/product_hub/`)
+
+- `crawl_service.py` — Orchestrates crawling from WeChat business album API. Normalizes raw data, deduplicates, stores in `product_hub_products`. Runs as background task via `admin_start_crawl`.
+- `clean_service.py` — LLM-powered product cleaning pipeline. Classifies products into categories, generates tags, creates summaries, scores quality. Triggered via `admin_batch_clean` or auto-scheduled.
+
+### Module Permission System
+
+Tenant-level module access is controlled via `tenants.enabled_modules`:
+- `null` or `[]` = all modules enabled (backward compatible)
+- `["erp", "product_hub"]` = only ERP and Product Hub visible
+- Platform Admin sees all modules regardless
+
+The permission chain: `Tenant.enabled_modules` → `GET /api/auth/my-modules` → `useModuleStore` → sidebar + `<ModuleRoute>` + `ModuleGuardMiddleware`.
+
+## Edge Node / Client Architecture
+
+The platform supports a "SaaS + Local Client" model where browser automation (Chrome CDP) runs on the user's local machine, not the server.
+
+### Communication Flow
+
+```
+SaaS Server (8.134.178.82)          Local Client (electron-egg)
+┌─────────────────────────┐       ┌─────────────────────────┐
+│ Backend API (:8008)     │◄──────│ HTTP Server (:7071)     │
+│ Agent Runtime           │  WS   │ EdgeNodeService         │
+│ PostgreSQL + Redis      │──────►│ ChromeService (CDP)     │
+│ Scheduled Publishing    │       │ XhsService (scripts)    │
+└─────────────────────────┘       └─────────────────────────┘
+```
+
+### WebSocket Protocol
+
+Endpoint: `ws://server:8008/api/ws/edge-node`
+
+**Client → Server:**
+- `{"type": "register", "node_id": "...", "tenant_id": "...", "meta": {...}}`
+- `{"type": "heartbeat"}`
+- `{"type": "command_result", "command_id": "...", "success": true, "result": {...}}`
+
+**Server → Client:**
+- `{"type": "registered", "node_id": "...", "message": "..."}`
+- `{"type": "command", "command_id": "...", "command": "xhs_search", "args": {...}}`
+- `{"type": "heartbeat_ack"}`
+
+### Edge Node Commands
+
+| Command | Description |
+|---------|-------------|
+| `xhs_search` | Search Xiaohongshu notes |
+| `xhs_login_qrcode` | Get login QR code |
+| `xhs_check_login` | Check login status |
+| `xhs_publish` | Publish content |
+| `xhs_get_note` | Get note details |
+| `xhs_like` / `xhs_bookmark` / `xhs_comment` | Interact with notes |
+
+### Client (electron-egg)
+
+Location: `D:/开发工作区/electron-egg-gitee`
+
+**Key files:**
+- `electron/service/edgeNodeService.ts` — WebSocket client + command handlers
+- `electron/service/chromeService.ts` — Chrome process management + CDP
+- `electron/service/xhsService.ts` — XiaohongshuSkills script execution
+- `electron/preload/lifecycle.ts` — App initialization (edge node connection)
+- `electron/config/config.local.ts` — Development config (remote URL)
+- `electron/config/config.prod.ts` — Production config
+
+**Dependencies:**
+- Chrome (portable or system install)
+- Python 3.8+ (portable or system install)
+- XiaohongshuSkills scripts
+
+**Build:**
+```bash
+cd electron-egg-gitee
+npx ee-bin build --cmds=electron  # Build bundle
+npx electron-builder --win --dir   # Package as .exe
+```
+
+### Server-Side Edge Node API
+
+- `GET /api/edge-nodes` — List connected edge nodes
+- `GET /api/edge-nodes/{id}/status` — Check node status
+- `edge_node.py` — WebSocket endpoint + connection registry + command sending
 
 ## Agent Admin System
 

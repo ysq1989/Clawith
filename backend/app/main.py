@@ -182,6 +182,7 @@ async def lifespan(app: FastAPI):
             import app.models.onboarding     # noqa
             import app.models.erp            # noqa
             import app.models.xhs            # noqa
+            import app.models.product_hub     # noqa
 
             import app.models.identity       # noqa
             if settings.DATABASE_AUTO_CREATE_TABLES:
@@ -366,6 +367,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Module guard — blocks API access to modules not enabled for the tenant
+from app.core.module_guard import ModuleGuardMiddleware
+app.add_middleware(ModuleGuardMiddleware)
+
 # Register API routes
 from app.api.auth import router as auth_router
 from app.api.agents import router as agents_router
@@ -416,6 +421,7 @@ from app.api.okr import router as okr_router
 from app.api.onboarding import router as onboarding_router
 from app.api.erp import router as erp_router
 from app.api.xhs import router as xhs_router
+from app.api.product_hub import router as product_hub_router
 from app.api.agent_admin import router as agent_admin_router
 from app.api.edge_node import router as edge_node_router
 
@@ -469,6 +475,7 @@ app.include_router(agentbay_control_router, prefix=settings.API_PREFIX)
 app.include_router(okr_router)  # OKR — self-prefixed at /api/okr
 app.include_router(erp_router)  # ERP — self-prefixed at /api/erp
 app.include_router(xhs_router)  # Xiaohongshu — self-prefixed at /api/xhs
+app.include_router(product_hub_router)  # Product Hub — self-prefixed at /api/product-hub
 app.include_router(edge_node_router, prefix=settings.API_PREFIX)  # Edge Node WebSocket + REST
 app.include_router(agent_admin_router)  # Agent Admin — self-prefixed at /api/agent-admin
 app.include_router(onboarding_router, prefix=settings.API_PREFIX)
