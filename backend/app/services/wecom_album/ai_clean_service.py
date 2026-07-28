@@ -19,6 +19,7 @@ from sqlalchemy import select
 from app.database import async_session
 from app.models.llm import LLMModel
 from app.models.wecom_album import WecomAlbumAccount, WecomAlbumProduct
+from app.services.llm.utils import get_model_api_key
 
 AI_TIMEOUT = 60
 
@@ -174,8 +175,10 @@ async def _call_llm_api(
     if enable_thinking:
         body["chat_template_kwargs"] = {"enable_thinking": True}
 
+    api_key = get_model_api_key(model)
+
     headers = {
-        "Authorization": f"Bearer {model.api_key_encrypted}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
 
