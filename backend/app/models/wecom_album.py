@@ -154,7 +154,8 @@ class WecomAlbumProduct(Base):
 
     # ── Status ──
     status: Mapped[str] = mapped_column(String(20), default="pending_clean")
-    # pending_clean = 待清洗, pending_sync = 待同步, synced = 已同步
+    # pending_clean = 待清洗, pending_sync = 待同步, synced = 已同步, skip = 不同步
+    skip_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     # ── Sync tracking ──
     source_hash: Mapped[str | None] = mapped_column(String(40), nullable=True)

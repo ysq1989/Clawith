@@ -163,6 +163,7 @@ export default function WecomAlbumProductsPage() {
                     { key: 'pending_clean', label: isChinese ? '待清洗' : 'Pending Clean' },
                     { key: 'pending_sync', label: isChinese ? '待同步' : 'Pending Sync' },
                     { key: 'synced', label: isChinese ? '已同步' : 'Synced' },
+                    { key: 'skip', label: isChinese ? '不同步' : 'Skipped' },
                 ].map((tab) => (
                     <button
                         key={tab.key}
@@ -255,11 +256,12 @@ export default function WecomAlbumProductsPage() {
                                             borderRadius: 4,
                                             fontSize: 10,
                                             fontWeight: 500,
-                                            background: p.status === 'synced' ? '#f0fdf4' : p.status === 'pending_sync' ? '#eff6ff' : '#fefce8',
-                                            color: p.status === 'synced' ? '#16a34a' : p.status === 'pending_sync' ? '#2563eb' : '#ca8a04',
+                                            background: p.status === 'synced' ? '#f0fdf4' : p.status === 'pending_sync' ? '#eff6ff' : p.status === 'skip' ? '#fef2f2' : '#fefce8',
+                                            color: p.status === 'synced' ? '#16a34a' : p.status === 'pending_sync' ? '#2563eb' : p.status === 'skip' ? '#dc2626' : '#ca8a04',
                                         }}
+                                        title={p.status === 'skip' ? p.skip_reason : undefined}
                                     >
-                                        {p.status === 'pending_clean' ? (isChinese ? '待清洗' : 'To Clean') : p.status === 'pending_sync' ? (isChinese ? '待同步' : 'To Sync') : (isChinese ? '已同步' : 'Synced')}
+                                        {p.status === 'pending_clean' ? (isChinese ? '待清洗' : 'To Clean') : p.status === 'pending_sync' ? (isChinese ? '待同步' : 'To Sync') : p.status === 'skip' ? (isChinese ? '不同步' : 'Skipped') : (isChinese ? '已同步' : 'Synced')}
                                     </span>
                                     {p.shop_name && (
                                         <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
@@ -398,6 +400,11 @@ export default function WecomAlbumProductsPage() {
                                             {tag}
                                         </span>
                                     ))}
+                                </div>
+                            )}
+                            {(selectedProduct as any).skip_reason && (
+                                <div style={{ marginTop: 8, padding: '6px 10px', background: '#fef2f2', borderRadius: 6, fontSize: 12, color: '#dc2626' }}>
+                                    {isChinese ? '不同步原因' : 'Skip reason'}: {(selectedProduct as any).skip_reason}
                                 </div>
                             )}
                         </div>

@@ -131,6 +131,7 @@ def _product_to_out(p) -> dict:
         "source_url": p.source_url,
         "tags": p.tags or [],
         "status": p.status,
+        "skip_reason": p.skip_reason,
         "ai_cleaned_at": p.ai_cleaned_at.isoformat() if p.ai_cleaned_at else None,
         "szwego_created_at": p.szwego_created_at.isoformat() if p.szwego_created_at else None,
         "synced_at": p.synced_at.isoformat() if p.synced_at else None,

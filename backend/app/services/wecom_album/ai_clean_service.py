@@ -24,48 +24,80 @@ AI_TIMEOUT = 60
 
 # ─── Optimized prompts (Role + Task + Context + Requirements + Output Format) ───
 
-DEFAULT_SYSTEM_PROMPT = """你是一位资深珠宝玉石行业商品数据专家，负责清洗微商相册商品标题并提取成本价。
+DEFAULT_SYSTEM_PROMPT = """你是一位资深珠宝玉石行业商品数据专家，负责清洗微商相册商品标题、提取成本价，并判断商品是否值得同步到选品池。
 
 ## 核心能力
 1. 理解珠宝玉石行业术语（翡翠、和田玉、钻石、黄金等）
 2. 从混乱的营销标题中提取商品核心信息
 3. 准确识别价格描述并转换为数字
+4. 判断商品是否适合上架销售
 
 ## 清洗规则
 - 保留：品牌名、材质、规格（尺寸/重量/克拉）、数量、品质描述
 - 去除：营销词（秒杀/私域/完美/真实/诚信/厂家直销）、联系方式、表情符号、重复符号、多余空格
 - 价格：仅提取成本价/批发价数字，忽略零售价、市场价等
 
+## 跳过规则（sync=0 表示不同步，需说明原因）
+以下商品应标记为不同步：
+1. 标题过短或无意义（如只有表情、只有"新款"等）
+2. 无明确价格信息且无法推断成本价
+3. 明显是服务/加工/定制类（非成品商品）
+4. 标题包含明显违规词（如"高仿""A货"等假冒相关）
+5. 重复铺货（同一商品多次发布）
+
 ## 输出格式
 严格输出 JSON，不要输出任何解释或思考过程。"""
 
-DEFAULT_USER_PROMPT_TEMPLATE = """请清洗以下商品标题并提取成本价。
+DEFAULT_USER_PROMPT_TEMPLATE = """请清洗以下商品标题并提取成本价，同时判断是否值得同步到选品池。
 
 ## 商品标题
 {title}
 
 ## 输出要求
 严格输出 JSON 对象，不要输出任何其他内容：
-{{"clean_title": "清洗后的标题", "cost": 0}}
+{{"clean_title": "清洗后的标题", "cost": 0, "sync": 1, "skip_reason": ""}}
+
+字段说明：
+- clean_title: 清洗后的标题
+- cost: 成本价（数字），无法判断填 0
+- sync: 1=同步, 0=不同步
+- skip_reason: 不同步时必填原因，同步时填空字符串
 
 ## 示例
 输入：🌴正圈冰飘花 完美无瑕 尺寸：55.7/12.2/8.1 价格：小六3️⃣开！起荧光
-输出：{{"clean_title": "正圈冰飘花 尺寸55.7/12.2/8.1", "cost": 0}}
+输出：{{"clean_title": "正圈冰飘花 尺寸55.7/12.2/8.1", "cost": 0, "sync": 1, "skip_reason": ""}}
 
 输入：💰翡翠A货 冰种观音 26x18x5mm 批发价3800
-输出：{{"clean_title": "翡翠A货 冰种观音 26x18x5mm", "cost": 3800}}
+输出：{{"clean_title": "翡翠A货 冰种观音 26x18x5mm", "cost": 3800, "sync": 1, "skip_reason": ""}}
 
-输入：🔥工厂直发 18K金镶嵌钻石戒指 0.5ct F色 VVS1 价格12000
-输出：{{"clean_title": "18K金镶嵌钻石戒指 0.5ct F色 VVS1", "cost": 12000}}"""
+输入：🔥来图定制 手镯加工 100元起
+输出：{{"clean_title": "来图定制 手镯加工", "cost": 0, "sync": 0, "skip_reason": "加工定制类非成品"}}
 
-DEFAULT_BATCH_USER_PROMPT_TEMPLATE = """请批量清洗以下商品标题并提取成本价。
+输入：👍新款上市
+输出：{{"clean_title": "新款上市", "cost": 0, "sync": 0, "skip_reason": "标题无意义缺少商品信息"}}"""
+
+DEFAULT_BATCH_USER_PROMPT_TEMPLATE = """请批量清洗以下商品标题并提取成本价，同时判断每个商品是否值得同步到选品池。
 
 ## 商品列表
 {items_json}
 
 ## 输出要求
 严格输出 JSON 数组，不要输出任何其他内容：
-[{{"item_id": "xxx", "clean_title": "清洗后的标题", "cost": 0}}, ...]
+[{{"item_id": "xxx", "clean_title": "清洗后的标题", "cost": 0, "sync": 1, "skip_reason": ""}}, ...]
+
+字段说明：
+- clean_title: 清洗后的标题
+- cost: 成本价（数字），无法判断填 0
+- sync: 1=同步, 0=不同步
+- skip_reason: 不同步时必填原因，同步时填空字符串
+
+## 跳过规则
+以下商品标记为 sync=0：
+1. 标题过短或无意义
+2. 无明确价格信息
+3. 加工/定制/服务类（非成品）
+4. 明显违规词（高仿/A货等假冒相关）
+5. 重复铺货"""
 
 ## 清洗规则
 - 保留：品牌、材质、规格（尺寸/重量）、数量、品质关键词
@@ -271,12 +303,23 @@ async def clean_single(product_id: uuid.UUID) -> dict:
                 except (ValueError, TypeError):
                     product.clean_price = 0
                 product.ai_cleaned_at = datetime.now(timezone.utc)
-                product.status = "pending_sync"
+
+                # Check if AI recommends skipping
+                sync_flag = parsed.get("sync", 1)
+                if sync_flag == 0 or str(sync_flag) == "0":
+                    product.status = "skip"
+                    product.skip_reason = parsed.get("skip_reason", "") or "AI判断不同步"
+                else:
+                    product.status = "pending_sync"
+                    product.skip_reason = None
+
                 await db.commit()
                 return {
                     "success": True,
                     "clean_title": product.clean_title,
                     "clean_price": float(product.clean_price),
+                    "status": product.status,
+                    "skip_reason": product.skip_reason,
                 }
             else:
                 return {"success": False, "error": "Failed to parse AI response"}
@@ -324,6 +367,7 @@ async def clean_batch(product_ids: list[uuid.UUID]) -> dict:
             lookup = {str(item.get("item_id", "")): item for item in parsed_list}
 
             cleaned = 0
+            skipped = 0
             for p in products:
                 item = lookup.get(str(p.id))
                 if item:
@@ -333,11 +377,19 @@ async def clean_batch(product_ids: list[uuid.UUID]) -> dict:
                     except (ValueError, TypeError):
                         p.clean_price = 0
                     p.ai_cleaned_at = datetime.now(timezone.utc)
-                    p.status = "pending_sync"
-                    cleaned += 1
+
+                    sync_flag = item.get("sync", 1)
+                    if sync_flag == 0 or str(sync_flag) == "0":
+                        p.status = "skip"
+                        p.skip_reason = item.get("skip_reason", "") or "AI判断不同步"
+                        skipped += 1
+                    else:
+                        p.status = "pending_sync"
+                        p.skip_reason = None
+                        cleaned += 1
 
             await db.commit()
-            return {"success": True, "cleaned": cleaned, "total": len(products)}
+            return {"success": True, "cleaned": cleaned, "skipped": skipped, "total": len(products)}
 
         except Exception as e:
             logger.error(f"[WecomAlbum] Batch AI clean failed: {e}")
