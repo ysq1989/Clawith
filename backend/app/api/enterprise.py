@@ -492,6 +492,12 @@ async def remove_llm_model(
         update(Tenant).where(Tenant.default_model_id == model_id).values(default_model_id=None)
     )
 
+    # Nullify FK references in agent_runs (RESTRICT constraint)
+    from app.models.agent_run import AgentRun
+    await db.execute(
+        update(AgentRun).where(AgentRun.model_id == model_id).values(model_id=None)
+    )
+
     await db.delete(model)
     await db.commit()
 
