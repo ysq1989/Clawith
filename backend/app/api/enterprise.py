@@ -9,7 +9,7 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
 from pydantic import BaseModel
-from sqlalchemy import select, func, update, or_
+from sqlalchemy import select, func, update, or_, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -492,10 +492,11 @@ async def remove_llm_model(
         update(Tenant).where(Tenant.default_model_id == model_id).values(default_model_id=None)
     )
 
-    # Nullify FK references in agent_runs (RESTRICT constraint)
+    # Nullify FK references in agent_runs (RESTRICT constraint + CHECK constraint)
+    # langgraph runs require model_id NOT NULL, so we must delete old run records
     from app.models.agent_run import AgentRun
     await db.execute(
-        update(AgentRun).where(AgentRun.model_id == model_id).values(model_id=None)
+        delete(AgentRun).where(AgentRun.model_id == model_id)
     )
 
     await db.delete(model)
