@@ -479,6 +479,19 @@ async def remove_llm_model(
         await db.execute(
             update(Agent).where(Agent.fallback_model_id == model_id).values(fallback_model_id=None)
         )
+
+    # Nullify FK references in wecom_album_accounts
+    from app.models.wecom_album import WecomAlbumAccount
+    await db.execute(
+        update(WecomAlbumAccount).where(WecomAlbumAccount.ai_model_id == model_id).values(ai_model_id=None)
+    )
+
+    # Nullify FK references in tenants
+    from app.models.tenant import Tenant
+    await db.execute(
+        update(Tenant).where(Tenant.default_model_id == model_id).values(default_model_id=None)
+    )
+
     await db.delete(model)
     await db.commit()
 
