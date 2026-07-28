@@ -99,12 +99,6 @@ DEFAULT_BATCH_USER_PROMPT_TEMPLATE = """请批量清洗以下商品标题并提�
 4. 明显违规词（高仿/A货等假冒相关）
 5. 重复铺货"""
 
-## 清洗规则
-- 保留：品牌、材质、规格（尺寸/重量）、数量、品质关键词
-- 去除：营销词、联系方式、表情、重复符号、多余空格
-- 价格：仅提取成本价数字，无法判断返回 0
-- item_id 保持不变，直接原样输出"""
-
 
 async def _get_ai_model(tenant_id: uuid.UUID) -> LLMModel | None:
     """Get the AI model selected in the wecom-album account config."""
