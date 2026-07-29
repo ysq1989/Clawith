@@ -5,9 +5,10 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchJson } from '../../services/api';
-import { IconSearch, IconX, IconPackage, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
+import { useToast } from '../../components/Toast/ToastProvider';
+import { IconSearch, IconX, IconPackage, IconChevronLeft, IconChevronRight, IconCheck, IconShoppingBagPlus } from '@tabler/icons-react';
 
 interface Product {
     id: string;
@@ -175,20 +176,63 @@ function GalleryViewer({
     );
 }
 
+/* ─── Pool Option Item ─── */
+function PoolOption({ pool, isChinese, onSelect, disabled }: { pool: any; isChinese: boolean; onSelect: (id: string) => void; disabled: boolean }) {
+    const [hovered, setHovered] = useState(false);
+    return (
+        <div
+            onClick={() => !disabled && onSelect(pool.id)}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+                borderRadius: 8, cursor: disabled ? 'default' : 'pointer',
+                background: hovered ? '#f5f5f5' : '#fafafa',
+                border: '1px solid #eee', transition: 'all 0.15s',
+                opacity: disabled ? 0.5 : 1,
+            }}
+        >
+            <div style={{
+                width: 36, height: 36, borderRadius: 8,
+                background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 600,
+            }}>
+                {pool.name?.[0] || 'P'}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pool.name}</div>
+                {pool.product_count !== undefined && (
+                    <div style={{ fontSize: 12, color: '#999' }}>{pool.product_count} {isChinese ? '件' : 'items'}</div>
+                )}
+            </div>
+            <IconShoppingBagPlus size={16} color="#999" />
+        </div>
+    );
+}
+
 /* ─── Main Page ─── */
 export default function ProductsPage() {
     const { i18n } = useTranslation();
     const isChinese = i18n.language?.startsWith('zh');
+    const toast = useToast();
+    const queryClient = useQueryClient();
 
     const [keyword, setKeyword] = useState('');
     const [searchInput, setSearchInput] = useState('');
     const [page, setPage] = useState(1);
     const [galleryProduct, setGalleryProduct] = useState<Product | null>(null);
     const [galleryIndex, setGalleryIndex] = useState(0);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [showPoolDialog, setShowPoolDialog] = useState(false);
 
     const { data, isLoading } = useQuery({
         queryKey: ['product-hub-products', keyword, page],
         queryFn: () => fetchJson<any>(`/product-hub/products?page=${page}&page_size=40${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`),
+    });
+
+    const { data: pools = [] } = useQuery<any[]>({
+        queryKey: ['product-hub-my-pools'],
+        queryFn: () => fetchJson<any>('/product-hub/my-pools'),
     });
 
     const { data: apiCategories = [] } = useQuery<ApiCategory[]>({
@@ -200,10 +244,44 @@ export default function ProductsPage() {
     const products: Product[] = data?.items ?? [];
     const total: number = data?.total ?? 0;
 
-    const handleSearch = () => {
-        setKeyword(searchInput);
-        setPage(1);
+    const handleSearch = () => { setKeyword(searchInput); setPage(1); };
+
+    const toggleSelect = (id: string) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
     };
+
+    const toggleSelectAll = () => {
+        if (selectedIds.size === products.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(products.map(p => p.id)));
+        }
+    };
+
+    const addToPoolMutation = useMutation({
+        mutationFn: async ({ poolId, productIds }: { poolId: string; productIds: string[] }) => {
+            const results = await Promise.all(
+                productIds.map(pid => fetchJson(`/product-hub/my-pools/${poolId}/items`, {
+                    method: 'POST',
+                    body: JSON.stringify({ product_id: pid }),
+                }))
+            );
+            return results;
+        },
+        onSuccess: (_, vars) => {
+            toast.success(isChinese ? `已添加 ${vars.productIds.length} 件商品到货池` : `Added ${vars.productIds.length} products`);
+            setSelectedIds(new Set());
+            setShowPoolDialog(false);
+            queryClient.invalidateQueries({ queryKey: ['product-hub-my-pools'] });
+        },
+        onError: (err: any) => {
+            toast.error(err?.message || (isChinese ? '添加失败' : 'Failed'));
+        },
+    });
 
     const openGallery = (p: Product, idx: number) => {
         setGalleryProduct(p);
@@ -253,11 +331,27 @@ export default function ProductsPage() {
                             style={{
                                 background: '#fff', borderRadius: 10, overflow: 'hidden',
                                 cursor: 'pointer', transition: 'all 0.2s',
-                                border: '1px solid #f0f0f0',
+                                border: selectedIds.has(p.id) ? '2px solid #4f46e5' : '1px solid #f0f0f0',
+                                position: 'relative',
                             }}
                             onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
                             onMouseLeave={(e) => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}
                         >
+                            {/* Checkbox */}
+                            <div
+                                onClick={(e) => { e.stopPropagation(); toggleSelect(p.id); }}
+                                style={{
+                                    position: 'absolute', top: 8, left: 8, zIndex: 2,
+                                    width: 22, height: 22, borderRadius: 6,
+                                    border: selectedIds.has(p.id) ? '2px solid #4f46e5' : '2px solid rgba(255,255,255,0.7)',
+                                    background: selectedIds.has(p.id) ? '#4f46e5' : 'rgba(255,255,255,0.3)',
+                                    backdropFilter: 'blur(4px)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    cursor: 'pointer', transition: 'all 0.15s',
+                                }}
+                            >
+                                {selectedIds.has(p.id) && <IconCheck size={14} color="#fff" stroke={3} />}
+                            </div>
                             {/* 4:3 image */}
                             <div style={{ position: 'relative', width: '100%', aspectRatio: '3/4', background: '#f5f5f5', overflow: 'hidden' }}>
                                 {p.main_image || p.images?.[0] ? (
@@ -306,6 +400,73 @@ export default function ProductsPage() {
                         style={{ padding: '7px 18px', borderRadius: 8, border: '1px solid #e0e0e0', background: '#fff', cursor: page * 40 >= total ? 'default' : 'pointer', opacity: page * 40 >= total ? 0.4 : 1, fontSize: 13, color: '#666' }}>
                         {isChinese ? '下一页' : 'Next'} ›
                     </button>
+                </div>
+            )}
+
+            {/* Floating action bar — multi-select */}
+            {selectedIds.size > 0 && (
+                <div style={{
+                    position: 'fixed', bottom: 0, left: 0, right: 0,
+                    background: '#fff', borderTop: '1px solid #e5e5e5',
+                    padding: '12px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    boxShadow: '0 -4px 16px rgba(0,0,0,0.08)', zIndex: 500,
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <button onClick={toggleSelectAll} style={{
+                            padding: '6px 12px', borderRadius: 6, border: '1px solid #ddd',
+                            background: '#fff', fontSize: 13, cursor: 'pointer', color: '#666',
+                        }}>
+                            {selectedIds.size === products.length ? (isChinese ? '取消全选' : 'Deselect All') : (isChinese ? '全选本页' : 'Select All')}
+                        </button>
+                        <span style={{ fontSize: 13, color: '#333' }}>
+                            {isChinese ? `已选 ${selectedIds.size} 件` : `${selectedIds.size} selected`}
+                        </span>
+                    </div>
+                    <button onClick={() => setShowPoolDialog(true)} style={{
+                        padding: '8px 24px', borderRadius: 8, border: 'none',
+                        background: '#4f46e5', color: '#fff', fontWeight: 500, fontSize: 14,
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                    }}>
+                        <IconShoppingBagPlus size={16} />
+                        {isChinese ? '加入我的货池' : 'Add to Pool'}
+                    </button>
+                </div>
+            )}
+
+            {/* Pool selection dialog */}
+            {showPoolDialog && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1001 }}
+                    onClick={() => setShowPoolDialog(false)}>
+                    <div style={{ background: '#fff', borderRadius: 12, width: 400, padding: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}
+                        onClick={(e) => e.stopPropagation()}>
+                        <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 16px 0', color: '#222' }}>
+                            {isChinese ? '选择目标货池' : 'Select Pool'}
+                        </h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflow: 'auto', marginBottom: 16 }}>
+                            {(Array.isArray(pools) ? pools : []).length === 0 ? (
+                                <p style={{ color: '#999', fontSize: 13, margin: 0, textAlign: 'center', padding: 20 }}>
+                                    {isChinese ? '暂无货池，请先创建' : 'No pools yet'}
+                                </p>
+                            ) : (
+                                (Array.isArray(pools) ? pools : []).map((pool: any) => (
+                                    <PoolOption key={pool.id} pool={pool} isChinese={isChinese}
+                                        onSelect={(poolId) => {
+                                            addToPoolMutation.mutate({ poolId, productIds: Array.from(selectedIds) });
+                                        }}
+                                        disabled={addToPoolMutation.isPending}
+                                    />
+                                ))
+                            )}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setShowPoolDialog(false)} style={{
+                                padding: '8px 16px', borderRadius: 8, border: '1px solid #ddd',
+                                background: '#fff', fontSize: 13, cursor: 'pointer', color: '#666',
+                            }}>
+                                {isChinese ? '取消' : 'Cancel'}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 
