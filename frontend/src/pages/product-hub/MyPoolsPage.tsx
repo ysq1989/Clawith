@@ -8,10 +8,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchJson } from '../../services/api';
 import { useToast } from '../../components/Toast/ToastProvider';
-import { IconPlus, IconTrash, IconArrowLeft, IconPool, IconShoppingBag } from '@tabler/icons-react';
+import { IconPlus, IconTrash, IconArrowLeft, IconShoppingBag, IconX } from '@tabler/icons-react';
 
 export default function MyPoolsPage() {
-    const { t, i18n } = useTranslation();
+    const { i18n } = useTranslation();
     const toast = useToast();
     const queryClient = useQueryClient();
     const navigate = useNavigate();
@@ -20,16 +20,13 @@ export default function MyPoolsPage() {
 
     const [showCreate, setShowCreate] = useState(false);
     const [newPoolName, setNewPoolName] = useState('');
-    const [newPoolDesc, setNewPoolDesc] = useState('');
 
-    // List pools
     const { data: pools, isLoading } = useQuery({
         queryKey: ['product-hub-my-pools'],
         queryFn: () => fetchJson<any>('/product-hub/my-pools'),
         enabled: !poolId,
     });
 
-    // Pool detail
     const { data: poolDetail, isLoading: detailLoading } = useQuery({
         queryKey: ['product-hub-pool-detail', poolId],
         queryFn: () => fetchJson<any>(`/product-hub/my-pools/${poolId}`),
@@ -37,24 +34,19 @@ export default function MyPoolsPage() {
     });
 
     const createPoolMutation = useMutation({
-        mutationFn: (body: { name: string; description?: string }) =>
-            fetchJson('/product-hub/my-pools', {
-                method: 'POST',
-                body: JSON.stringify(body),
-            }),
+        mutationFn: (body: { name: string }) =>
+            fetchJson('/product-hub/my-pools', { method: 'POST', body: JSON.stringify(body) }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['product-hub-my-pools'] });
             toast.success(isChinese ? '货池已创建' : 'Pool created');
             setShowCreate(false);
             setNewPoolName('');
-            setNewPoolDesc('');
         },
         onError: (err: any) => toast.error(err?.message || 'Failed'),
     });
 
     const deletePoolMutation = useMutation({
-        mutationFn: (id: string) =>
-            fetchJson(`/product-hub/my-pools/${id}`, { method: 'DELETE' }),
+        mutationFn: (id: string) => fetchJson(`/product-hub/my-pools/${id}`, { method: 'DELETE' }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['product-hub-my-pools'] });
             toast.success(isChinese ? '已删除' : 'Deleted');
@@ -76,67 +68,64 @@ export default function MyPoolsPage() {
     // ── Pool list view ──
     if (!poolId) {
         return (
-            <div style={{ padding: 32 }}>
+            <div style={{ padding: '24px 32px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
                     <div>
-                        <h1 style={{ fontSize: 24, fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {t('productHub.myPools.title', '我的货池')}
+                        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#222', margin: '0 0 4px 0' }}>
+                            {isChinese ? '我的货池' : 'My Pools'}
                         </h1>
-                        <p style={{ color: 'var(--text-tertiary)', marginTop: 4 }}>
-                            {t('productHub.myPools.subtitle', '管理你精心挑选的货品集合')}
+                        <p style={{ color: '#999', margin: 0, fontSize: 13 }}>
+                            {isChinese ? '管理精心挑选的货品集合' : 'Manage your curated product collections'}
                         </p>
                     </div>
-                    <button
-                        onClick={() => setShowCreate(true)}
-                        style={{
-                            padding: '8px 16px',
-                            borderRadius: 8,
-                            border: 'none',
-                            background: 'var(--color-primary)',
-                            color: 'white',
-                            fontWeight: 500,
-                            fontSize: 14,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                        }}
-                    >
+                    <button onClick={() => setShowCreate(true)} style={{
+                        padding: '8px 20px', borderRadius: 8, border: 'none',
+                        background: '#222', color: '#fff', fontWeight: 500, fontSize: 14, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 6,
+                    }}>
                         <IconPlus size={16} />
                         {isChinese ? '新建货池' : 'New Pool'}
                     </button>
                 </div>
 
                 {isLoading ? (
-                    <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>
-                        {isChinese ? '加载中...' : 'Loading...'}
-                    </div>
+                    <div style={{ padding: 60, textAlign: 'center', color: '#ccc' }}>{isChinese ? '加载中...' : 'Loading...'}</div>
                 ) : !Array.isArray(pools) || pools.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)' }}>
-                        <IconPool size={48} style={{ opacity: 0.3, marginBottom: 16 }} />
-                        <p>{isChinese ? '还没有货池，点击上方按钮创建' : 'No pools yet. Click the button above to create one.'}</p>
+                    <div style={{ padding: 60, textAlign: 'center', color: '#ccc' }}>
+                        <IconShoppingBag size={40} style={{ opacity: 0.3, marginBottom: 12 }} />
+                        <p style={{ margin: 0, fontSize: 14 }}>{isChinese ? '暂无货池，点击右上角创建' : 'No pools yet'}</p>
                     </div>
                 ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
                         {pools.map((pool: any) => (
                             <div
                                 key={pool.id}
                                 onClick={() => navigate(`/product-hub/my-pools/${pool.id}`)}
                                 style={{
-                                    background: 'var(--bg-primary)',
-                                    borderRadius: 12,
-                                    border: '1px solid var(--border-primary)',
-                                    padding: 20,
-                                    cursor: 'pointer',
-                                    transition: 'box-shadow 0.15s',
+                                    background: '#fff', borderRadius: 12, border: '1px solid #f0f0f0',
+                                    padding: '16px 18px', cursor: 'pointer', transition: 'all 0.2s',
+                                    position: 'relative',
                                 }}
-                                onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)')}
-                                onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'none')}
+                                onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}
                             >
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                                    <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                                        {pool.name}
-                                    </h3>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                                    <div style={{
+                                        width: 40, height: 40, borderRadius: 10,
+                                        background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        color: '#fff', fontSize: 16, fontWeight: 700, flexShrink: 0,
+                                    }}>
+                                        {pool.name?.[0] || 'P'}
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontSize: 15, fontWeight: 600, color: '#222', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {pool.name}
+                                        </div>
+                                        <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>
+                                            {pool.item_count ?? 0} {isChinese ? '件商品' : 'items'}
+                                        </div>
+                                    </div>
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -144,76 +133,48 @@ export default function MyPoolsPage() {
                                                 deletePoolMutation.mutate(pool.id);
                                             }
                                         }}
-                                        style={{
-                                            background: 'none',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            color: 'var(--text-tertiary)',
-                                            padding: 4,
-                                        }}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', padding: 4, borderRadius: 4, transition: 'color 0.15s' }}
+                                        onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
+                                        onMouseLeave={(e) => (e.currentTarget.style.color = '#ccc')}
                                     >
-                                        <IconTrash size={16} />
+                                        <IconTrash size={15} />
                                     </button>
                                 </div>
                                 {pool.description && (
-                                    <p style={{ fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 8 }}>
+                                    <p style={{ fontSize: 12, color: '#999', margin: 0, lineHeight: 1.4 }}>
                                         {pool.description}
                                     </p>
                                 )}
-                                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                                    {pool.item_count ?? 0} {isChinese ? '件商品' : 'items'}
-                                </div>
                             </div>
                         ))}
                     </div>
                 )}
 
-                {/* Create pool dialog */}
+                {/* Create dialog */}
                 {showCreate && (
-                    <div
-                        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
-                        onClick={() => setShowCreate(false)}
-                    >
-                        <div style={{ background: 'var(--bg-primary)', borderRadius: 12, width: 400, padding: 24 }} onClick={(e) => e.stopPropagation()}>
-                            <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>
-                                {isChinese ? '新建货池' : 'New Pool'}
-                            </h3>
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1001 }}
+                        onClick={() => setShowCreate(false)}>
+                        <div style={{ background: '#fff', borderRadius: 14, width: 380, padding: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}
+                            onClick={(e) => e.stopPropagation()}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                                <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0, color: '#222' }}>{isChinese ? '新建货池' : 'New Pool'}</h3>
+                                <button onClick={() => setShowCreate(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999' }}><IconX size={18} /></button>
+                            </div>
                             <input
-                                value={newPoolName}
-                                onChange={(e) => setNewPoolName(e.target.value)}
+                                value={newPoolName} onChange={(e) => setNewPoolName(e.target.value)}
                                 placeholder={isChinese ? '货池名称' : 'Pool name'}
                                 autoFocus
-                                style={{
-                                    width: '100%', padding: '8px 12px', borderRadius: 8,
-                                    border: '1px solid var(--border-primary)', background: 'var(--bg-primary)',
-                                    marginBottom: 12, fontSize: 14, boxSizing: 'border-box',
-                                }}
+                                onKeyDown={(e) => e.key === 'Enter' && newPoolName.trim() && createPoolMutation.mutate({ name: newPoolName.trim() })}
+                                style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #e5e5e5', background: '#fafafa', fontSize: 14, boxSizing: 'border-box', outline: 'none' }}
                             />
-                            <textarea
-                                value={newPoolDesc}
-                                onChange={(e) => setNewPoolDesc(e.target.value)}
-                                placeholder={isChinese ? '描述（可选）' : 'Description (optional)'}
-                                rows={3}
-                                style={{
-                                    width: '100%', padding: '8px 12px', borderRadius: 8,
-                                    border: '1px solid var(--border-primary)', background: 'var(--bg-primary)',
-                                    marginBottom: 16, fontSize: 14, resize: 'vertical', boxSizing: 'border-box',
-                                }}
-                            />
-                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                                <button onClick={() => setShowCreate(false)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-primary)', background: 'var(--bg-primary)', cursor: 'pointer', fontSize: 14 }}>
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+                                <button onClick={() => setShowCreate(false)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e5e5e5', background: '#fff', cursor: 'pointer', fontSize: 13, color: '#666' }}>
                                     {isChinese ? '取消' : 'Cancel'}
                                 </button>
                                 <button
-                                    onClick={() => {
-                                        if (!newPoolName.trim()) {
-                                            toast.error(isChinese ? '请输入名称' : 'Name is required');
-                                            return;
-                                        }
-                                        createPoolMutation.mutate({ name: newPoolName.trim(), description: newPoolDesc.trim() || undefined });
-                                    }}
-                                    disabled={createPoolMutation.isPending}
-                                    style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: 'var(--color-primary)', color: 'white', cursor: 'pointer', fontSize: 14, fontWeight: 500 }}
+                                    onClick={() => { if (newPoolName.trim()) createPoolMutation.mutate({ name: newPoolName.trim() }); }}
+                                    disabled={createPoolMutation.isPending || !newPoolName.trim()}
+                                    style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: newPoolName.trim() ? '#222' : '#ccc', color: '#fff', cursor: newPoolName.trim() ? 'pointer' : 'default', fontSize: 13, fontWeight: 500 }}
                                 >
                                     {createPoolMutation.isPending ? '...' : (isChinese ? '创建' : 'Create')}
                                 </button>
@@ -226,91 +187,76 @@ export default function MyPoolsPage() {
     }
 
     // ── Pool detail view ──
-    if (detailLoading) {
-        return <div style={{ padding: 32, color: 'var(--text-tertiary)' }}>{isChinese ? '加载中...' : 'Loading...'}</div>;
-    }
-
-    if (!poolDetail) {
-        return <div style={{ padding: 32, color: 'var(--text-tertiary)' }}>{isChinese ? '货池不存在' : 'Pool not found'}</div>;
-    }
+    if (detailLoading) return <div style={{ padding: 32, textAlign: 'center', color: '#ccc' }}>{isChinese ? '加载中...' : 'Loading...'}</div>;
+    if (!poolDetail) return <div style={{ padding: 32, textAlign: 'center', color: '#ccc' }}>{isChinese ? '货池不存在' : 'Pool not found'}</div>;
 
     const items: any[] = poolDetail.items ?? [];
 
     return (
-        <div style={{ padding: 32 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-                <button
-                    onClick={() => navigate('/product-hub/my-pools')}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: 4, display: 'flex' }}
-                >
+        <div style={{ padding: '24px 32px' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+                <button onClick={() => navigate('/product-hub/my-pools')}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: 4, display: 'flex' }}>
                     <IconArrowLeft size={20} />
                 </button>
-                <h1 style={{ fontSize: 24, fontWeight: 600, color: 'var(--text-primary)' }}>{poolDetail.name}</h1>
+                <div style={{ flex: 1 }}>
+                    <h1 style={{ fontSize: 20, fontWeight: 700, color: '#222', margin: 0 }}>{poolDetail.name}</h1>
+                    {poolDetail.description && <p style={{ fontSize: 13, color: '#999', margin: '2px 0 0 0' }}>{poolDetail.description}</p>}
+                </div>
+                <span style={{ fontSize: 13, color: '#aaa' }}>{items.length} {isChinese ? '件' : 'items'}</span>
             </div>
-            {poolDetail.description && (
-                <p style={{ color: 'var(--text-tertiary)', marginBottom: 24, marginLeft: 36 }}>{poolDetail.description}</p>
-            )}
 
             {items.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)' }}>
-                    <IconShoppingBag size={48} style={{ opacity: 0.3, marginBottom: 16 }} />
-                    <p>{isChinese ? '货池为空，去选品池挑选商品吧' : 'Pool is empty. Go browse products to add some.'}</p>
+                <div style={{ padding: 60, textAlign: 'center', color: '#ccc' }}>
+                    <IconShoppingBag size={40} style={{ opacity: 0.3, marginBottom: 12 }} />
+                    <p style={{ margin: 0, fontSize: 14 }}>{isChinese ? '货池为空，去选品池挑选商品吧' : 'Pool is empty'}</p>
                 </div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                     {items.map((item: any) => {
                         const product = item.product;
                         return (
-                            <div
-                                key={item.id}
-                                style={{
-                                    background: 'var(--bg-primary)',
-                                    borderRadius: 12,
-                                    border: '1px solid var(--border-primary)',
-                                    overflow: 'hidden',
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        width: '100%',
-                                        height: 180,
-                                        background: 'var(--bg-secondary)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        overflow: 'hidden',
-                                    }}
-                                >
+                            <div key={item.id} style={{
+                                background: '#fff', borderRadius: 10, overflow: 'hidden',
+                                border: '1px solid #f0f0f0', position: 'relative',
+                            }}>
+                                {/* 3:4 image */}
+                                <div style={{ position: 'relative', width: '100%', aspectRatio: '3/4', background: '#f5f5f5', overflow: 'hidden' }}>
                                     {product.main_image || product.images?.[0] ? (
-                                        <img
-                                            src={product.main_image || product.images[0]}
-                                            alt={product.title}
-                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                        />
+                                        <img src={product.main_image || product.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                     ) : (
-                                        <IconShoppingBag size={28} color="var(--text-tertiary)" style={{ opacity: 0.3 }} />
+                                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <IconShoppingBag size={28} color="#ddd" />
+                                        </div>
                                     )}
+                                    {/* Remove button */}
+                                    <button
+                                        onClick={() => removeItemMutation.mutate({ poolId: poolId!, itemId: item.id })}
+                                        style={{
+                                            position: 'absolute', top: 8, right: 8,
+                                            width: 28, height: 28, borderRadius: 8,
+                                            background: 'rgba(0,0,0,0.5)', border: 'none', cursor: 'pointer',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            color: '#fff', backdropFilter: 'blur(4px)', transition: 'background 0.15s',
+                                        }}
+                                        onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(220,38,38,0.8)')}
+                                        onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.5)')}
+                                        title={isChinese ? '移除' : 'Remove'}
+                                    >
+                                        <IconTrash size={14} />
+                                    </button>
                                 </div>
-                                <div style={{ padding: 12 }}>
-                                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {/* Info */}
+                                <div style={{ padding: '8px 10px 10px' }}>
+                                    <div style={{ fontSize: 13, fontWeight: 500, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 4 }}>
                                         {product.title}
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                        <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-primary)' }}>
-                                            {product.price ? `¥${product.price}` : '-'}
-                                        </span>
-                                        <button
-                                            onClick={() => removeItemMutation.mutate({ poolId: poolId!, itemId: item.id })}
-                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: 4 }}
-                                            title={isChinese ? '移除' : 'Remove'}
-                                        >
-                                            <IconTrash size={14} />
-                                        </button>
-                                    </div>
+                                    <span style={{ fontSize: 15, fontWeight: 700, color: '#e53e3e' }}>
+                                        ¥{product.price || '-'}
+                                    </span>
                                     {item.note && (
-                                        <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4, fontStyle: 'italic' }}>
-                                            {item.note}
-                                        </div>
+                                        <div style={{ fontSize: 11, color: '#999', marginTop: 4, fontStyle: 'italic' }}>{item.note}</div>
                                     )}
                                 </div>
                             </div>
