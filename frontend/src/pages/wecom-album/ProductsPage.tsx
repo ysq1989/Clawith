@@ -20,6 +20,7 @@ interface Product {
     price: string | null;
     main_image: string | null;
     images: string[];
+    video_url?: string | null;
     shop_name: string | null;
     tags: string[];
     synced_at: string;
@@ -575,6 +576,21 @@ export default function WecomAlbumProductsPage() {
                                     objectFit: 'contain',
                                     borderRadius: 8,
                                     background: '#f5f5f5',
+                                    marginBottom: 16,
+                                }}
+                            />
+                        )}
+
+                        {/* Video */}
+                        {selectedProduct.video_url && (
+                            <video
+                                src={selectedProduct.video_url}
+                                controls
+                                style={{
+                                    width: '100%',
+                                    maxHeight: 400,
+                                    borderRadius: 8,
+                                    background: '#000',
                                     marginBottom: 16,
                                 }}
                             />
