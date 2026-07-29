@@ -5,10 +5,9 @@
 
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { fetchJson } from '../../services/api';
-import { useToast } from '../../components/Toast/ToastProvider';
-import { IconSearch, IconX, IconShoppingBag, IconPlus } from '@tabler/icons-react';
+import { IconSearch, IconX, IconShoppingBag } from '@tabler/icons-react';
 
 interface Product {
     id: string;
@@ -16,6 +15,7 @@ interface Product {
     price: string | null;
     main_image: string | null;
     images: string[];
+    video_url?: string | null;
     tags: string[];
     category_id?: number | null;
 }
@@ -41,14 +41,13 @@ function buildCategoryMap(cats: ApiCategory[]): Record<number, string> {
 
 export default function ProductsPage() {
     const { i18n } = useTranslation();
-    const toast = useToast();
-    const queryClient = useQueryClient();
     const isChinese = i18n.language?.startsWith('zh');
 
     const [keyword, setKeyword] = useState('');
     const [searchInput, setSearchInput] = useState('');
     const [page, setPage] = useState(1);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [previewIndex, setPreviewIndex] = useState(0);
 
     const { data, isLoading } = useQuery({
         queryKey: ['product-hub-products', keyword, page],
@@ -67,6 +66,19 @@ export default function ProductsPage() {
     const products: Product[] = data?.items ?? [];
     const total: number = data?.total ?? 0;
 
+    // Collect all media (images + video) for detail modal
+    const getAllMedia = (p: Product): { type: 'image' | 'video'; url: string }[] => {
+        const media: { type: 'image' | 'video'; url: string }[] = [];
+        const imgs = p.images || [];
+        for (const img of imgs) {
+            media.push({ type: 'image', url: img });
+        }
+        if (p.video_url) {
+            media.push({ type: 'video', url: p.video_url });
+        }
+        return media;
+    };
+
     const handleSearch = () => {
         setKeyword(searchInput);
         setPage(1);
@@ -78,7 +90,7 @@ export default function ProductsPage() {
                 {isChinese ? '选品池' : 'Selection Pool'}
             </h1>
             <p style={{ color: 'var(--text-tertiary)', marginBottom: 24 }}>
-                {isChinese ? '已清洗的商品，可选择加入货池' : 'Cleaned products, add to your pool'}
+                {isChinese ? '已清洗的商品，选择心仪的货品' : 'Cleaned products, browse and pick'}
             </p>
 
             {/* Search */}
@@ -103,7 +115,7 @@ export default function ProductsPage() {
                 </button>
             </div>
 
-            {/* Product grid */}
+            {/* Product grid — 4 columns */}
             {isLoading ? (
                 <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>{isChinese ? '加载中...' : 'Loading...'}</div>
             ) : products.length === 0 ? (
@@ -112,14 +124,14 @@ export default function ProductsPage() {
                     <p>{isChinese ? '暂无商品，请先在微商相册同步并清洗商品' : 'No products yet'}</p>
                 </div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                     {products.map((p) => (
                         <div
                             key={p.id}
-                            onClick={() => setSelectedProduct(p)}
+                            onClick={() => { setSelectedProduct(p); setPreviewIndex(0); }}
                             style={{
                                 background: 'var(--bg-primary)',
-                                borderRadius: 12,
+                                borderRadius: 10,
                                 border: '1px solid var(--border-primary)',
                                 overflow: 'hidden',
                                 cursor: 'pointer',
@@ -129,29 +141,41 @@ export default function ProductsPage() {
                             onMouseLeave={(e) => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}
                         >
                             {/* Image */}
-                            <div style={{ width: '100%', height: 180, background: 'var(--bg-secondary)', overflow: 'hidden' }}>
+                            <div style={{ position: 'relative', width: '100%', aspectRatio: '1', background: 'var(--bg-secondary)', overflow: 'hidden' }}>
                                 {p.main_image || p.images?.[0] ? (
                                     <img src={p.main_image || p.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                 ) : (
                                     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <IconShoppingBag size={32} color="var(--text-tertiary)" style={{ opacity: 0.3 }} />
+                                        <IconShoppingBag size={28} color="var(--text-tertiary)" style={{ opacity: 0.3 }} />
+                                    </div>
+                                )}
+                                {/* Video badge */}
+                                {p.video_url && (
+                                    <div style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.6)', borderRadius: 4, padding: '1px 5px', fontSize: 10, color: '#fff' }}>▶</div>
+                                )}
+                                {/* Multi-image count */}
+                                {p.images && p.images.length > 1 && (
+                                    <div style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.6)', borderRadius: 4, padding: '1px 5px', fontSize: 10, color: '#fff' }}>
+                                        📷 {p.images.length}{p.video_url ? '+1视频' : ''}
                                     </div>
                                 )}
                             </div>
 
                             {/* Content */}
-                            <div style={{ padding: '10px 12px' }}>
-                                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 6 }}>
+                            <div style={{ padding: '8px 10px' }}>
+                                <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 4, lineHeight: 1.4 }}>
                                     {p.title}
                                 </div>
-                                <div style={{ fontSize: 16, fontWeight: 700, color: '#ef4444', marginBottom: 6 }}>
-                                    {p.price ? `¥${p.price}` : '-'}
-                                </div>
-                                {p.category_id && categoryMap[p.category_id] && (
-                                    <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 500, background: '#f0f9ff', color: '#0369a1' }}>
-                                        {categoryMap[p.category_id]}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontSize: 15, fontWeight: 700, color: '#ef4444' }}>
+                                        {p.price ? `¥${p.price}` : '-'}
                                     </span>
-                                )}
+                                    {p.category_id && categoryMap[p.category_id] && (
+                                        <span style={{ padding: '1px 5px', borderRadius: 3, fontSize: 9, fontWeight: 500, background: '#f0f9ff', color: '#0369a1', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {categoryMap[p.category_id]}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ))}
@@ -173,43 +197,81 @@ export default function ProductsPage() {
                 </div>
             )}
 
-            {/* Detail modal */}
-            {selectedProduct && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setSelectedProduct(null)}>
-                    <div style={{ background: 'var(--bg-primary)', borderRadius: 16, width: 500, maxWidth: '90vw', maxHeight: '85vh', overflow: 'auto', padding: 0 }} onClick={(e) => e.stopPropagation()}>
-                        {selectedProduct.main_image || selectedProduct.images?.[0] ? (
-                            <img src={selectedProduct.main_image || selectedProduct.images[0]} alt="" style={{ width: '100%', height: 300, objectFit: 'contain', background: 'var(--bg-secondary)', borderRadius: '16px 16px 0 0' }} />
-                        ) : (
-                            <div style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}>
-                                <IconShoppingBag size={48} color="var(--text-tertiary)" style={{ opacity: 0.3 }} />
+            {/* Detail modal with gallery */}
+            {selectedProduct && (() => {
+                const media = getAllMedia(selectedProduct);
+                const current = media[previewIndex] || media[0];
+                return (
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setSelectedProduct(null)}>
+                        <div style={{ background: 'var(--bg-primary)', borderRadius: 16, width: 700, maxWidth: '92vw', maxHeight: '90vh', overflow: 'auto', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
+                            {/* Main media area */}
+                            <div style={{ position: 'relative', width: '100', background: '#000', borderRadius: '16px 16px 0 0', overflow: 'hidden' }}>
+                                {current?.type === 'video' ? (
+                                    <video src={current.url} controls style={{ width: '100%', maxHeight: 400, display: 'block' }} />
+                                ) : current?.type === 'image' ? (
+                                    <img src={current.url} alt="" style={{ width: '100%', maxHeight: 400, objectFit: 'contain', display: 'block' }} />
+                                ) : (
+                                    <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666' }}>无媒体</div>
+                                )}
+                                {/* Nav arrows */}
+                                {media.length > 1 && (
+                                    <>
+                                        <button onClick={() => setPreviewIndex((i) => (i - 1 + media.length) % media.length)} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', fontSize: 16 }}>‹</button>
+                                        <button onClick={() => setPreviewIndex((i) => (i + 1) % media.length)} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', fontSize: 16 }}>›</button>
+                                    </>
+                                )}
+                                {/* Close */}
+                                <button onClick={() => setSelectedProduct(null)} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', fontSize: 14 }}>✕</button>
+                                {/* Counter */}
+                                {media.length > 1 && (
+                                    <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.6)', borderRadius: 4, padding: '2px 8px', fontSize: 11, color: '#fff' }}>
+                                        {previewIndex + 1} / {media.length}
+                                    </div>
+                                )}
                             </div>
-                        )}
-                        <div style={{ padding: 20 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 12 }}>
-                                <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0, flex: 1 }}>{selectedProduct.title}</h2>
-                                <button onClick={() => setSelectedProduct(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', marginLeft: 8 }}><IconX size={20} /></button>
-                            </div>
-                            <div style={{ fontSize: 22, fontWeight: 700, color: '#ef4444', marginBottom: 12 }}>
-                                {selectedProduct.price ? `¥${selectedProduct.price}` : '-'}
-                            </div>
-                            {selectedProduct.category_id && categoryMap[selectedProduct.category_id] && (
-                                <div style={{ marginBottom: 12 }}>
-                                    <span style={{ padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500, background: '#f0f9ff', color: '#0369a1' }}>
-                                        {categoryMap[selectedProduct.category_id]}
-                                    </span>
-                                </div>
-                            )}
-                            {selectedProduct.images && selectedProduct.images.length > 1 && (
-                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-                                    {selectedProduct.images.slice(0, 6).map((img, i) => (
-                                        <img key={i} src={img} alt="" style={{ width: 70, height: 70, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-primary)' }} />
+
+                            {/* Thumbnails */}
+                            {media.length > 1 && (
+                                <div style={{ display: 'flex', gap: 6, padding: '10px 16px', overflowX: 'auto', borderBottom: '1px solid var(--border-primary)' }}>
+                                    {media.map((m, i) => (
+                                        <div
+                                            key={i}
+                                            onClick={() => setPreviewIndex(i)}
+                                            style={{
+                                                flexShrink: 0, width: 56, height: 56, borderRadius: 6, overflow: 'hidden', cursor: 'pointer',
+                                                border: i === previewIndex ? '2px solid var(--color-primary)' : '2px solid transparent',
+                                            }}
+                                        >
+                                            {m.type === 'video' ? (
+                                                <div style={{ width: '100%', height: '100%', background: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 16 }}>▶</div>
+                                            ) : (
+                                                <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            )}
+                                        </div>
                                     ))}
                                 </div>
                             )}
+
+                            {/* Info */}
+                            <div style={{ padding: '16px 20px' }}>
+                                <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px 0', lineHeight: 1.4 }}>
+                                    {selectedProduct.title}
+                                </h2>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
+                                    <span style={{ fontSize: 22, fontWeight: 700, color: '#ef4444' }}>
+                                        {selectedProduct.price ? `¥${selectedProduct.price}` : '-'}
+                                    </span>
+                                </div>
+                                {selectedProduct.category_id && categoryMap[selectedProduct.category_id] && (
+                                    <span style={{ padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500, background: '#f0f9ff', color: '#0369a1' }}>
+                                        {categoryMap[selectedProduct.category_id]}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
         </div>
     );
 }
