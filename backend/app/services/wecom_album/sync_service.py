@@ -88,10 +88,11 @@ async def sync_suppliers(tenant_id: uuid.UUID) -> dict:
                     supplier.name = norm["name"]
                     supplier.avatar = norm["avatar"]
                     supplier.shop_id = norm["shop_id"]
-                    supplier.album_id = norm["album_id"]
+                    supplier.album_id = norm["album_id"] or supplier.album_id or norm["external_id"]
                     supplier.total_products = norm["total_products"]
                     supplier.new_products = norm["new_products"]
                     supplier.last_sync_at = datetime.now(timezone.utc)
+                    supplier.is_active = True
                     updated += 1
                 else:
                     supplier = WecomAlbumSupplier(
@@ -250,26 +251,33 @@ async def sync_products(tenant_id: uuid.UUID) -> dict:
         try:
             client = WecomAlbumSzwegoClient(account.token)
 
-            # Load active suppliers with album_id
+            # Load active suppliers with album_id (use external_id as fallback)
             suppliers_result = await db.execute(
                 select(WecomAlbumSupplier).where(
                     WecomAlbumSupplier.tenant_id == tenant_id,
                     WecomAlbumSupplier.is_active == True,
-                    WecomAlbumSupplier.album_id.isnot(None),
-                    WecomAlbumSupplier.album_id != "",
                 )
             )
             suppliers = suppliers_result.scalars().all()
 
-            if not suppliers:
+            # Filter to suppliers with valid album_id (try album_id, then external_id)
+            valid_suppliers = []
+            for s in suppliers:
+                aid = s.album_id or s.external_id
+                if aid:
+                    s._resolved_album_id = aid
+                    valid_suppliers.append(s)
+
+            if not valid_suppliers:
+                logger.warning(f"[WecomAlbum] No suppliers with album_id found for {tenant_id}")
                 return {"success": True, "total": 0, "created": 0, "updated": 0, "skipped": 0}
 
             total_created = 0
             total_updated = 0
             total_skipped = 0
 
-            for supplier in suppliers:
-                album_id = supplier.album_id
+            for supplier in valid_suppliers:
+                album_id = supplier._resolved_album_id
                 raw_products = await _fetch_supplier_products(
                     client, album_id, cutoff_ts=cutoff_ts, max_pages=50
                 )
