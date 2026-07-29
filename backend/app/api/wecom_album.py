@@ -430,6 +430,61 @@ async def delete_product(
         return {"success": True}
 
 
+@router.patch("/products/{product_id}")
+async def update_product(
+    product_id: uuid.UUID,
+    request: Request,
+    user=Depends(require_admin),
+):
+    """Update product status (skip, unskip, push to pool)."""
+    body = await request.json()
+    action = body.get("action")
+    skip_reason = body.get("skip_reason", "")
+
+    async with async_session() as db:
+        result = await db.execute(
+            select(WecomAlbumProduct).where(
+                WecomAlbumProduct.id == product_id,
+                WecomAlbumProduct.tenant_id == user.tenant_id,
+            )
+        )
+        product = result.scalar_one_or_none()
+        if not product:
+            raise HTTPException(status_code=404, detail="商品不存在")
+
+        if action == "skip":
+            product.status = "skip"
+            product.skip_reason = skip_reason or "手动标记不同步"
+        elif action == "unskip":
+            product.status = "pending_clean"
+            product.skip_reason = None
+        elif action == "push_to_pool":
+            if product.status != "pending_sync":
+                raise HTTPException(status_code=400, detail="只有待同步商品可以推送")
+            # Create ProductHubProduct
+            ph_product = ProductHubProduct(
+                tenant_id=user.tenant_id,
+                title=product.clean_title or product.title,
+                description="",
+                price=product.clean_price or product.price,
+                images=product.images,
+                main_image=product.main_image,
+                _source_url=product.source_url,
+                _source_shop_name=product.shop_name,
+                _source_shop_id=product.shop_id,
+                tags=product.tags or [],
+                supply_chain_name=product.shop_name,
+                status="active",
+            )
+            db.add(ph_product)
+            product.status = "synced"
+        else:
+            raise HTTPException(status_code=400, detail=f"未知操作: {action}")
+
+        await db.commit()
+        return {"success": True, "status": product.status}
+
+
 # ─── Stats endpoint ───────────────────────────────────────────────────────────
 
 

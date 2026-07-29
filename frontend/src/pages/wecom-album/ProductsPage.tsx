@@ -7,18 +7,25 @@ import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchJson } from '../../services/api';
 import { useToast } from '../../components/Toast/ToastProvider';
-import { IconSearch, IconX, IconPackage, IconSend } from '@tabler/icons-react';
+import {
+    IconSearch, IconX, IconPackage, IconSend,
+    IconSparkles, IconBan, IconCheck,
+} from '@tabler/icons-react';
 
 interface Product {
     id: string;
     goods_id: string;
     title: string;
+    status: string;
     price: string | null;
     main_image: string | null;
     images: string[];
     shop_name: string | null;
     tags: string[];
     synced_at: string;
+    skip_reason?: string;
+    clean_title?: string;
+    clean_price?: number;
 }
 
 export default function WecomAlbumProductsPage() {
@@ -66,6 +73,57 @@ export default function WecomAlbumProductsPage() {
             toast.success(isChinese
                 ? `推送完成: ${data.pushed} 个商品已同步到选品池`
                 : `Push done: ${data.pushed} products synced to pool`);
+            queryClient.invalidateQueries({ queryKey: ['wecom-album-products'] });
+            queryClient.invalidateQueries({ queryKey: ['wecom-album-stats'] });
+        },
+        onError: (err: any) => {
+            toast.error(err?.detail || (isChinese ? '推送失败' : 'Push failed'));
+        },
+    });
+
+    // AI clean single product
+    const cleanMutation = useMutation({
+        mutationFn: async (productId: string) => {
+            return fetchJson<any>(`/wecom-album/ai-clean/single/${productId}`, { method: 'POST' });
+        },
+        onSuccess: (data) => {
+            toast.success(isChinese ? '清洗完成' : 'Clean done');
+            queryClient.invalidateQueries({ queryKey: ['wecom-album-products'] });
+            queryClient.invalidateQueries({ queryKey: ['wecom-album-stats'] });
+        },
+        onError: (err: any) => {
+            toast.error(err?.detail || (isChinese ? '清洗失败' : 'Clean failed'));
+        },
+    });
+
+    // Skip product (mark as different sync)
+    const skipMutation = useMutation({
+        mutationFn: async ({ productId, reason }: { productId: string; reason?: string }) => {
+            return fetchJson<any>(`/wecom-album/products/${productId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ action: 'skip', skip_reason: reason || '' }),
+            });
+        },
+        onSuccess: () => {
+            toast.success(isChinese ? '已标记为不同步' : 'Marked as skipped');
+            queryClient.invalidateQueries({ queryKey: ['wecom-album-products'] });
+            queryClient.invalidateQueries({ queryKey: ['wecom-album-stats'] });
+        },
+        onError: (err: any) => {
+            toast.error(err?.detail || (isChinese ? '操作失败' : 'Action failed'));
+        },
+    });
+
+    // Push single product to pool
+    const pushSingleMutation = useMutation({
+        mutationFn: async (productId: string) => {
+            return fetchJson<any>(`/wecom-album/products/${productId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ action: 'push_to_pool' }),
+            });
+        },
+        onSuccess: () => {
+            toast.success(isChinese ? '已推送到选品池' : 'Pushed to pool');
             queryClient.invalidateQueries({ queryKey: ['wecom-album-products'] });
             queryClient.invalidateQueries({ queryKey: ['wecom-album-stats'] });
         },
@@ -246,7 +304,7 @@ export default function WecomAlbumProductsPage() {
                                 >
                                     {p.title}
                                 </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                                     <span style={{ fontSize: 15, fontWeight: 600, color: '#ef4444' }}>
                                         {p.price ? `¥${p.price}` : '-'}
                                     </span>
@@ -269,6 +327,107 @@ export default function WecomAlbumProductsPage() {
                                         </span>
                                     )}
                                 </div>
+                                {/* Action buttons */}
+                                {p.status === 'pending_clean' && (
+                                    <div style={{ display: 'flex', gap: 6 }}>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); cleanMutation.mutate(p.id); }}
+                                            disabled={cleanMutation.isPending}
+                                            style={{
+                                                flex: 1,
+                                                padding: '5px 8px',
+                                                background: '#4f46e5',
+                                                color: '#fff',
+                                                border: 'none',
+                                                borderRadius: 6,
+                                                fontSize: 12,
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: 4,
+                                                opacity: cleanMutation.isPending ? 0.6 : 1,
+                                            }}
+                                        >
+                                            <IconSparkles size={12} />
+                                            {isChinese ? '清洗' : 'Clean'}
+                                        </button>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const reason = prompt(isChinese ? '请输入不同步原因（可选）：' : 'Enter skip reason (optional):');
+                                                skipMutation.mutate({ productId: p.id, reason: reason || '' });
+                                            }}
+                                            disabled={skipMutation.isPending}
+                                            style={{
+                                                padding: '5px 8px',
+                                                background: '#fef2f2',
+                                                color: '#dc2626',
+                                                border: '1px solid #fecaca',
+                                                borderRadius: 6,
+                                                fontSize: 12,
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: 4,
+                                            }}
+                                        >
+                                            <IconBan size={12} />
+                                            {isChinese ? '不同步' : 'Skip'}
+                                        </button>
+                                    </div>
+                                )}
+                                {p.status === 'pending_sync' && (
+                                    <div style={{ display: 'flex', gap: 6 }}>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); pushSingleMutation.mutate(p.id); }}
+                                            disabled={pushSingleMutation.isPending}
+                                            style={{
+                                                flex: 1,
+                                                padding: '5px 8px',
+                                                background: '#059669',
+                                                color: '#fff',
+                                                border: 'none',
+                                                borderRadius: 6,
+                                                fontSize: 12,
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: 4,
+                                                opacity: pushSingleMutation.isPending ? 0.6 : 1,
+                                            }}
+                                        >
+                                            <IconCheck size={12} />
+                                            {isChinese ? '同步' : 'Sync'}
+                                        </button>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const reason = prompt(isChinese ? '请输入不同步原因（可选）：' : 'Enter skip reason (optional):');
+                                                skipMutation.mutate({ productId: p.id, reason: reason || '' });
+                                            }}
+                                            disabled={skipMutation.isPending}
+                                            style={{
+                                                padding: '5px 8px',
+                                                background: '#fef2f2',
+                                                color: '#dc2626',
+                                                border: '1px solid #fecaca',
+                                                borderRadius: 6,
+                                                fontSize: 12,
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: 4,
+                                            }}
+                                        >
+                                            <IconBan size={12} />
+                                            {isChinese ? '不同步' : 'Skip'}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ))}
