@@ -49,7 +49,7 @@ function EditablePrice({ itemId, initialPrice, onUpdate, isUpdating }: {
             style={{ fontSize: 15, fontWeight: 700, color: '#e53e3e', cursor: 'pointer', padding: '2px 4px', borderRadius: 4, transition: 'background 0.15s' }}
             onMouseEnter={(e) => (e.currentTarget.style.background = '#fef2f2')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-            title={isChinese ? '点击修改价格' : 'Click to edit price'}
+            title="Click to edit price"
         >
             ¥{initialPrice || '-'}
         </span>
