@@ -593,7 +593,6 @@ async def user_list_products(
     from app.models.wecom_album import WecomAlbumProduct
 
     q = select(WecomAlbumProduct).where(
-        WecomAlbumProduct.tenant_id == user.tenant_id,
         WecomAlbumProduct.status == "synced",
     )
 
@@ -617,7 +616,6 @@ async def user_list_products(
 
     # Count
     count_q = select(func.count(WecomAlbumProduct.id)).where(
-        WecomAlbumProduct.tenant_id == user.tenant_id,
         WecomAlbumProduct.status == "synced",
     )
     total = (await db.execute(count_q)).scalar() or 0
