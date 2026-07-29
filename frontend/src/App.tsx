@@ -57,6 +57,7 @@ const WecomAlbumDashboard = lazy(() => import('./pages/wecom-album/WecomAlbumDas
 const WecomAlbumSuppliers = lazy(() => import('./pages/wecom-album/SuppliersPage'));
 const WecomAlbumProducts = lazy(() => import('./pages/wecom-album/ProductsPage'));
 const WecomAlbumConfig = lazy(() => import('./pages/wecom-album/AccountConfigPage'));
+const WecomAlbumCategories = lazy(() => import('./pages/wecom-album/CategoriesPage'));
 const GroupsPage = lazy(() => import('./pages/groups/GroupsPage'));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -395,6 +396,7 @@ export default function App() {
                     <Route index element={<WecomAlbumDashboard />} />
                     <Route path="suppliers" element={<WecomAlbumSuppliers />} />
                     <Route path="products" element={<WecomAlbumProducts />} />
+                    <Route path="categories" element={<WecomAlbumCategories />} />
                     <Route path="config" element={<WecomAlbumConfig />} />
                 </Route>
             </Routes>

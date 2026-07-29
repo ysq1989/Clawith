@@ -14,6 +14,7 @@ import {
     IconArrowLeft,
     IconChevronRight,
     IconUserCircle,
+    IconCategory,
 } from '@tabler/icons-react';
 
 /* ─── Navigation ─── */
@@ -28,6 +29,7 @@ const NAV_ITEMS: NavItem[] = [
     { to: '/wecom-album', labelKey: 'wecomAlbum.nav.dashboard', labelDefault: '仪表盘', icon: <IconLayoutDashboard size={18} stroke={1.5} /> },
     { to: '/wecom-album/suppliers', labelKey: 'wecomAlbum.nav.suppliers', labelDefault: '供应商', icon: <IconUsers size={18} stroke={1.5} /> },
     { to: '/wecom-album/products', labelKey: 'wecomAlbum.nav.products', labelDefault: '商品', icon: <IconPackage size={18} stroke={1.5} /> },
+    { to: '/wecom-album/categories', labelKey: 'wecomAlbum.nav.categories', labelDefault: '分类设置', icon: <IconCategory size={18} stroke={1.5} /> },
     { to: '/wecom-album/config', labelKey: 'wecomAlbum.nav.config', labelDefault: '系统设置', icon: <IconSettings size={18} stroke={1.5} /> },
 ];
 
