@@ -13,7 +13,7 @@ from loguru import logger
 from sqlalchemy import select, func
 
 from app.database import async_session
-from app.models.wecom_album import WecomAlbumAccount, WecomAlbumSupplier, WecomAlbumProduct
+from app.models.wecom_album import WecomAlbumAccount, WecomAlbumSupplier, WecomAlbumProduct, WecomAlbumSyncLog
 from app.services.wecom_album.szwego_client import (
     WecomAlbumSzwegoClient,
     normalize_supplier,
@@ -28,14 +28,39 @@ async def test_connection(token: str) -> dict:
     return await client.get_user_info()
 
 
+async def _create_sync_log(
+    db, tenant_id: uuid.UUID, task_type: str, status: str = "running", **kwargs
+) -> WecomAlbumSyncLog:
+    """Create a sync log entry."""
+    log = WecomAlbumSyncLog(tenant_id=tenant_id, task_type=task_type, status=status, **kwargs)
+    db.add(log)
+    await db.flush()
+    return log
+
+
+async def _finish_sync_log(log: WecomAlbumSyncLog, status: str, message: str = "", duration_ms: int = 0, **kwargs):
+    """Update sync log on completion."""
+    log.status = status
+    log.message = message
+    log.duration_ms = duration_ms
+    for k, v in kwargs.items():
+        if hasattr(log, k):
+            setattr(log, k, v)
+
+
 async def sync_suppliers(tenant_id: uuid.UUID) -> dict:
     """Sync suppliers (friends) from szwego."""
+    t0 = time.time()
     async with async_session() as db:
+        log = await _create_sync_log(db, tenant_id, "sync_suppliers")
+
         result = await db.execute(
             select(WecomAlbumAccount).where(WecomAlbumAccount.tenant_id == tenant_id)
         )
         account = result.scalar_one_or_none()
         if not account or not account.is_active:
+            await _finish_sync_log(log, "failed", "No active szwego account configured")
+            await db.commit()
             return {"success": False, "error": "No active szwego account configured"}
 
         try:
@@ -85,9 +110,19 @@ async def sync_suppliers(tenant_id: uuid.UUID) -> dict:
                     created += 1
                 synced += 1
 
+            duration = int((time.time() - t0) * 1000)
             account.last_owner_sync_at = datetime.now(timezone.utc)
             account.last_error = None
-            await db.commit()
+            msg = f"同步供应商完成：新增 {created}，更新 {updated}，共 {synced} 个"
+            await _finish_sync_log(log, "success", msg, duration_ms=duration,
+                                   items_count=synced, created_count=created, updated_count=updated)
+            try:
+                await db.commit()
+                logger.info(f"[WecomAlbum] Supplier sync log committed: {log.id}")
+            except Exception as commit_err:
+                logger.error(f"[WecomAlbum] Failed to commit sync log: {commit_err}")
+                await db.rollback()
+                raise
 
             logger.info(f"[WecomAlbum] Supplier sync for {tenant_id}: {created} created, {updated} updated")
             return {
@@ -98,7 +133,9 @@ async def sync_suppliers(tenant_id: uuid.UUID) -> dict:
             }
 
         except Exception as e:
+            duration = int((time.time() - t0) * 1000)
             account.last_error = str(e)[:500]
+            await _finish_sync_log(log, "failed", str(e)[:500], duration_ms=duration)
             await db.commit()
             logger.error(f"[WecomAlbum] Supplier sync failed for {tenant_id}: {e}")
             return {"success": False, "error": str(e)}
@@ -186,19 +223,18 @@ async def _fetch_supplier_products(
 
 
 async def sync_products(tenant_id: uuid.UUID) -> dict:
-    """Sync products from all active suppliers.
-
-    For each active supplier:
-      1. Call album/moments with their album_id
-      2. Apply incremental sync cutoff (last N hours)
-      3. Upsert products by goods_id + tenant
-    """
+    """Sync products from all active suppliers."""
+    t0 = time.time()
     async with async_session() as db:
+        log = await _create_sync_log(db, tenant_id, "sync_products")
+
         result = await db.execute(
             select(WecomAlbumAccount).where(WecomAlbumAccount.tenant_id == tenant_id)
         )
         account = result.scalar_one_or_none()
         if not account or not account.is_active:
+            await _finish_sync_log(log, "failed", "No active szwego account configured")
+            await db.commit()
             return {"success": False, "error": "No active szwego account configured"}
 
         # Compute cutoff timestamp for incremental sync (milliseconds)
@@ -312,6 +348,13 @@ async def sync_products(tenant_id: uuid.UUID) -> dict:
                 f"[WecomAlbum] Product sync done for {tenant_id}: "
                 f"{total_created} created, {total_updated} updated, {total_skipped} skipped"
             )
+            duration = int((time.time() - t0) * 1000)
+            msg = f"同步商品完成：新增 {total_created}，更新 {total_updated}，跳过 {total_skipped}"
+            await _finish_sync_log(log, "success", msg, duration_ms=duration,
+                                   items_count=total_created + total_updated,
+                                   created_count=total_created, updated_count=total_updated,
+                                   skipped_count=total_skipped)
+            await db.commit()
             return {
                 "success": True,
                 "total": total_created + total_updated,
@@ -321,7 +364,9 @@ async def sync_products(tenant_id: uuid.UUID) -> dict:
             }
 
         except Exception as e:
+            duration = int((time.time() - t0) * 1000)
             account.last_error = str(e)[:500]
+            await _finish_sync_log(log, "failed", str(e)[:500], duration_ms=duration)
             await db.commit()
             logger.error(f"[WecomAlbum] Product sync failed for {tenant_id}: {e}")
             return {"success": False, "error": str(e)}
