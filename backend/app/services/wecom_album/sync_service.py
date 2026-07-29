@@ -92,7 +92,6 @@ async def sync_suppliers(tenant_id: uuid.UUID) -> dict:
                     supplier.total_products = norm["total_products"]
                     supplier.new_products = norm["new_products"]
                     supplier.last_sync_at = datetime.now(timezone.utc)
-                    supplier.is_active = True
                     updated += 1
                 else:
                     supplier = WecomAlbumSupplier(
