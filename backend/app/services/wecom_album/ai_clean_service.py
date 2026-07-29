@@ -25,80 +25,77 @@ AI_TIMEOUT = 60
 
 # ─── Optimized prompts (Role + Task + Context + Requirements + Output Format) ───
 
-DEFAULT_SYSTEM_PROMPT = """你是一位资深珠宝玉石行业商品数据专家，负责清洗微商相册商品标题、提取成本价，并判断商品是否值得同步到选品池。
+DEFAULT_SYSTEM_PROMPT = """你是一位资深珠宝玉石行业商品数据专家，负责清洗微商相册商品标题、提取成本价，并对商品进行分类。
 
 ## 核心能力
 1. 理解珠宝玉石行业术语（翡翠、和田玉、钻石、黄金等）
 2. 从混乱的营销标题中提取商品核心信息
-3. 准确识别价格描述并转换为数字
-4. 判断商品是否适合上架销售
+3. 准确识别价格描述并转换为数字（百/千/万需换算）
+4. 根据标题内容判断商品所属分类
 
 ## 清洗规则
 - 保留：品牌名、材质、规格（尺寸/重量/克拉）、数量、品质描述
-- 去除：营销词（秒杀/私域/完美/真实/诚信/厂家直销）、联系方式、表情符号、重复符号、多余空格
-- 价格：仅提取成本价/批发价数字，忽略零售价、市场价等
+- 去除：营销词（秒杀/秒/私/私域/微信/完美/真实/诚信/厂家直销/爆款/热卖/新品等）、价格金额、编号货号、联系方式、表情符号、重复符号、多余空格
+- 价格：仅提取成本价/批发价数字，百/千/万需换算为数字（如 小六3开 → 30000），无法判断返回0
+- 分类：从给定分类列表中选最合适的，无法判断用239
 
-## 跳过规则（sync=0 表示不同步，需说明原因）
+## 跳过规则（sync=0 表示不同步）
 以下商品应标记为不同步：
-1. 标题过短或无意义（如只有表情、只有"新款"等）
-2. 无明确价格信息且无法推断成本价
+1. 无法提取成本价（cost=0）的商品
+2. 标题过短或无意义（如只有表情、只有"新款"等）
 3. 明显是服务/加工/定制类（非成品商品）
 4. 标题包含明显违规词（如"高仿""A货"等假冒相关）
-5. 重复铺货（同一商品多次发布）
 
 ## 输出格式
 严格输出 JSON，不要输出任何解释或思考过程。"""
 
-DEFAULT_USER_PROMPT_TEMPLATE = """请清洗以下商品标题并提取成本价，同时判断是否值得同步到选品池。
+DEFAULT_USER_PROMPT_TEMPLATE = """请清洗以下商品标题并提取成本价，同时判断商品分类。
 
-## 商品标题
-{title}
+规则：
+1) clean_title 保留尺寸/规格/数量等关键信息，去掉营销词（秒、秒杀、私、私域、微信、完美、真实）、价格、编号、货号、联系方式、表情、重复符号和多余空格
+2) cost 仅返回数字，可小数；有时会用百、千、万需转化，无法判断返回0
+3) cate_id 从下方给定分类列表中选最合适的，无法判断用239
+4) 无法提取成本价（cost=0）的商品，sync设为0，skip_reason填"无法确定成本价"
+5) 只输出JSON数组，不要任何解释文字
+6) 严格按照下面的商品顺序依次处理，每个item必须包含全部字段
 
-## 输出要求
-严格输出 JSON 对象，不要输出任何其他内容：
-{"clean_title": "清洗后的标题", "cost": 0, "sync": 1, "skip_reason": ""}
+商品分类：
+{
+246: 翡翠>手镯
+245: 翡翠>戒指
+244: 翡翠>耳坠
+243: 翡翠>项链
+242: 翡翠>手链
+241: 翡翠>手串
+240: 翡翠>吊坠
+}
 
-字段说明：
-- clean_title: 清洗后的标题
-- cost: 成本价（数字），无法判断填 0
-- sync: 1=同步, 0=不同步
-- skip_reason: 不同步时必填原因，同步时填空字符串
+商品列表：
+{title}"""
 
-## 示例
-输入：🌴正圈冰飘花 完美无瑕 尺寸：55.7/12.2/8.1 价格：小六3️⃣开！起荧光
-输出：{"clean_title": "正圈冰飘花 尺寸55.7/12.2/8.1", "cost": 0, "sync": 1, "skip_reason": ""}
+DEFAULT_BATCH_USER_PROMPT_TEMPLATE = """请清洗以下商品标题并提取成本价，同时判断每个商品的分类。
 
-输入：💰翡翠A货 冰种观音 26x18x5mm 批发价3800
-输出：{"clean_title": "翡翠A货 冰种观音 26x18x5mm", "cost": 3800, "sync": 1, "skip_reason": ""}
+规则：
+1) clean_title 保留尺寸/规格/数量等关键信息，去掉营销词（秒、秒杀、私、私域、微信、完美、真实）、价格、编号、货号、联系方式、表情、重复符号和多余空格
+2) cost 仅返回数字，可小数；有时会用百、千、万需转化，无法判断返回0
+3) cate_id 从下方给定分类列表中选最合适的，无法判断用239
+4) 无法提取成本价（cost=0）的商品，sync设为0，skip_reason填"无法确定成本价"
+5) 只输出JSON数组，不要任何解释文字
+6) 严格按照下面的商品顺序依次处理，每个item必须包含全部字段
 
-输入：🔥来图定制 手镯加工 100元起
-输出：{"clean_title": "来图定制 手镯加工", "cost": 0, "sync": 0, "skip_reason": "加工定制类非成品"}
+商品分类：
+{
+246: 翡翠>手镯
+245: 翡翠>戒指
+244: 翡翠>耳坠
+243: 翡翠>项链
+242: 翡翠>手链
+241: 翡翠>手串
+240: 翡翠>吊坠
+}
 
-输入：👍新款上市
-输出：{"clean_title": "新款上市", "cost": 0, "sync": 0, "skip_reason": "标题无意义缺少商品信息"}"""
-
-DEFAULT_BATCH_USER_PROMPT_TEMPLATE = """请批量清洗以下商品标题并提取成本价，同时判断每个商品是否值得同步到选品池。
-
-## 商品列表
-{items_json}
-
-## 输出要求
-严格输出 JSON 数组，不要输出任何其他内容：
-[{"item_id": "xxx", "clean_title": "清洗后的标题", "cost": 0, "sync": 1, "skip_reason": ""}, ...]
-
-字段说明：
-- clean_title: 清洗后的标题
-- cost: 成本价（数字），无法判断填 0
-- sync: 1=同步, 0=不同步
-- skip_reason: 不同步时必填原因，同步时填空字符串
-
-## 跳过规则
-以下商品标记为 sync=0：
-1. 标题过短或无意义
-2. 无明确价格信息
-3. 加工/定制/服务类（非成品）
-4. 明显违规词（高仿/A货等假冒相关）
-5. 重复铺货"""
+商品列表：
+{items_json}"""
 
 
 async def _get_ai_model(tenant_id: uuid.UUID) -> LLMModel | None:
@@ -200,29 +197,48 @@ async def _call_llm_api(
 
 
 def _parse_clean_result(text: str) -> dict | None:
-    """Parse AI response JSON, extracting clean_title and cost."""
+    """Parse AI response JSON, extracting clean_title, cost, and cate_id.
+
+    Supports both object and array formats (AI may return array even for single items).
+    """
     text = text.strip()
 
+    # Try parsing as JSON array first (user prompt requests array format)
     try:
         result = json.loads(text)
+        if isinstance(result, list) and len(result) > 0:
+            return result[0] if isinstance(result[0], dict) else None
         if isinstance(result, dict):
             return result
     except json.JSONDecodeError:
         pass
 
+    # Try extracting from markdown code block
     match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
     if match:
         try:
-            result = json.loads(match.group(1).strip())
-            if isinstance(result, dict):
-                return result
+            inner = json.loads(match.group(1).strip())
+            if isinstance(inner, list) and len(inner) > 0:
+                return inner[0] if isinstance(inner[0], dict) else None
+            if isinstance(inner, dict):
+                return inner
         except json.JSONDecodeError:
             pass
 
+    # Try finding first JSON object or array in text
     match = re.search(r"\{[^{}]*\}", text)
     if match:
         try:
             return json.loads(match.group(0))
+        except json.JSONDecodeError:
+            pass
+
+    match = re.search(r"\[[^[\]]*\]", text)
+    if match:
+        try:
+            inner = json.loads(match.group(0))
+            if isinstance(inner, list) and len(inner) > 0:
+                return inner[0] if isinstance(inner[0], dict) else None
         except json.JSONDecodeError:
             pass
 
@@ -299,6 +315,10 @@ async def clean_single(product_id: uuid.UUID) -> dict:
                     product.clean_price = float(parsed.get("cost", 0) or 0)
                 except (ValueError, TypeError):
                     product.clean_price = 0
+                try:
+                    product.category_id = int(parsed.get("cate_id", 239) or 239)
+                except (ValueError, TypeError):
+                    product.category_id = 239
                 product.ai_cleaned_at = datetime.now(timezone.utc)
 
                 # Check if AI recommends skipping
@@ -373,6 +393,10 @@ async def clean_batch(product_ids: list[uuid.UUID]) -> dict:
                         p.clean_price = float(item.get("cost", 0) or 0)
                     except (ValueError, TypeError):
                         p.clean_price = 0
+                    try:
+                        p.category_id = int(item.get("cate_id", 239) or 239)
+                    except (ValueError, TypeError):
+                        p.category_id = 239
                     p.ai_cleaned_at = datetime.now(timezone.utc)
 
                     sync_flag = item.get("sync", 1)

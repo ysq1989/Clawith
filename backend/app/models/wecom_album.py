@@ -150,6 +150,7 @@ class WecomAlbumProduct(Base):
     # ── AI cleaning ──
     clean_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
     clean_price: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    category_id: Mapped[int | None] = mapped_column(nullable=True)
     ai_cleaned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # ── Status ──
@@ -167,4 +168,31 @@ class WecomAlbumProduct(Base):
     __table_args__ = (
         Index("ix_wecom_album_products_tenant_goods", "tenant_id", "goods_id", unique=True),
         Index("ix_wecom_album_products_tenant_supplier", "tenant_id", "supplier_id"),
+    )
+
+
+class WecomAlbumSyncLog(Base):
+    """Sync operation logs."""
+
+    __tablename__ = "wecom_album_sync_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    task_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    # sync_suppliers / sync_products / ai_clean / push_to_pool
+    status: Mapped[str] = mapped_column(String(20), default="running")
+    # running / success / failed
+    items_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_count: Mapped[int] = mapped_column(Integer, default=0)
+    updated_count: Mapped[int] = mapped_column(Integer, default=0)
+    skipped_count: Mapped[int] = mapped_column(Integer, default=0)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    errors: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_wecom_album_sync_logs_tenant", "tenant_id", "created_at"),
     )

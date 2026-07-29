@@ -124,6 +124,7 @@ def _product_to_out(p) -> dict:
         "clean_title": p.clean_title,
         "price": str(p.price) if p.price else None,
         "clean_price": str(p.clean_price) if p.clean_price else None,
+        "category_id": p.category_id,
         "images": p.images or [],
         "main_image": p.main_image,
         "video_url": p.video_url,
