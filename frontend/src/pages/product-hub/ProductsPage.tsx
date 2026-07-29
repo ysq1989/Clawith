@@ -1,13 +1,13 @@
 /**
  * Product Hub Products Page — Browse the public product selection pool.
- * Waterfall/masonry layout with natural image aspect ratio.
+ * Fixed 4:3 image ratio, 4 columns, fullscreen gallery viewer.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { fetchJson } from '../../services/api';
-import { IconSearch, IconX, IconPackage, IconHeart } from '@tabler/icons-react';
+import { IconSearch, IconX, IconPackage, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 
 interface Product {
     id: string;
@@ -39,6 +39,143 @@ function buildCategoryMap(cats: ApiCategory[]): Record<number, string> {
     return map;
 }
 
+/* ─── Fullscreen Gallery Viewer ─── */
+function GalleryViewer({
+    images,
+    videoUrl,
+    title,
+    price,
+    categoryName,
+    initialIndex,
+    onClose,
+}: {
+    images: string[];
+    videoUrl?: string | null;
+    title: string;
+    price: string | null;
+    categoryName?: string;
+    initialIndex: number;
+    onClose: () => void;
+}) {
+    const [index, setIndex] = useState(initialIndex);
+    const total = images.length;
+    const hasVideo = !!videoUrl;
+    const mediaCount = total + (hasVideo ? 1 : 0);
+
+    const prev = useCallback(() => setIndex((i) => (i - 1 + mediaCount) % mediaCount), [mediaCount]);
+    const next = useCallback(() => setIndex((i) => (i + 1) % mediaCount), [mediaCount]);
+
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+            if (e.key === 'ArrowLeft') prev();
+            if (e.key === 'ArrowRight') next();
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [onClose, prev, next]);
+
+    const isVideo = hasVideo && index === total; // last item is video
+    const currentImage = !isVideo ? images[index] : null;
+
+    return (
+        <div style={{
+            position: 'fixed', inset: 0, zIndex: 2000,
+            background: 'rgba(0,0,0,0.92)', display: 'flex', flexDirection: 'column',
+            animation: 'fadeIn 0.15s ease',
+        }}>
+            {/* Top bar */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', flexShrink: 0 }}>
+                <div style={{ color: '#fff', fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: 16 }}>
+                    {title}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: '#ff6b6b' }}>¥{price || '-'}</span>
+                    {categoryName && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, background: 'rgba(255,255,255,0.15)', color: '#ccc' }}>{categoryName}</span>}
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fff', padding: 4 }}>
+                        <IconX size={22} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Main media area */}
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 0, padding: '0 60px' }}>
+                {/* Prev */}
+                {mediaCount > 1 && (
+                    <button onClick={prev} style={{
+                        position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+                        background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '50%',
+                        width: 40, height: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: '#fff', transition: 'background 0.2s', zIndex: 1,
+                    }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.25)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.12)')}
+                    >
+                        <IconChevronLeft size={22} />
+                    </button>
+                )}
+
+                {/* Media */}
+                {isVideo ? (
+                    <video key="video" src={videoUrl!} controls autoPlay style={{ maxHeight: '80vh', maxWidth: '100%', borderRadius: 8 }} />
+                ) : currentImage ? (
+                    <img key={index} src={currentImage} alt="" style={{ maxHeight: '80vh', maxWidth: '100%', objectFit: 'contain', borderRadius: 4 }} />
+                ) : null}
+
+                {/* Next */}
+                {mediaCount > 1 && (
+                    <button onClick={next} style={{
+                        position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                        background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '50%',
+                        width: 40, height: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: '#fff', transition: 'background 0.2s', zIndex: 1,
+                    }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.25)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.12)')}
+                    >
+                        <IconChevronRight size={22} />
+                    </button>
+                )}
+
+                {/* Counter */}
+                {mediaCount > 1 && (
+                    <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.6)', borderRadius: 8, padding: '4px 12px', fontSize: 12, color: '#fff' }}>
+                        {index + 1} / {mediaCount}
+                    </div>
+                )}
+            </div>
+
+            {/* Thumbnail strip */}
+            {mediaCount > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: '12px 20px', flexShrink: 0, overflowX: 'auto' }}>
+                    {images.map((img, i) => (
+                        <div key={i} onClick={() => setIndex(i)} style={{
+                            width: 48, height: 48, borderRadius: 6, overflow: 'hidden', cursor: 'pointer', flexShrink: 0,
+                            border: i === index && !isVideo ? '2px solid #fff' : '2px solid rgba(255,255,255,0.2)',
+                            opacity: i === index && !isVideo ? 1 : 0.6, transition: 'all 0.2s',
+                        }}>
+                            <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                    ))}
+                    {hasVideo && (
+                        <div onClick={() => setIndex(total)} style={{
+                            width: 48, height: 48, borderRadius: 6, overflow: 'hidden', cursor: 'pointer', flexShrink: 0,
+                            border: isVideo ? '2px solid #fff' : '2px solid rgba(255,255,255,0.2)',
+                            opacity: isVideo ? 1 : 0.6, transition: 'all 0.2s',
+                            background: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14,
+                        }}>
+                            ▶
+                        </div>
+                    )}
+                </div>
+            )}
+
+            <style>{`@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
+        </div>
+    );
+}
+
+/* ─── Main Page ─── */
 export default function ProductsPage() {
     const { i18n } = useTranslation();
     const isChinese = i18n.language?.startsWith('zh');
@@ -46,14 +183,12 @@ export default function ProductsPage() {
     const [keyword, setKeyword] = useState('');
     const [searchInput, setSearchInput] = useState('');
     const [page, setPage] = useState(1);
-    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [galleryProduct, setGalleryProduct] = useState<Product | null>(null);
+    const [galleryIndex, setGalleryIndex] = useState(0);
 
     const { data, isLoading } = useQuery({
         queryKey: ['product-hub-products', keyword, page],
-        queryFn: () =>
-            fetchJson<any>(
-                `/product-hub/products?page=${page}&page_size=30${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`
-            ),
+        queryFn: () => fetchJson<any>(`/product-hub/products?page=${page}&page_size=40${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`),
     });
 
     const { data: apiCategories = [] } = useQuery<ApiCategory[]>({
@@ -70,136 +205,85 @@ export default function ProductsPage() {
         setPage(1);
     };
 
+    const openGallery = (p: Product, idx: number) => {
+        setGalleryProduct(p);
+        setGalleryIndex(idx);
+    };
+
     return (
         <div style={{ padding: '24px 32px' }}>
             {/* Header */}
-            <div style={{ marginBottom: 24 }}>
-                <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 4px 0' }}>
-                    {isChinese ? '选品池' : 'Selection Pool'}
-                </h1>
-                <p style={{ color: 'var(--text-tertiary)', margin: 0, fontSize: 13 }}>
-                    {isChinese ? '已清洗的商品，发现好货' : 'Cleaned products, find great deals'}
-                </p>
+            <div style={{ marginBottom: 20 }}>
+                <h1 style={{ fontSize: 22, fontWeight: 700, color: '#222', margin: '0 0 4px 0' }}>{isChinese ? '选品池' : 'Selection Pool'}</h1>
+                <p style={{ color: '#999', margin: 0, fontSize: 13 }}>{isChinese ? '已清洗的商品，发现好货' : 'Cleaned products'}</p>
             </div>
 
-            {/* Search bar */}
-            <div style={{ marginBottom: 24, display: 'flex', gap: 10, alignItems: 'center' }}>
-                <div style={{
-                    flex: 1, maxWidth: 400, display: 'flex', alignItems: 'center', gap: 8,
-                    background: '#f7f8fa', borderRadius: 10, padding: '0 14px', height: 40,
-                    border: '1px solid transparent', transition: 'border-color 0.2s',
-                }}>
-                    <IconSearch size={16} color="#999" />
+            {/* Search */}
+            <div style={{ marginBottom: 20, display: 'flex', gap: 10, alignItems: 'center' }}>
+                <div style={{ flex: 1, maxWidth: 380, display: 'flex', alignItems: 'center', gap: 8, background: '#f5f5f5', borderRadius: 10, padding: '0 14px', height: 38 }}>
+                    <IconSearch size={15} color="#999" />
                     <input
-                        value={searchInput}
-                        onChange={(e) => setSearchInput(e.target.value)}
+                        value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                        placeholder={isChinese ? '搜索商品名称...' : 'Search products...'}
+                        placeholder={isChinese ? '搜索商品...' : 'Search...'}
                         style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: 14, color: '#333' }}
                     />
-                    {searchInput && (
-                        <button onClick={() => { setSearchInput(''); setKeyword(''); setPage(1); }}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999', padding: 0, display: 'flex' }}>
-                            <IconX size={14} />
-                        </button>
-                    )}
+                    {searchInput && <button onClick={() => { setSearchInput(''); setKeyword(''); setPage(1); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999', padding: 0 }}><IconX size={14} /></button>}
                 </div>
-                <button onClick={handleSearch} style={{
-                    padding: '0 20px', height: 40, borderRadius: 10, border: 'none',
-                    background: '#333', color: '#fff', fontWeight: 500, fontSize: 14, cursor: 'pointer',
-                    transition: 'background 0.2s',
-                }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#555')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = '#333')}
-                >
+                <button onClick={handleSearch} style={{ padding: '0 18px', height: 38, borderRadius: 10, border: 'none', background: '#222', color: '#fff', fontWeight: 500, fontSize: 14, cursor: 'pointer' }}>
                     {isChinese ? '搜索' : 'Search'}
                 </button>
-                <span style={{ fontSize: 13, color: '#999', marginLeft: 4 }}>
-                    {isChinese ? `共 ${total} 件` : `${total} items`}
-                </span>
+                <span style={{ fontSize: 13, color: '#aaa' }}>{isChinese ? `共 ${total} 件` : `${total} items`}</span>
             </div>
 
-            {/* Waterfall grid */}
+            {/* 4-column grid, fixed 4:3 ratio */}
             {isLoading ? (
-                <div style={{ padding: 60, textAlign: 'center', color: '#bbb', fontSize: 14 }}>
-                    {isChinese ? '加载中...' : 'Loading...'}
-                </div>
+                <div style={{ padding: 60, textAlign: 'center', color: '#ccc' }}>{isChinese ? '加载中...' : 'Loading...'}</div>
             ) : products.length === 0 ? (
-                <div style={{ padding: 60, textAlign: 'center', color: '#bbb' }}>
+                <div style={{ padding: 60, textAlign: 'center', color: '#ccc' }}>
                     <IconPackage size={40} style={{ opacity: 0.3, marginBottom: 12 }} />
                     <p style={{ margin: 0, fontSize: 14 }}>{isChinese ? '暂无商品' : 'No products'}</p>
                 </div>
             ) : (
-                <div style={{ columnCount: 5, columnGap: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                     {products.map((p) => (
                         <div
                             key={p.id}
-                            onClick={() => setSelectedProduct(p)}
+                            onClick={() => openGallery(p, 0)}
                             style={{
-                                breakInside: 'avoid',
-                                marginBottom: 10,
-                                background: '#fff',
-                                borderRadius: 10,
-                                overflow: 'hidden',
-                                cursor: 'pointer',
-                                transition: 'all 0.25s ease',
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                                background: '#fff', borderRadius: 10, overflow: 'hidden',
+                                cursor: 'pointer', transition: 'all 0.2s',
+                                border: '1px solid #f0f0f0',
                             }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)';
-                                e.currentTarget.style.transform = 'translateY(-3px)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)';
-                                e.currentTarget.style.transform = 'none';
-                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}
                         >
-                            {/* Image — natural aspect ratio */}
-                            <div style={{ position: 'relative', background: '#f5f5f5' }}>
+                            {/* 4:3 image */}
+                            <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', background: '#f5f5f5', overflow: 'hidden' }}>
                                 {p.main_image || p.images?.[0] ? (
-                                    <img
-                                        src={p.main_image || p.images[0]}
-                                        alt=""
-                                        style={{ width: '100%', display: 'block' }}
-                                        loading="lazy"
-                                    />
+                                    <img src={p.main_image || p.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                 ) : (
-                                    <div style={{ width: '100%', height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                         <IconPackage size={28} color="#ddd" />
                                     </div>
                                 )}
-                                {/* Badges */}
                                 {p.video_url && (
-                                    <div style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', borderRadius: 6, padding: '2px 6px', fontSize: 10, color: '#fff', display: 'flex', alignItems: 'center', gap: 3 }}>
-                                        ▶ {isChinese ? '视频' : 'Video'}
-                                    </div>
+                                    <div style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.55)', borderRadius: 5, padding: '2px 6px', fontSize: 10, color: '#fff' }}>▶ 视频</div>
                                 )}
                                 {p.images && p.images.length > 1 && (
-                                    <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', borderRadius: 6, padding: '2px 6px', fontSize: 10, color: '#fff' }}>
-                                        📷 {p.images.length}
-                                    </div>
+                                    <div style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.55)', borderRadius: 5, padding: '2px 6px', fontSize: 10, color: '#fff' }}>📷 {p.images.length}</div>
                                 )}
                             </div>
 
-                            {/* Content */}
-                            <div style={{ padding: '10px 12px 12px' }}>
-                                <div style={{
-                                    fontSize: 13, fontWeight: 500, color: '#333', lineHeight: 1.4,
-                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                    marginBottom: 6,
-                                }}>
+                            {/* Info */}
+                            <div style={{ padding: '8px 10px 10px' }}>
+                                <div style={{ fontSize: 13, fontWeight: 500, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 4 }}>
                                     {p.title}
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                                    <span style={{ fontSize: 17, fontWeight: 700, color: '#e53e3e' }}>
-                                        ¥{p.price || '-'}
-                                    </span>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <span style={{ fontSize: 15, fontWeight: 700, color: '#e53e3e' }}>¥{p.price || '-'}</span>
                                     {p.category_id && categoryMap[p.category_id] && (
-                                        <span style={{
-                                            padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 500,
-                                            background: '#f0f7ff', color: '#3182ce', maxWidth: 90,
-                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                        }}>
+                                        <span style={{ padding: '1px 5px', borderRadius: 3, fontSize: 10, background: '#f0f7ff', color: '#3182ce', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                             {categoryMap[p.category_id]}
                                         </span>
                                     )}
@@ -211,136 +295,32 @@ export default function ProductsPage() {
             )}
 
             {/* Pagination */}
-            {total > 30 && (
-                <div style={{ marginTop: 32, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12 }}>
+            {total > 40 && (
+                <div style={{ marginTop: 28, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12 }}>
                     <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1}
-                        style={{
-                            padding: '8px 20px', borderRadius: 8, border: '1px solid #e5e5e5',
-                            background: '#fff', cursor: page <= 1 ? 'default' : 'pointer',
-                            opacity: page <= 1 ? 0.4 : 1, fontSize: 13, color: '#666',
-                            transition: 'all 0.2s',
-                        }}
-                        onMouseEnter={(e) => { if (page > 1) e.currentTarget.style.borderColor = '#999'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e5e5e5'; }}
-                    >
+                        style={{ padding: '7px 18px', borderRadius: 8, border: '1px solid #e0e0e0', background: '#fff', cursor: page <= 1 ? 'default' : 'pointer', opacity: page <= 1 ? 0.4 : 1, fontSize: 13, color: '#666' }}>
                         ‹ {isChinese ? '上一页' : 'Prev'}
                     </button>
-                    <span style={{ fontSize: 13, color: '#999' }}>
-                        {page} / {Math.ceil(total / 30)}
-                    </span>
-                    <button onClick={() => setPage(page + 1)} disabled={page * 30 >= total}
-                        style={{
-                            padding: '8px 20px', borderRadius: 8, border: '1px solid #e5e5e5',
-                            background: '#fff', cursor: page * 30 >= total ? 'default' : 'pointer',
-                            opacity: page * 30 >= total ? 0.4 : 1, fontSize: 13, color: '#666',
-                            transition: 'all 0.2s',
-                        }}
-                        onMouseEnter={(e) => { if (page * 30 < total) e.currentTarget.style.borderColor = '#999'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e5e5e5'; }}
-                    >
+                    <span style={{ fontSize: 13, color: '#aaa' }}>{page} / {Math.ceil(total / 40)}</span>
+                    <button onClick={() => setPage(page + 1)} disabled={page * 40 >= total}
+                        style={{ padding: '7px 18px', borderRadius: 8, border: '1px solid #e0e0e0', background: '#fff', cursor: page * 40 >= total ? 'default' : 'pointer', opacity: page * 40 >= total ? 0.4 : 1, fontSize: 13, color: '#666' }}>
                         {isChinese ? '下一页' : 'Next'} ›
                     </button>
                 </div>
             )}
 
-            {/* Detail modal */}
-            {selectedProduct && (
-                <div
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, animation: 'fadeIn 0.2s ease' }}
-                    onClick={() => setSelectedProduct(null)}
-                >
-                    <div
-                        style={{ background: '#fff', borderRadius: 16, width: '90%', maxWidth: 640, maxHeight: '85vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {/* Main image */}
-                        {(selectedProduct.main_image || selectedProduct.images?.[0]) && (
-                            <div style={{ width: '100%', background: '#f5f5f5', borderRadius: '16px 16px 0 0', overflow: 'hidden' }}>
-                                <img
-                                    src={selectedProduct.main_image || selectedProduct.images[0]}
-                                    alt=""
-                                    style={{ width: '100%', maxHeight: 380, objectFit: 'contain', display: 'block' }}
-                                />
-                            </div>
-                        )}
-
-                        {/* Info */}
-                        <div style={{ padding: '20px 24px 24px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 8 }}>
-                                <h2 style={{ fontSize: 17, fontWeight: 600, color: '#222', margin: 0, flex: 1, lineHeight: 1.5 }}>
-                                    {selectedProduct.title}
-                                </h2>
-                                <button
-                                    onClick={() => setSelectedProduct(null)}
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999', marginLeft: 12, padding: 4, flexShrink: 0 }}
-                                >
-                                    <IconX size={20} />
-                                </button>
-                            </div>
-
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
-                                <span style={{ fontSize: 24, fontWeight: 700, color: '#e53e3e' }}>
-                                    ¥{selectedProduct.price || '-'}
-                                </span>
-                            </div>
-
-                            {selectedProduct.category_id && categoryMap[selectedProduct.category_id] && (
-                                <div style={{ marginBottom: 16 }}>
-                                    <span style={{ padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500, background: '#f0f7ff', color: '#3182ce' }}>
-                                        {categoryMap[selectedProduct.category_id]}
-                                    </span>
-                                </div>
-                            )}
-
-                            {/* Multi-image gallery */}
-                            {selectedProduct.images && selectedProduct.images.length > 1 && (
-                                <div>
-                                    <div style={{ fontSize: 13, fontWeight: 500, color: '#666', marginBottom: 8 }}>
-                                        {isChinese ? '全部图片' : 'All images'} ({selectedProduct.images.length})
-                                    </div>
-                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                        {selectedProduct.images.map((img, i) => (
-                                            <a key={i} href={img} target="_blank" rel="noopener noreferrer"
-                                                style={{ display: 'block' }}
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <img
-                                                    src={img}
-                                                    alt=""
-                                                    style={{
-                                                        width: 72, height: 72, objectFit: 'cover', borderRadius: 8,
-                                                        border: '1px solid #eee', transition: 'transform 0.2s',
-                                                    }}
-                                                    onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
-                                                    onMouseLeave={(e) => (e.currentTarget.style.transform = 'none')}
-                                                />
-                                            </a>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Video */}
-                            {selectedProduct.video_url && (
-                                <div style={{ marginTop: 16 }}>
-                                    <div style={{ fontSize: 13, fontWeight: 500, color: '#666', marginBottom: 8 }}>
-                                        {isChinese ? '商品视频' : 'Product Video'}
-                                    </div>
-                                    <video
-                                        src={selectedProduct.video_url}
-                                        controls
-                                        style={{ width: '100%', maxHeight: 300, borderRadius: 10, background: '#000' }}
-                                    />
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
+            {/* Gallery viewer */}
+            {galleryProduct && (
+                <GalleryViewer
+                    images={galleryProduct.images || []}
+                    videoUrl={galleryProduct.video_url}
+                    title={galleryProduct.title}
+                    price={galleryProduct.price}
+                    categoryName={galleryProduct.category_id ? categoryMap[galleryProduct.category_id] : undefined}
+                    initialIndex={galleryIndex}
+                    onClose={() => setGalleryProduct(null)}
+                />
             )}
-
-            <style>{`
-                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-            `}</style>
         </div>
     );
 }
