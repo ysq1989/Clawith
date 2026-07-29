@@ -745,28 +745,56 @@ async def user_get_pool(
     if not pool:
         raise HTTPException(404, "Pool not found")
 
-    # Get items with product info
-    items_q = (
-        select(ProductHubUserPoolItem, ProductHubProduct)
-        .join(ProductHubProduct, ProductHubUserPoolItem.product_id == ProductHubProduct.id)
+    # Get items with product info (check both ProductHubProduct and WecomAlbumProduct)
+    from app.models.wecom_album import WecomAlbumProduct
+
+    items_result = await db.execute(
+        select(ProductHubUserPoolItem)
         .where(ProductHubUserPoolItem.pool_id == pool_id)
         .order_by(ProductHubUserPoolItem.sort_order)
     )
-    items_result = await db.execute(items_q)
-    rows = items_result.all()
+    item_rows = items_result.scalars().all()
+
+    # Batch fetch products from both tables
+    product_ids = [item.product_id for item in item_rows]
+
+    ph_products = {}
+    if product_ids:
+        ph_result = await db.execute(
+            select(ProductHubProduct).where(ProductHubProduct.id.in_(product_ids))
+        )
+        ph_products = {p.id: p for p in ph_result.scalars().all()}
+
+    wc_products = {}
+    missing_ids = [pid for pid in product_ids if pid not in ph_products]
+    if missing_ids:
+        wc_result = await db.execute(
+            select(WecomAlbumProduct).where(WecomAlbumProduct.id.in_(missing_ids))
+        )
+        wc_products = {p.id: p for p in wc_result.scalars().all()}
+
+    def _product_info(pid):
+        """Get product info from either table."""
+        if pid in ph_products:
+            p = ph_products[pid]
+            return {"title": p.title, "price": str(p.price) if p.price else None, "main_image": p.main_image, "images": p.images or []}
+        if pid in wc_products:
+            p = wc_products[pid]
+            return {"title": p.clean_title or p.title, "price": str(p.clean_price) if p.clean_price else str(p.price) if p.price else None, "main_image": p.main_image, "images": p.images or []}
+        return {"title": "Unknown", "price": None, "main_image": None, "images": []}
 
     return {
-        **_user_pool_to_out(pool, len(rows)),
+        **_user_pool_to_out(pool, len(item_rows)),
         "items": [
             {
                 "id": str(item.id),
-                "product": _product_to_user_out(product),
+                "product": {"id": str(item.product_id), **_product_info(item.product_id)},
                 "note": item.note,
                 "selected_by_agent": item.selected_by_agent,
                 "sort_order": item.sort_order,
                 "created_at": item.created_at.isoformat() if item.created_at else None,
             }
-            for item, product in rows
+            for item in item_rows
         ],
     }
 
@@ -839,7 +867,9 @@ async def user_add_pool_items(
     if not pool:
         raise HTTPException(404, "Pool not found")
 
-    # Verify product exists
+    # Verify product exists (check both ProductHubProduct and WecomAlbumProduct)
+    from app.models.wecom_album import WecomAlbumProduct
+
     prod_result = await db.execute(
         select(ProductHubProduct).where(
             ProductHubProduct.id == body.product_id,
@@ -847,8 +877,28 @@ async def user_add_pool_items(
         )
     )
     product = prod_result.scalar_one_or_none()
+
     if not product:
-        raise HTTPException(404, "Product not found")
+        # Try WecomAlbumProduct (synced products shown in pool)
+        wecom_result = await db.execute(
+            select(WecomAlbumProduct).where(
+                WecomAlbumProduct.id == body.product_id,
+                WecomAlbumProduct.status == "synced",
+            )
+        )
+        wecom_product = wecom_result.scalar_one_or_none()
+        if not wecom_product:
+            raise HTTPException(404, "Product not found")
+        # Use wecom product info for the pool item
+        actual_title = wecom_product.clean_title or wecom_product.title
+        actual_price = wecom_product.clean_price or wecom_product.price
+        actual_image = wecom_product.main_image
+        actual_images = wecom_product.images or []
+    else:
+        actual_title = product.title
+        actual_price = product.price
+        actual_image = product.main_image
+        actual_images = product.images or []
 
     # Check if already in pool
     existing = await db.execute(
