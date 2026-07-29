@@ -589,44 +589,60 @@ async def user_list_products(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ):
-    """Search products in the public selection pool."""
-    q = select(ProductHubProduct).where(
-        ProductHubProduct.tenant_id == user.tenant_id,
-        ProductHubProduct.status == "active",
+    """Search products in the public selection pool (from wecom-album synced products)."""
+    from app.models.wecom_album import WecomAlbumProduct
+
+    q = select(WecomAlbumProduct).where(
+        WecomAlbumProduct.tenant_id == user.tenant_id,
+        WecomAlbumProduct.status == "synced",
     )
 
     if keyword:
         q = q.where(
             or_(
-                ProductHubProduct.title.ilike(f"%{keyword}%"),
-                ProductHubProduct.description.ilike(f"%{keyword}%"),
-                ProductHubProduct.clean_summary.ilike(f"%{keyword}%"),
+                WecomAlbumProduct.title.ilike(f"%{keyword}%"),
+                WecomAlbumProduct.clean_title.ilike(f"%{keyword}%") if WecomAlbumProduct.clean_title else False,
             )
         )
     if category_id:
-        q = q.where(ProductHubProduct.category_id == category_id)
+        q = q.where(WecomAlbumProduct.category_id == category_id)
     if tags:
         tag_list = [t.strip() for t in tags.split(",") if t.strip()]
         for tag in tag_list:
-            q = q.where(ProductHubProduct.tags.op("@>")(f'["{tag}"]'))
+            q = q.where(WecomAlbumProduct.tags.op("@>")(f'["{tag}"]'))
     if price_min is not None:
-        q = q.where(ProductHubProduct.price >= price_min)
+        q = q.where(WecomAlbumProduct.clean_price >= price_min)
     if price_max is not None:
-        q = q.where(ProductHubProduct.price <= price_max)
-    if supply_chain_id:
-        q = q.where(ProductHubProduct._supply_chain_id == supply_chain_id)
+        q = q.where(WecomAlbumProduct.clean_price <= price_max)
 
     # Count
-    count_q = select(func.count(ProductHubProduct.id)).where(
-        ProductHubProduct.tenant_id == user.tenant_id,
-        ProductHubProduct.status == "active",
+    count_q = select(func.count(WecomAlbumProduct.id)).where(
+        WecomAlbumProduct.tenant_id == user.tenant_id,
+        WecomAlbumProduct.status == "synced",
     )
     total = (await db.execute(count_q)).scalar() or 0
 
-    q = q.order_by(ProductHubProduct.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+    q = q.order_by(WecomAlbumProduct.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(q)
     products = result.scalars().all()
-    return {"items": [_product_to_user_out(p) for p in products], "total": total}
+
+    def _wecom_to_out(p):
+        return {
+            "id": str(p.id),
+            "title": p.clean_title or p.title,
+            "description": "",
+            "price": str(p.clean_price) if p.clean_price else str(p.price) if p.price else None,
+            "images": p.images or [],
+            "main_image": p.main_image,
+            "tags": p.tags or [],
+            "category_id": p.category_id,
+            "status": "active",
+            "source": "wecom-album",
+            "source_id": str(p.id),
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        }
+
+    return {"items": [_wecom_to_out(p) for p in products], "total": total}
 
 
 @router.get("/products/{product_id}")

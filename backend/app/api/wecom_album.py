@@ -30,7 +30,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.auth import get_current_user as _jwt_get_current_user
 from app.database import async_session, get_db
 from app.models.wecom_album import WecomAlbumAccount, WecomAlbumSupplier, WecomAlbumProduct, WecomAlbumSyncLog, WecomAlbumCategory
-from app.models.product_hub import ProductHubProduct
 from app.services.wecom_album.szwego_client import WecomAlbumSzwegoClient
 from app.services.wecom_album.sync_service import test_connection, sync_suppliers, sync_products
 from app.services.wecom_album.ai_clean_service import clean_single, clean_batch, clean_supplier_products
@@ -602,22 +601,7 @@ async def update_product(
         elif action == "push_to_pool":
             if product.status != "pending_sync":
                 raise HTTPException(status_code=400, detail="只有待同步商品可以推送")
-            # Create ProductHubProduct
-            ph_product = ProductHubProduct(
-                tenant_id=user.tenant_id,
-                title=product.clean_title or product.title,
-                description="",
-                price=product.clean_price or product.price,
-                images=product.images,
-                main_image=product.main_image,
-                _source_url=product.source_url,
-                _source_shop_name=product.shop_name,
-                _source_shop_id=product.shop_id,
-                tags=product.tags or [],
-                supply_chain_name=product.shop_name,
-                status="active",
-            )
-            db.add(ph_product)
+            # Just mark as synced — product hub reads directly from wecom_album_products
             product.status = "synced"
         else:
             raise HTTPException(status_code=400, detail=f"未知操作: {action}")
@@ -852,24 +836,7 @@ async def api_push_to_pool(
 
         pushed = 0
         for p in products:
-            # Create ProductHubProduct
-            ph_product = ProductHubProduct(
-                tenant_id=user.tenant_id,
-                title=p.clean_title or p.title,
-                description="",
-                price=p.clean_price or p.price,
-                images=p.images,
-                main_image=p.main_image,
-                _source_url=p.source_url,
-                _source_shop_name=p.shop_name,
-                _source_shop_id=p.shop_id,
-                tags=p.tags or [],
-                supply_chain_name=p.shop_name,
-                status="active",
-            )
-            db.add(ph_product)
-
-            # Update wecom-album product status
+            # Just mark as synced — product hub reads directly from wecom_album_products
             p.status = "synced"
             pushed += 1
 
