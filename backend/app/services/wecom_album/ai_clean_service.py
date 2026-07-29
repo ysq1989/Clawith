@@ -37,14 +37,15 @@ DEFAULT_SYSTEM_PROMPT = """你是一位资深珠宝玉石行业商品数据专�
 - 保留：品牌名、材质、规格（尺寸/重量/克拉）、数量、品质描述
 - 去除：营销词（秒杀/秒/私/私域/微信/完美/真实/诚信/厂家直销/爆款/热卖/新品等）、价格金额、编号货号、联系方式、表情符号、重复符号、多余空格
 - 价格：仅提取成本价/批发价数字，百/千/万需换算为数字（如 小六3开 → 30000），无法判断返回0
-- 分类：从给定分类列表中选最合适的，无法判断用239
+- 分类：必须从给定分类列表中选择最匹配的，如果无法匹配任何分类，sync设为0
 
 ## 跳过规则（sync=0 表示不同步）
 以下商品应标记为不同步：
-1. 无法提取成本价（cost=0）的商品
-2. 标题过短或无意义（如只有表情、只有"新款"等）
-3. 明显是服务/加工/定制类（非成品商品）
-4. 标题包含明显违规词（如"高仿""A货"等假冒相关）
+1. 无法匹配到任何分类的商品
+2. 无法提取成本价（cost=0）的商品
+3. 标题过短或无意义（如只有表情、只有"新款"等）
+4. 明显是服务/加工/定制类（非成品商品）
+5. 标题包含明显违规词（如"高仿""A货"等假冒相关）
 
 ## 输出格式
 严格输出 JSON，不要输出任何解释或思考过程。"""
@@ -54,21 +55,13 @@ DEFAULT_USER_PROMPT_TEMPLATE = """请清洗以下商品标题并提取成本价�
 规则：
 1) clean_title 保留尺寸/规格/数量等关键信息，去掉营销词（秒、秒杀、私、私域、微信、完美、真实）、价格、编号、货号、联系方式、表情、重复符号和多余空格
 2) cost 仅返回数字，可小数；有时会用百、千、万需转化，无法判断返回0
-3) cate_id 从下方给定分类列表中选最合适的，无法判断用239
-4) 无法提取成本价（cost=0）的商品，sync设为0，skip_reason填"无法确定成本价"
+3) cate_id 必须从下方分类列表中选择最匹配的分类ID，如果无法匹配任何分类，sync设为0
+4) 无法提取成本价（cost=0）或无法匹配分类的商品，sync设为0，skip_reason填明原因
 5) 只输出JSON数组，不要任何解释文字
 6) 严格按照下面的商品顺序依次处理，每个item必须包含全部字段
 
 商品分类：
-{
-246: 翡翠>手镯
-245: 翡翠>戒指
-244: 翡翠>耳坠
-243: 翡翠>项链
-242: 翡翠>手链
-241: 翡翠>手串
-240: 翡翠>吊坠
-}
+{categories}
 
 商品列表：
 {title}"""
@@ -78,21 +71,13 @@ DEFAULT_BATCH_USER_PROMPT_TEMPLATE = """请清洗以下商品标题并提取成�
 规则：
 1) clean_title 保留尺寸/规格/数量等关键信息，去掉营销词（秒、秒杀、私、私域、微信、完美、真实）、价格、编号、货号、联系方式、表情、重复符号和多余空格
 2) cost 仅返回数字，可小数；有时会用百、千、万需转化，无法判断返回0
-3) cate_id 从下方给定分类列表中选最合适的，无法判断用239
-4) 无法提取成本价（cost=0）的商品，sync设为0，skip_reason填"无法确定成本价"
+3) cate_id 必须从下方分类列表中选择最匹配的分类ID，如果无法匹配任何分类，sync设为0
+4) 无法提取成本价（cost=0）或无法匹配分类的商品，sync设为0，skip_reason填明原因
 5) 只输出JSON数组，不要任何解释文字
 6) 严格按照下面的商品顺序依次处理，每个item必须包含全部字段
 
 商品分类：
-{
-246: 翡翠>手镯
-245: 翡翠>戒指
-244: 翡翠>耳坠
-243: 翡翠>项链
-242: 翡翠>手链
-241: 翡翠>手串
-240: 翡翠>吊坠
-}
+{categories}
 
 商品列表：
 {items_json}"""
@@ -124,6 +109,37 @@ async def _get_account_config(tenant_id: uuid.UUID) -> WecomAlbumAccount | None:
             select(WecomAlbumAccount).where(WecomAlbumAccount.tenant_id == tenant_id)
         )
         return result.scalar_one_or_none()
+
+
+async def _get_category_list(tenant_id: uuid.UUID) -> str:
+    """Fetch categories from DB and build the category list string for prompts."""
+    from app.models.wecom_album import WecomAlbumCategory
+
+    async with async_session() as db:
+        result = await db.execute(
+            select(WecomAlbumCategory).where(
+                WecomAlbumCategory.tenant_id == tenant_id,
+                WecomAlbumCategory.is_show == True,
+            ).order_by(WecomAlbumCategory.sort, WecomAlbumCategory.id)
+        )
+        cats = result.scalars().all()
+
+    if not cats:
+        return "{}"
+
+    # Build parent map
+    parent_map = {c.id: c for c in cats}
+    # Only show top-level categories with their children
+    lines = []
+    for c in cats:
+        if c.pid == 0:
+            children = [child for child in cats if child.pid == c.id]
+            if children:
+                child_str = ", ".join(f"{child.id}: {child.cate_name}" for child in children)
+                lines.append(f'"{c.id}: {c.cate_name}": {{{child_str}}}')
+            else:
+                lines.append(f'"{c.id}: {c.cate_name}"')
+    return "{" + ", ".join(lines) + "}"
 
 
 async def _call_llm_api(
@@ -297,7 +313,9 @@ async def clean_single(product_id: uuid.UUID) -> dict:
         user_template = (account.ai_prompt_user_template if account and account.ai_prompt_user_template else None) or DEFAULT_USER_PROMPT_TEMPLATE
         timeout = account.ai_timeout_seconds if account else AI_TIMEOUT
 
-        user_prompt = user_template.replace("{title}", product.title)
+        # Fetch categories from DB
+        categories_str = await _get_category_list(product.tenant_id)
+        user_prompt = user_template.replace("{title}", product.title).replace("{categories}", categories_str)
 
         # Use images for vision-capable models
         images = product.images[:3] if product.images else None
@@ -369,10 +387,12 @@ async def clean_batch(product_ids: list[uuid.UUID]) -> dict:
         system_prompt = (account.ai_prompt_system if account and account.ai_prompt_system else None) or DEFAULT_SYSTEM_PROMPT
         timeout = account.ai_timeout_seconds if account else AI_TIMEOUT
 
+        # Fetch categories from DB
+        categories_str = await _get_category_list(tenant_id)
         items = [{"item_id": str(p.id), "title": p.title} for p in products]
-        user_prompt = DEFAULT_BATCH_USER_PROMPT_TEMPLATE.format(
-            items_json=json.dumps(items, ensure_ascii=False)
-        )
+        user_prompt = DEFAULT_BATCH_USER_PROMPT_TEMPLATE.replace(
+            "{items_json}", json.dumps(items, ensure_ascii=False)
+        ).replace("{categories}", categories_str)
 
         try:
             response_text = await _call_llm_api(model, system_prompt, user_prompt, timeout=timeout)

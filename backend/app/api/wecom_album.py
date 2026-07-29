@@ -738,6 +738,7 @@ async def api_ai_clean_test(
     from app.services.wecom_album.ai_clean_service import (
         _get_ai_model, _call_llm_api, _parse_clean_result,
         DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT_TEMPLATE, _get_account_config,
+        _get_category_list,
     )
 
     model = await _get_ai_model(user.tenant_id)
@@ -748,7 +749,10 @@ async def api_ai_clean_test(
 
     system_prompt = (account.ai_prompt_system if account and account.ai_prompt_system else None) or DEFAULT_SYSTEM_PROMPT
     user_template = (account.ai_prompt_user_template if account and account.ai_prompt_user_template else None) or DEFAULT_USER_PROMPT_TEMPLATE
-    user_prompt = user_template.replace("{title}", test_title)
+
+    # Fetch categories from DB
+    categories_str = await _get_category_list(user.tenant_id)
+    user_prompt = user_template.replace("{title}", test_title).replace("{categories}", categories_str)
 
     try:
         response_text = await _call_llm_api(model, system_prompt, user_prompt, timeout=account.ai_timeout_seconds if account else 60)
