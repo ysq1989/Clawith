@@ -259,7 +259,7 @@ export default function ProductsPage() {
                             onMouseLeave={(e) => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}
                         >
                             {/* 4:3 image */}
-                            <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', background: '#f5f5f5', overflow: 'hidden' }}>
+                            <div style={{ position: 'relative', width: '100%', aspectRatio: '3/4', background: '#f5f5f5', overflow: 'hidden' }}>
                                 {p.main_image || p.images?.[0] ? (
                                     <img src={p.main_image || p.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                 ) : (
