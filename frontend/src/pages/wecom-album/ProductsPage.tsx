@@ -2,7 +2,7 @@
  * WeChat Business Album — Products page.
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchJson } from '../../services/api';
@@ -30,16 +30,26 @@ interface Product {
     category_id?: number | null;
 }
 
-/** Category mapping from AI clean results */
-const CATEGORIES: Record<number, string> = {
-    246: '翡翠>手镯',
-    245: '翡翠>戒指',
-    244: '翡翠>耳坠',
-    243: '翡翠>项链',
-    242: '翡翠>手链',
-    241: '翡翠>手串',
-    240: '翡翠>吊坠',
-};
+interface ApiCategory {
+    id: number;
+    pid: number;
+    cate_name: string;
+    children?: ApiCategory[];
+}
+
+/** Build flat map from tree categories: {id: "parent>name"} */
+function buildCategoryMap(cats: ApiCategory[]): Record<number, string> {
+    const map: Record<number, string> = {};
+    const walk = (items: ApiCategory[], parentName: string) => {
+        for (const c of items) {
+            const fullName = parentName ? `${parentName}>${c.cate_name}` : c.cate_name;
+            map[c.id] = fullName;
+            if (c.children?.length) walk(c.children, fullName);
+        }
+    };
+    walk(cats, '');
+    return map;
+}
 
 export default function WecomAlbumProductsPage() {
     const { t, i18n } = useTranslation();
@@ -61,6 +71,13 @@ export default function WecomAlbumProductsPage() {
                 `/wecom-album/products?page=${page}&page_size=20${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}${statusTab ? `&status=${statusTab}` : ''}${categoryFilter !== '' ? `&category_id=${categoryFilter}` : ''}`
             ),
     });
+
+    // Fetch categories from API
+    const { data: apiCategories = [] } = useQuery<ApiCategory[]>({
+        queryKey: ['wecom-album-categories'],
+        queryFn: () => fetchJson<any>('/wecom-album/categories'),
+    });
+    const categoryMap = useMemo(() => buildCategoryMap(apiCategories), [apiCategories]);
 
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
@@ -272,7 +289,7 @@ export default function WecomAlbumProductsPage() {
                     }}
                 >
                     <option value="">{isChinese ? '全部分类' : 'All Categories'}</option>
-                    {Object.entries(CATEGORIES).map(([id, name]) => (
+                    {Object.entries(categoryMap).map(([id, name]) => (
                         <option key={id} value={id}>{name}</option>
                     ))}
                 </select>
@@ -344,7 +361,7 @@ export default function WecomAlbumProductsPage() {
                                         {p.price ? `¥${p.price}` : '-'}
                                     </span>
                                     <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                                        {p.category_id && CATEGORIES[p.category_id] && (
+                                        {p.category_id && categoryMap[p.category_id] && (
                                             <span
                                                 style={{
                                                     padding: '1px 6px',
@@ -355,7 +372,7 @@ export default function WecomAlbumProductsPage() {
                                                     color: '#0369a1',
                                                 }}
                                             >
-                                                {CATEGORIES[p.category_id]}
+                                                {categoryMap[p.category_id]}
                                             </span>
                                         )}
                                         <span
