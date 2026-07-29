@@ -63,6 +63,12 @@ class WecomAlbumSzwegoClient:
 
                 errmsg = data.get("errmsg", "szwego error")
                 last_error = errmsg
+
+                # Token-related errors — don't retry, fail immediately
+                token_errors = ("登录已超时", "token", "未登录", "请先登录", "授权", "获取用户信息失败")
+                if any(kw in errmsg for kw in token_errors):
+                    raise SzwegoAPIError(f"szwego token 无效或已过期，请在系统设置中重新填写 token（错误: {errmsg}）")
+
                 if "服务器偷懒" in errmsg and attempt < SZWEGO_MAX_RETRIES:
                     import asyncio
                     await asyncio.sleep(0.3 * attempt)
@@ -71,6 +77,8 @@ class WecomAlbumSzwegoClient:
 
             except httpx.HTTPStatusError as e:
                 last_error = f"HTTP {e.response.status_code}"
+                if e.response.status_code in (401, 403):
+                    raise SzwegoAPIError(f"szwego token 无效或已过期（HTTP {e.response.status_code}），请在系统设置中重新填写")
                 if attempt < SZWEGO_MAX_RETRIES:
                     import asyncio
                     await asyncio.sleep(0.5 * attempt)

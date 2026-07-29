@@ -43,30 +43,6 @@ export default function AccountConfigPage() {
                 {t('wecomAlbum.config.desc', '配置微商相册账号和AI清洗模型')}
             </p>
 
-            {/* Connection status */}
-            {account?.configured && (
-                <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                        padding: '12px 16px',
-                        borderRadius: 10,
-                        background: account.is_active ? '#f0fdf4' : '#fef2f2',
-                        border: `1px solid ${account.is_active ? '#bbf7d0' : '#fecaca'}`,
-                        marginBottom: 20,
-                        fontSize: 14,
-                    }}
-                >
-                    {account.is_active ? <IconCheck size={16} color="#22c55e" /> : <IconX size={16} color="#ef4444" />}
-                    <span>
-                        {account.is_active
-                            ? (isChinese ? `已连接 — ${account.album_name || '未知'}` : `Connected — ${account.album_name || 'Unknown'}`)
-                            : (isChinese ? `连接异常: ${account.last_error || '未知错误'}` : `Error: ${account.last_error || 'Unknown'}`)}
-                    </span>
-                </div>
-            )}
-
             {/* Tab bar */}
             <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border-primary)', marginBottom: 24 }}>
                 {tabs.map((tab) => (
