@@ -101,13 +101,13 @@ export default function ProductsPage() {
                 </button>
             </div>
 
-            {/* Product grid — same as wecom-album */}
+            {/* Product grid — waterfall layout */}
             {isLoading ? (
                 <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-tertiary)' }}>{isChinese ? '加载中...' : 'Loading...'}</div>
             ) : products.length === 0 ? (
                 <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-tertiary)' }}>{isChinese ? '暂无商品' : 'No products yet'}</div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+                <div style={{ columnCount: 4, columnGap: 12 }}>
                     {products.map((p) => (
                         <div
                             key={p.id}
@@ -119,18 +119,20 @@ export default function ProductsPage() {
                                 overflow: 'hidden',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s',
-                                display: 'flex',
-                                flexDirection: 'column',
+                                breakInside: 'avoid',
+                                marginBottom: 12,
+                                display: 'inline-block',
+                                width: '100%',
                             }}
                             onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
                             onMouseLeave={(e) => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}
                         >
-                            {/* Image */}
-                            <div style={{ position: 'relative', width: '100%', height: 180, background: '#f5f5f5', overflow: 'hidden' }}>
+                            {/* Image — natural aspect ratio */}
+                            <div style={{ position: 'relative', width: '100%', background: '#f5f5f5', overflow: 'hidden' }}>
                                 {p.main_image || p.images?.[0] ? (
-                                    <img src={p.main_image || p.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    <img src={p.main_image || p.images[0]} alt="" style={{ width: '100%', display: 'block' }} />
                                 ) : (
-                                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <div style={{ width: '100%', height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                         <IconPackage size={32} color="#d1d5db" />
                                     </div>
                                 )}
@@ -145,24 +147,18 @@ export default function ProductsPage() {
                             </div>
 
                             {/* Content */}
-                            <div style={{ padding: '10px 12px', flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4 }}>
+                            <div style={{ padding: '10px 12px' }}>
+                                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4, marginBottom: 4 }}>
                                     {p.title}
                                 </div>
-
-                                {/* Price */}
-                                <div style={{ fontSize: 16, fontWeight: 700, color: '#ef4444' }}>
+                                <div style={{ fontSize: 16, fontWeight: 700, color: '#ef4444', marginBottom: 4 }}>
                                     {p.price ? `¥${p.price}` : '-'}
                                 </div>
-
-                                {/* Category */}
-                                <div style={{ marginTop: 'auto', minHeight: 18 }}>
-                                    {p.category_id && categoryMap[p.category_id] && (
-                                        <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 500, background: '#f0f9ff', color: '#0369a1', whiteSpace: 'nowrap' }}>
-                                            {categoryMap[p.category_id]}
-                                        </span>
-                                    )}
-                                </div>
+                                {p.category_id && categoryMap[p.category_id] && (
+                                    <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 500, background: '#f0f9ff', color: '#0369a1', whiteSpace: 'nowrap' }}>
+                                        {categoryMap[p.category_id]}
+                                    </span>
+                                )}
                             </div>
                         </div>
                     ))}
