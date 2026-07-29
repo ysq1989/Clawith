@@ -206,6 +206,7 @@ class ProductHubUserPoolItem(Base):
         nullable=False,
     )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    price: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     selected_by_agent: Mapped[bool] = mapped_column(Boolean, default=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

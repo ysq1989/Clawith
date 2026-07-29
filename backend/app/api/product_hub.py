@@ -789,6 +789,7 @@ async def user_get_pool(
             {
                 "id": str(item.id),
                 "product": {"id": str(item.product_id), **_product_info(item.product_id)},
+                "price": str(item.price) if item.price is not None else None,
                 "note": item.note,
                 "selected_by_agent": item.selected_by_agent,
                 "sort_order": item.sort_order,
@@ -928,6 +929,48 @@ async def user_add_pool_items(
     db.add(item)
     await db.flush()
     return {"ok": True, "id": str(item.id)}
+
+
+@router.patch("/my-pools/{pool_id}/items/{item_id}")
+async def user_update_pool_item(
+    pool_id: uuid.UUID,
+    item_id: uuid.UUID,
+    request: Request,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update pool item (price, note)."""
+    body = await request.json()
+
+    # Verify pool ownership
+    pool_result = await db.execute(
+        select(ProductHubUserPool).where(
+            ProductHubUserPool.id == pool_id,
+            ProductHubUserPool.tenant_id == user.tenant_id,
+            ProductHubUserPool.user_id == user.id,
+        )
+    )
+    if not pool_result.scalar_one_or_none():
+        raise HTTPException(404, "Pool not found")
+
+    # Get item
+    item_result = await db.execute(
+        select(ProductHubUserPoolItem).where(
+            ProductHubUserPoolItem.id == item_id,
+            ProductHubUserPoolItem.pool_id == pool_id,
+        )
+    )
+    item = item_result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(404, "Item not found")
+
+    if "price" in body:
+        item.price = float(body["price"]) if body["price"] is not None else None
+    if "note" in body:
+        item.note = body["note"]
+
+    await db.flush()
+    return {"ok": True}
 
 
 @router.delete("/my-pools/{pool_id}/items/{item_id}")

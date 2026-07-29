@@ -2,13 +2,59 @@
  * Product Hub My Pools Page — Manage personal selection pools.
  */
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchJson } from '../../services/api';
 import { useToast } from '../../components/Toast/ToastProvider';
-import { IconPlus, IconTrash, IconArrowLeft, IconShoppingBag, IconX } from '@tabler/icons-react';
+import { IconPlus, IconTrash, IconArrowLeft, IconShoppingBag, IconX, IconCheck } from '@tabler/icons-react';
+
+/* ─── Inline Editable Price ─── */
+function EditablePrice({ itemId, initialPrice, onUpdate, isUpdating }: {
+    itemId: string; initialPrice: string | null; onUpdate: (price: number | null) => void; isUpdating: boolean;
+}) {
+    const [editing, setEditing] = useState(false);
+    const [value, setValue] = useState(initialPrice || '');
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+    const save = () => {
+        const num = parseFloat(value);
+        onUpdate(isNaN(num) ? null : num);
+        setEditing(false);
+    };
+
+    if (editing) {
+        return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 14, color: '#e53e3e' }}>¥</span>
+                <input
+                    ref={inputRef}
+                    type="number"
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setEditing(false); setValue(initialPrice || ''); } }}
+                    onBlur={save}
+                    style={{ width: 80, padding: '2px 6px', borderRadius: 4, border: '1px solid #4f46e5', fontSize: 14, fontWeight: 700, color: '#e53e3e', outline: 'none' }}
+                />
+            </div>
+        );
+    }
+
+    return (
+        <span
+            onClick={() => setEditing(true)}
+            style={{ fontSize: 15, fontWeight: 700, color: '#e53e3e', cursor: 'pointer', padding: '2px 4px', borderRadius: 4, transition: 'background 0.15s' }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = '#fef2f2')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+            title={isChinese ? '点击修改价格' : 'Click to edit price'}
+        >
+            ¥{initialPrice || '-'}
+        </span>
+    );
+}
 
 export default function MyPoolsPage() {
     const { i18n } = useTranslation();
@@ -61,6 +107,18 @@ export default function MyPoolsPage() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['product-hub-pool-detail', poolId] });
             toast.success(isChinese ? '已移除' : 'Removed');
+        },
+        onError: (err: any) => toast.error(err?.message || 'Failed'),
+    });
+
+    const updatePriceMutation = useMutation({
+        mutationFn: ({ itemId, price }: { itemId: string; price: number | null }) =>
+            fetchJson(`/product-hub/my-pools/${poolId}/items/${itemId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ price }),
+            }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['product-hub-pool-detail', poolId] });
         },
         onError: (err: any) => toast.error(err?.message || 'Failed'),
     });
@@ -252,9 +310,12 @@ export default function MyPoolsPage() {
                                     <div style={{ fontSize: 13, fontWeight: 500, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 4 }}>
                                         {product.title}
                                     </div>
-                                    <span style={{ fontSize: 15, fontWeight: 700, color: '#e53e3e' }}>
-                                        ¥{product.price || '-'}
-                                    </span>
+                                    <EditablePrice
+                                        itemId={item.id}
+                                        initialPrice={item.price ?? product.price}
+                                        onUpdate={(price) => updatePriceMutation.mutate({ itemId: item.id, price })}
+                                        isUpdating={updatePriceMutation.isPending}
+                                    />
                                     {item.note && (
                                         <div style={{ fontSize: 11, color: '#999', marginTop: 4, fontStyle: 'italic' }}>{item.note}</div>
                                     )}
