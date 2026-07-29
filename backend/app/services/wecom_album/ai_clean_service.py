@@ -326,6 +326,14 @@ async def clean_single(product_id: uuid.UUID) -> dict:
         categories_str = await _get_category_list(product.tenant_id)
         user_prompt = user_template.replace("{title}", product.title).replace("{categories}", categories_str)
 
+        # Get supplier discount
+        from app.models.wecom_album import WecomAlbumSupplier
+        supplier_result = await db.execute(
+            select(WecomAlbumSupplier).where(WecomAlbumSupplier.id == product.supplier_id)
+        )
+        supplier = supplier_result.scalar_one_or_none()
+        discount = float(supplier.discount) if supplier and supplier.discount else 1.0
+
         # Use images for vision-capable models
         images = product.images[:3] if product.images else None
 
@@ -339,7 +347,8 @@ async def clean_single(product_id: uuid.UUID) -> dict:
             if parsed:
                 product.clean_title = parsed.get("clean_title", product.title)
                 try:
-                    product.clean_price = float(parsed.get("cost", 0) or 0)
+                    raw_cost = float(parsed.get("cost", 0) or 0)
+                    product.clean_price = round(raw_cost * discount, 2) if raw_cost > 0 else 0
                 except (ValueError, TypeError):
                     product.clean_price = 0
                 try:
@@ -412,6 +421,14 @@ async def clean_batch(product_ids: list[uuid.UUID]) -> dict:
 
             lookup = {str(item.get("item_id", "")): item for item in parsed_list}
 
+            # Build supplier discount map
+            from app.models.wecom_album import WecomAlbumSupplier
+            supplier_ids = list({p.supplier_id for p in products})
+            supplier_result = await db.execute(
+                select(WecomAlbumSupplier).where(WecomAlbumSupplier.id.in_(supplier_ids))
+            )
+            discount_map = {s.id: float(s.discount) if s.discount else 1.0 for s in supplier_result.scalars().all()}
+
             cleaned = 0
             skipped = 0
             for p in products:
@@ -419,7 +436,9 @@ async def clean_batch(product_ids: list[uuid.UUID]) -> dict:
                 if item:
                     p.clean_title = item.get("clean_title", p.title)
                     try:
-                        p.clean_price = float(item.get("cost", 0) or 0)
+                        raw_cost = float(item.get("cost", 0) or 0)
+                        discount = discount_map.get(p.supplier_id, 1.0)
+                        p.clean_price = round(raw_cost * discount, 2) if raw_cost > 0 else 0
                     except (ValueError, TypeError):
                         p.clean_price = 0
                     try:
