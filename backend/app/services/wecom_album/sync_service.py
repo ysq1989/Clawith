@@ -19,6 +19,7 @@ from app.services.wecom_album.szwego_client import (
     normalize_supplier,
     normalize_product,
     compute_source_hash,
+    _parse_item_timestamp,
 )
 
 
