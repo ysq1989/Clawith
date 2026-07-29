@@ -305,7 +305,7 @@ export default function WecomAlbumProductsPage() {
                     {isChinese ? '暂无商品，请先同步' : 'No products yet, please sync first'}
                 </div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
                     {products.map((p) => (
                         <div
                             key={p.id}
@@ -316,183 +316,96 @@ export default function WecomAlbumProductsPage() {
                                 border: '1px solid var(--border-primary)',
                                 overflow: 'hidden',
                                 cursor: 'pointer',
-                                transition: 'box-shadow 0.15s',
+                                transition: 'all 0.2s',
+                                display: 'flex',
+                                flexDirection: 'column',
                             }}
-                            onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)')}
-                            onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'none')}
+                            onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}
                         >
-                            <div
-                                style={{
-                                    width: '100%',
-                                    height: 200,
-                                    background: '#f5f5f5',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    overflow: 'hidden',
-                                }}
-                            >
+                            {/* Image */}
+                            <div style={{ position: 'relative', width: '100%', height: 180, background: '#f5f5f5', overflow: 'hidden' }}>
                                 {p.main_image ? (
-                                    <img
-                                        src={p.main_image}
-                                        alt={p.title}
-                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                    />
+                                    <img src={p.main_image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                 ) : (
-                                    <IconPackage size={32} color="#d1d5db" />
+                                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <IconPackage size={32} color="#d1d5db" />
+                                    </div>
                                 )}
+                                {p.video_url && (
+                                    <div style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', borderRadius: 4, padding: '2px 6px', fontSize: 10, color: '#fff' }}>▶ 视频</div>
+                                )}
+                                <div style={{
+                                    position: 'absolute', top: 8, left: 8,
+                                    padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 500, color: '#fff',
+                                    background: p.status === 'synced' ? '#16a34a' : p.status === 'pending_sync' ? '#2563eb' : p.status === 'skip' ? '#dc2626' : '#ca8a04',
+                                }}>
+                                    {p.status === 'pending_clean' ? '待清洗' : p.status === 'pending_sync' ? '待同步' : p.status === 'skip' ? '不同步' : '已同步'}
+                                </div>
                             </div>
-                            <div style={{ padding: 12 }}>
-                                <div
-                                    style={{
-                                        fontSize: 13,
-                                        fontWeight: 500,
-                                        color: 'var(--text-primary)',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap',
-                                        marginBottom: 4,
-                                    }}
-                                >
+
+                            {/* Content */}
+                            <div style={{ padding: '10px 12px', flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4 }}>
                                     {p.clean_title || p.title}
                                 </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                                    <span style={{ fontSize: 15, fontWeight: 600, color: '#ef4444' }}>
-                                        {p.clean_price ? `¥${p.clean_price}` : p.price ? `¥${p.price}` : '-'}
+
+                                {/* Price: always show clean_price */}
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                                    <span style={{ fontSize: 16, fontWeight: 700, color: '#ef4444' }}>
+                                        ¥{p.clean_price ?? p.price ?? '-'}
                                     </span>
-                                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                                        {p.category_id && categoryMap[p.category_id] && (
-                                            <span
-                                                style={{
-                                                    padding: '1px 6px',
-                                                    borderRadius: 4,
-                                                    fontSize: 10,
-                                                    fontWeight: 500,
-                                                    background: '#f0f9ff',
-                                                    color: '#0369a1',
-                                                }}
-                                            >
-                                                {categoryMap[p.category_id]}
-                                            </span>
-                                        )}
-                                        <span
-                                            style={{
-                                                padding: '1px 6px',
-                                                borderRadius: 4,
-                                                fontSize: 10,
-                                                fontWeight: 500,
-                                                background: p.status === 'synced' ? '#f0fdf4' : p.status === 'pending_sync' ? '#eff6ff' : p.status === 'skip' ? '#fef2f2' : '#fefce8',
-                                                color: p.status === 'synced' ? '#16a34a' : p.status === 'pending_sync' ? '#2563eb' : p.status === 'skip' ? '#dc2626' : '#ca8a04',
-                                            }}
-                                            title={p.status === 'skip' ? p.skip_reason : undefined}
-                                        >
-                                            {p.status === 'pending_clean' ? (isChinese ? '待清洗' : 'To Clean') : p.status === 'pending_sync' ? (isChinese ? '待同步' : 'To Sync') : p.status === 'skip' ? (isChinese ? '不同步' : 'Skipped') : (isChinese ? '已同步' : 'Synced')}
-                                        </span>
-                                    </div>
-                                    {p.shop_name && (
-                                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                                            {p.shop_name}
-                                        </span>
+                                    {p.clean_price && p.price && String(p.clean_price) !== String(p.price) && (
+                                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)', textDecoration: 'line-through' }}>¥{p.price}</span>
                                     )}
                                 </div>
+
+                                {/* Category + Supplier */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 'auto', minHeight: 18 }}>
+                                    {p.category_id && categoryMap[p.category_id] && (
+                                        <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 500, background: '#f0f9ff', color: '#0369a1', whiteSpace: 'nowrap' }}>
+                                            {categoryMap[p.category_id]}
+                                        </span>
+                                    )}
+                                    {p.shop_name && (
+                                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.shop_name}</span>
+                                    )}
+                                </div>
+
                                 {/* Action buttons */}
                                 {p.status === 'pending_clean' && (
-                                    <div style={{ display: 'flex', gap: 6 }}>
+                                    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); cleanMutation.mutate(p.id); }}
                                             disabled={cleanMutation.isPending}
-                                            style={{
-                                                flex: 1,
-                                                padding: '5px 8px',
-                                                background: '#4f46e5',
-                                                color: '#fff',
-                                                border: 'none',
-                                                borderRadius: 6,
-                                                fontSize: 12,
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                gap: 4,
-                                                opacity: cleanMutation.isPending ? 0.6 : 1,
-                                            }}
+                                            style={{ flex: 1, padding: '6px 0', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, opacity: cleanMutation.isPending ? 0.6 : 1 }}
                                         >
-                                            <IconSparkles size={12} />
-                                            {isChinese ? '清洗' : 'Clean'}
+                                            <IconSparkles size={12} />清洗
                                         </button>
                                         <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                const reason = prompt(isChinese ? '请输入不同步原因（可选）：' : 'Enter skip reason (optional):');
-                                                skipMutation.mutate({ productId: p.id, reason: reason || '' });
-                                            }}
+                                            onClick={(e) => { e.stopPropagation(); const r = prompt('请输入不同步原因（可选）：'); skipMutation.mutate({ productId: p.id, reason: r || '' }); }}
                                             disabled={skipMutation.isPending}
-                                            style={{
-                                                padding: '5px 8px',
-                                                background: '#fef2f2',
-                                                color: '#dc2626',
-                                                border: '1px solid #fecaca',
-                                                borderRadius: 6,
-                                                fontSize: 12,
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                gap: 4,
-                                            }}
+                                            style={{ padding: '6px 10px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 6, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                                         >
-                                            <IconBan size={12} />
-                                            {isChinese ? '不同步' : 'Skip'}
+                                            <IconBan size={12} />不同步
                                         </button>
                                     </div>
                                 )}
                                 {p.status === 'pending_sync' && (
-                                    <div style={{ display: 'flex', gap: 6 }}>
+                                    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); pushSingleMutation.mutate(p.id); }}
                                             disabled={pushSingleMutation.isPending}
-                                            style={{
-                                                flex: 1,
-                                                padding: '5px 8px',
-                                                background: '#059669',
-                                                color: '#fff',
-                                                border: 'none',
-                                                borderRadius: 6,
-                                                fontSize: 12,
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                gap: 4,
-                                                opacity: pushSingleMutation.isPending ? 0.6 : 1,
-                                            }}
+                                            style={{ flex: 1, padding: '6px 0', background: '#059669', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, opacity: pushSingleMutation.isPending ? 0.6 : 1 }}
                                         >
-                                            <IconCheck size={12} />
-                                            {isChinese ? '同步' : 'Sync'}
+                                            <IconCheck size={12} />同步
                                         </button>
                                         <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                const reason = prompt(isChinese ? '请输入不同步原因（可选）：' : 'Enter skip reason (optional):');
-                                                skipMutation.mutate({ productId: p.id, reason: reason || '' });
-                                            }}
+                                            onClick={(e) => { e.stopPropagation(); const r = prompt('请输入不同步原因（可选）：'); skipMutation.mutate({ productId: p.id, reason: r || '' }); }}
                                             disabled={skipMutation.isPending}
-                                            style={{
-                                                padding: '5px 8px',
-                                                background: '#fef2f2',
-                                                color: '#dc2626',
-                                                border: '1px solid #fecaca',
-                                                borderRadius: 6,
-                                                fontSize: 12,
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                gap: 4,
-                                            }}
+                                            style={{ padding: '6px 10px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 6, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                                         >
-                                            <IconBan size={12} />
-                                            {isChinese ? '不同步' : 'Skip'}
+                                            <IconBan size={12} />不同步
                                         </button>
                                     </div>
                                 )}
