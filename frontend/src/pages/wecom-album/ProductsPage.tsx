@@ -354,7 +354,7 @@ export default function WecomAlbumProductsPage() {
                                         marginBottom: 4,
                                     }}
                                 >
-                                    {p.title}
+                                    {p.clean_title || p.title}
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                                     <span style={{ fontSize: 15, fontWeight: 600, color: '#ef4444' }}>
@@ -615,8 +615,13 @@ export default function WecomAlbumProductsPage() {
 
                         {/* Info */}
                         <div style={{ marginBottom: 12 }}>
+                            {selectedProduct.clean_title && (
+                                <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4, textDecoration: 'line-through' }}>
+                                    {selectedProduct.title}
+                                </div>
+                            )}
                             <div style={{ fontSize: 16, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 8 }}>
-                                {selectedProduct.title}
+                                {selectedProduct.clean_title || selectedProduct.title}
                             </div>
                             <div style={{ fontSize: 20, fontWeight: 600, color: '#ef4444', marginBottom: 8 }}>
                                 {selectedProduct.price ? `¥${selectedProduct.price}` : '-'}
