@@ -352,9 +352,14 @@ async def clean_single(product_id: uuid.UUID) -> dict:
                 except (ValueError, TypeError):
                     product.clean_price = 0
                 try:
-                    product.category_id = int(parsed.get("cate_id", 239) or 239)
+                    product.category_id = int(parsed.get("cate_id", 0) or 0)
                 except (ValueError, TypeError):
-                    product.category_id = 239
+                    product.category_id = 0
+
+                # Map old category IDs (240-246) to new database IDs (1-8) if needed
+                OLD_TO_NEW_CATEGORY = {240: 8, 241: 7, 242: 6, 243: 5, 244: 4, 245: 3, 246: 2}
+                if product.category_id in OLD_TO_NEW_CATEGORY:
+                    product.category_id = OLD_TO_NEW_CATEGORY[product.category_id]
                 product.ai_cleaned_at = datetime.now(timezone.utc)
 
                 # Check if AI recommends skipping
@@ -442,9 +447,14 @@ async def clean_batch(product_ids: list[uuid.UUID]) -> dict:
                     except (ValueError, TypeError):
                         p.clean_price = 0
                     try:
-                        p.category_id = int(item.get("cate_id", 239) or 239)
+                        p.category_id = int(item.get("cate_id", 0) or 0)
                     except (ValueError, TypeError):
-                        p.category_id = 239
+                        p.category_id = 0
+
+                    # Map old category IDs (240-246) to new database IDs (1-8) if needed
+                    OLD_TO_NEW_CATEGORY = {240: 8, 241: 7, 242: 6, 243: 5, 244: 4, 245: 3, 246: 2}
+                    if p.category_id in OLD_TO_NEW_CATEGORY:
+                        p.category_id = OLD_TO_NEW_CATEGORY[p.category_id]
                     p.ai_cleaned_at = datetime.now(timezone.utc)
 
                     sync_flag = item.get("sync", 1)
