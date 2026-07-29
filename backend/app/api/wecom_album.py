@@ -357,6 +357,7 @@ async def list_products(
     keyword: str = Query("", description="Search keyword"),
     supplier_id: uuid.UUID | None = Query(None),
     status: str = Query("", description="Filter by status"),
+    category_id: int | None = Query(None, description="Filter by category"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     user=Depends(get_current_user),
@@ -371,6 +372,8 @@ async def list_products(
             base_q = base_q.where(WecomAlbumProduct.supplier_id == supplier_id)
         if status:
             base_q = base_q.where(WecomAlbumProduct.status == status)
+        if category_id is not None:
+            base_q = base_q.where(WecomAlbumProduct.category_id == category_id)
 
         # Total count
         count_q = select(func.count()).select_from(base_q.subquery())

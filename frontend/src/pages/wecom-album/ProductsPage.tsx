@@ -26,7 +26,19 @@ interface Product {
     skip_reason?: string;
     clean_title?: string;
     clean_price?: number;
+    category_id?: number | null;
 }
+
+/** Category mapping from AI clean results */
+const CATEGORIES: Record<number, string> = {
+    246: '翡翠>手镯',
+    245: '翡翠>戒指',
+    244: '翡翠>耳坠',
+    243: '翡翠>项链',
+    242: '翡翠>手链',
+    241: '翡翠>手串',
+    240: '翡翠>吊坠',
+};
 
 export default function WecomAlbumProductsPage() {
     const { t, i18n } = useTranslation();
@@ -38,13 +50,14 @@ export default function WecomAlbumProductsPage() {
     const [searchInput, setSearchInput] = useState('');
     const [page, setPage] = useState(1);
     const [statusTab, setStatusTab] = useState('');
+    const [categoryFilter, setCategoryFilter] = useState<number | ''>('');
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
     const { data, isLoading } = useQuery({
-        queryKey: ['wecom-album-products', keyword, page, statusTab],
+        queryKey: ['wecom-album-products', keyword, page, statusTab, categoryFilter],
         queryFn: () =>
             fetchJson<any>(
-                `/wecom-album/products?page=${page}&page_size=20${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}${statusTab ? `&status=${statusTab}` : ''}`
+                `/wecom-album/products?page=${page}&page_size=20${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}${statusTab ? `&status=${statusTab}` : ''}${categoryFilter !== '' ? `&category_id=${categoryFilter}` : ''}`
             ),
     });
 
@@ -214,33 +227,54 @@ export default function WecomAlbumProductsPage() {
                 </button>
             </div>
 
-            {/* Status tabs */}
-            <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border-primary)', paddingBottom: 0 }}>
-                {[
-                    { key: '', label: isChinese ? '全部' : 'All' },
-                    { key: 'pending_clean', label: isChinese ? '待清洗' : 'Pending Clean' },
-                    { key: 'pending_sync', label: isChinese ? '待同步' : 'Pending Sync' },
-                    { key: 'synced', label: isChinese ? '已同步' : 'Synced' },
-                    { key: 'skip', label: isChinese ? '不同步' : 'Skipped' },
-                ].map((tab) => (
-                    <button
-                        key={tab.key}
-                        onClick={() => { setStatusTab(tab.key); setPage(1); }}
-                        style={{
-                            padding: '8px 16px',
-                            background: 'none',
-                            border: 'none',
-                            borderBottom: statusTab === tab.key ? '2px solid #4f46e5' : '2px solid transparent',
-                            color: statusTab === tab.key ? '#4f46e5' : 'var(--text-secondary)',
-                            fontWeight: statusTab === tab.key ? 600 : 400,
-                            fontSize: 14,
-                            cursor: 'pointer',
-                            marginBottom: -1,
-                        }}
-                    >
-                        {tab.label}
-                    </button>
-                ))}
+            {/* Status tabs + Category filter */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, borderBottom: '1px solid var(--border-primary)', paddingBottom: 0 }}>
+                <div style={{ display: 'flex', gap: 4 }}>
+                    {[
+                        { key: '', label: isChinese ? '全部' : 'All' },
+                        { key: 'pending_clean', label: isChinese ? '待清洗' : 'Pending Clean' },
+                        { key: 'pending_sync', label: isChinese ? '待同步' : 'Pending Sync' },
+                        { key: 'synced', label: isChinese ? '已同步' : 'Synced' },
+                        { key: 'skip', label: isChinese ? '不同步' : 'Skipped' },
+                    ].map((tab) => (
+                        <button
+                            key={tab.key}
+                            onClick={() => { setStatusTab(tab.key); setPage(1); }}
+                            style={{
+                                padding: '8px 16px',
+                                background: 'none',
+                                border: 'none',
+                                borderBottom: statusTab === tab.key ? '2px solid #4f46e5' : '2px solid transparent',
+                                color: statusTab === tab.key ? '#4f46e5' : 'var(--text-secondary)',
+                                fontWeight: statusTab === tab.key ? 600 : 400,
+                                fontSize: 14,
+                                cursor: 'pointer',
+                                marginBottom: -1,
+                            }}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+                <select
+                    value={categoryFilter}
+                    onChange={(e) => { setCategoryFilter(e.target.value === '' ? '' : Number(e.target.value)); setPage(1); }}
+                    style={{
+                        padding: '6px 10px',
+                        border: '1px solid var(--border-primary)',
+                        borderRadius: 6,
+                        fontSize: 13,
+                        background: 'var(--bg-primary)',
+                        color: 'var(--text-primary)',
+                        cursor: 'pointer',
+                        marginBottom: 4,
+                    }}
+                >
+                    <option value="">{isChinese ? '全部分类' : 'All Categories'}</option>
+                    {Object.entries(CATEGORIES).map(([id, name]) => (
+                        <option key={id} value={id}>{name}</option>
+                    ))}
+                </select>
             </div>
 
             {/* Product grid */}
@@ -308,19 +342,35 @@ export default function WecomAlbumProductsPage() {
                                     <span style={{ fontSize: 15, fontWeight: 600, color: '#ef4444' }}>
                                         {p.price ? `¥${p.price}` : '-'}
                                     </span>
-                                    <span
-                                        style={{
-                                            padding: '1px 6px',
-                                            borderRadius: 4,
-                                            fontSize: 10,
-                                            fontWeight: 500,
-                                            background: p.status === 'synced' ? '#f0fdf4' : p.status === 'pending_sync' ? '#eff6ff' : p.status === 'skip' ? '#fef2f2' : '#fefce8',
-                                            color: p.status === 'synced' ? '#16a34a' : p.status === 'pending_sync' ? '#2563eb' : p.status === 'skip' ? '#dc2626' : '#ca8a04',
-                                        }}
-                                        title={p.status === 'skip' ? p.skip_reason : undefined}
-                                    >
-                                        {p.status === 'pending_clean' ? (isChinese ? '待清洗' : 'To Clean') : p.status === 'pending_sync' ? (isChinese ? '待同步' : 'To Sync') : p.status === 'skip' ? (isChinese ? '不同步' : 'Skipped') : (isChinese ? '已同步' : 'Synced')}
-                                    </span>
+                                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                                        {p.category_id && CATEGORIES[p.category_id] && (
+                                            <span
+                                                style={{
+                                                    padding: '1px 6px',
+                                                    borderRadius: 4,
+                                                    fontSize: 10,
+                                                    fontWeight: 500,
+                                                    background: '#f0f9ff',
+                                                    color: '#0369a1',
+                                                }}
+                                            >
+                                                {CATEGORIES[p.category_id]}
+                                            </span>
+                                        )}
+                                        <span
+                                            style={{
+                                                padding: '1px 6px',
+                                                borderRadius: 4,
+                                                fontSize: 10,
+                                                fontWeight: 500,
+                                                background: p.status === 'synced' ? '#f0fdf4' : p.status === 'pending_sync' ? '#eff6ff' : p.status === 'skip' ? '#fef2f2' : '#fefce8',
+                                                color: p.status === 'synced' ? '#16a34a' : p.status === 'pending_sync' ? '#2563eb' : p.status === 'skip' ? '#dc2626' : '#ca8a04',
+                                            }}
+                                            title={p.status === 'skip' ? p.skip_reason : undefined}
+                                        >
+                                            {p.status === 'pending_clean' ? (isChinese ? '待清洗' : 'To Clean') : p.status === 'pending_sync' ? (isChinese ? '待同步' : 'To Sync') : p.status === 'skip' ? (isChinese ? '不同步' : 'Skipped') : (isChinese ? '已同步' : 'Synced')}
+                                        </span>
+                                    </div>
                                     {p.shop_name && (
                                         <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
                                             {p.shop_name}
