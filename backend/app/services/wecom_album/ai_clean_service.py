@@ -383,8 +383,9 @@ async def clean_single(product_id: uuid.UUID) -> dict:
                 return {"success": False, "error": "Failed to parse AI response"}
 
         except Exception as e:
-            logger.error(f"[WecomAlbum] AI clean failed for {product_id}: {e}")
-            return {"success": False, "error": str(e)}
+            import traceback
+            logger.error(f"[WecomAlbum] AI clean failed for {product_id}: {type(e).__name__}: {e}\n{traceback.format_exc()}")
+            return {"success": False, "error": f"{type(e).__name__}: {e}"}
 
 
 async def clean_batch(product_ids: list[uuid.UUID]) -> dict:
