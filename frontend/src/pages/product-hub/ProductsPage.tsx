@@ -176,40 +176,6 @@ function GalleryViewer({
     );
 }
 
-/* ─── Pool Option Item ─── */
-function PoolOption({ pool, isChinese, onSelect, disabled }: { pool: any; isChinese: boolean; onSelect: (id: string) => void; disabled: boolean }) {
-    const [hovered, setHovered] = useState(false);
-    return (
-        <div
-            onClick={() => !disabled && onSelect(pool.id)}
-            onMouseEnter={() => setHovered(true)}
-            onMouseLeave={() => setHovered(false)}
-            style={{
-                display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
-                borderRadius: 8, cursor: disabled ? 'default' : 'pointer',
-                background: hovered ? '#f5f5f5' : '#fafafa',
-                border: '1px solid #eee', transition: 'all 0.15s',
-                opacity: disabled ? 0.5 : 1,
-            }}
-        >
-            <div style={{
-                width: 36, height: 36, borderRadius: 8,
-                background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 600,
-            }}>
-                {pool.name?.[0] || 'P'}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 500, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pool.name}</div>
-                {pool.product_count !== undefined && (
-                    <div style={{ fontSize: 12, color: '#999' }}>{pool.product_count} {isChinese ? '件' : 'items'}</div>
-                )}
-            </div>
-            <IconShoppingBagPlus size={16} color="#999" />
-        </div>
-    );
-}
-
 /* ─── Main Page ─── */
 export default function ProductsPage() {
     const { i18n } = useTranslation();
@@ -449,12 +415,31 @@ export default function ProductsPage() {
                                 </p>
                             ) : (
                                 (Array.isArray(pools) ? pools : []).map((pool: any) => (
-                                    <PoolOption key={pool.id} pool={pool} isChinese={isChinese}
-                                        onSelect={(poolId) => {
-                                            addToPoolMutation.mutate({ poolId, productIds: Array.from(selectedIds) });
+                                    <div
+                                        key={pool.id}
+                                        onClick={() => !addToPoolMutation.isPending && addToPoolMutation.mutate({ poolId: pool.id, productIds: Array.from(selectedIds) })}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+                                            borderRadius: 8, cursor: addToPoolMutation.isPending ? 'default' : 'pointer',
+                                            background: '#fafafa', border: '1px solid #eee', transition: 'all 0.15s',
+                                            opacity: addToPoolMutation.isPending ? 0.5 : 1,
                                         }}
-                                        disabled={addToPoolMutation.isPending}
-                                    />
+                                    >
+                                        <div style={{
+                                            width: 36, height: 36, borderRadius: 8,
+                                            background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 600,
+                                        }}>
+                                            {pool.name?.[0] || 'P'}
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: 14, fontWeight: 500, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pool.name}</div>
+                                            {pool.product_count !== undefined && (
+                                                <div style={{ fontSize: 12, color: '#999' }}>{pool.product_count} {isChinese ? '件' : 'items'}</div>
+                                            )}
+                                        </div>
+                                        <IconShoppingBagPlus size={16} color="#999" />
+                                    </div>
                                 ))
                             )}
                         </div>
