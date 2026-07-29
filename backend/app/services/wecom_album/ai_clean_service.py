@@ -56,7 +56,7 @@ DEFAULT_USER_PROMPT_TEMPLATE = """请清洗以下商品标题并提取成本价�
 
 ## 输出要求
 严格输出 JSON 对象，不要输出任何其他内容：
-{{"clean_title": "清洗后的标题", "cost": 0, "sync": 1, "skip_reason": ""}}
+{"clean_title": "清洗后的标题", "cost": 0, "sync": 1, "skip_reason": ""}
 
 字段说明：
 - clean_title: 清洗后的标题
@@ -66,16 +66,16 @@ DEFAULT_USER_PROMPT_TEMPLATE = """请清洗以下商品标题并提取成本价�
 
 ## 示例
 输入：🌴正圈冰飘花 完美无瑕 尺寸：55.7/12.2/8.1 价格：小六3️⃣开！起荧光
-输出：{{"clean_title": "正圈冰飘花 尺寸55.7/12.2/8.1", "cost": 0, "sync": 1, "skip_reason": ""}}
+输出：{"clean_title": "正圈冰飘花 尺寸55.7/12.2/8.1", "cost": 0, "sync": 1, "skip_reason": ""}
 
 输入：💰翡翠A货 冰种观音 26x18x5mm 批发价3800
-输出：{{"clean_title": "翡翠A货 冰种观音 26x18x5mm", "cost": 3800, "sync": 1, "skip_reason": ""}}
+输出：{"clean_title": "翡翠A货 冰种观音 26x18x5mm", "cost": 3800, "sync": 1, "skip_reason": ""}
 
 输入：🔥来图定制 手镯加工 100元起
-输出：{{"clean_title": "来图定制 手镯加工", "cost": 0, "sync": 0, "skip_reason": "加工定制类非成品"}}
+输出：{"clean_title": "来图定制 手镯加工", "cost": 0, "sync": 0, "skip_reason": "加工定制类非成品"}
 
 输入：👍新款上市
-输出：{{"clean_title": "新款上市", "cost": 0, "sync": 0, "skip_reason": "标题无意义缺少商品信息"}}"""
+输出：{"clean_title": "新款上市", "cost": 0, "sync": 0, "skip_reason": "标题无意义缺少商品信息"}"""
 
 DEFAULT_BATCH_USER_PROMPT_TEMPLATE = """请批量清洗以下商品标题并提取成本价，同时判断每个商品是否值得同步到选品池。
 
@@ -84,7 +84,7 @@ DEFAULT_BATCH_USER_PROMPT_TEMPLATE = """请批量清洗以下商品标题并提�
 
 ## 输出要求
 严格输出 JSON 数组，不要输出任何其他内容：
-[{{"item_id": "xxx", "clean_title": "清洗后的标题", "cost": 0, "sync": 1, "skip_reason": ""}}, ...]
+[{"item_id": "xxx", "clean_title": "清洗后的标题", "cost": 0, "sync": 1, "skip_reason": ""}, ...]
 
 字段说明：
 - clean_title: 清洗后的标题
@@ -281,7 +281,7 @@ async def clean_single(product_id: uuid.UUID) -> dict:
         user_template = (account.ai_prompt_user_template if account and account.ai_prompt_user_template else None) or DEFAULT_USER_PROMPT_TEMPLATE
         timeout = account.ai_timeout_seconds if account else AI_TIMEOUT
 
-        user_prompt = user_template.format(title=product.title)
+        user_prompt = user_template.replace("{title}", product.title)
 
         # Use images for vision-capable models
         images = product.images[:3] if product.images else None

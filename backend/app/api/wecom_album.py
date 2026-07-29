@@ -29,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import get_current_user as _jwt_get_current_user
 from app.database import async_session, get_db
-from app.models.wecom_album import WecomAlbumAccount, WecomAlbumSupplier, WecomAlbumProduct
+from app.models.wecom_album import WecomAlbumAccount, WecomAlbumSupplier, WecomAlbumProduct, WecomAlbumSyncLog
 from app.models.product_hub import ProductHubProduct
 from app.services.wecom_album.szwego_client import WecomAlbumSzwegoClient
 from app.services.wecom_album.sync_service import test_connection, sync_suppliers, sync_products
@@ -240,6 +240,14 @@ async def api_test_connection(request: Request, user=Depends(require_admin)):
 
         try:
             info = await test_connection(account.token)
+            # Save account info to database
+            account.album_name = info.get("album_name", "")
+            account.album_icon = info.get("album_icon", "")
+            account.album_id = str(info.get("album_id", ""))
+            account.is_active = True
+            account.last_error = None
+            await db.commit()
+
             return {
                 "success": True,
                 "album_name": info.get("album_name", ""),
@@ -475,6 +483,50 @@ async def get_stats(request: Request, user=Depends(get_current_user)):
         }
 
 
+# ─── Sync Logs endpoints ──────────────────────────────────────────────────────
+
+
+@router.get("/sync-logs")
+async def list_sync_logs(
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    user=Depends(get_current_user),
+):
+    """List sync operation logs."""
+    async with async_session() as db:
+        base_q = select(WecomAlbumSyncLog).where(WecomAlbumSyncLog.tenant_id == user.tenant_id)
+
+        count_q = select(func.count()).select_from(base_q.subquery())
+        total = (await db.execute(count_q)).scalar() or 0
+
+        q = base_q.order_by(WecomAlbumSyncLog.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+        result = await db.execute(q)
+        logs = result.scalars().all()
+
+        return {
+            "items": [
+                {
+                    "id": str(log.id),
+                    "task_type": log.task_type,
+                    "status": log.status,
+                    "items_count": log.items_count,
+                    "created_count": log.created_count,
+                    "updated_count": log.updated_count,
+                    "skipped_count": log.skipped_count,
+                    "duration_ms": log.duration_ms,
+                    "message": log.message,
+                    "errors": log.errors,
+                    "created_at": log.created_at.isoformat() if log.created_at else None,
+                }
+                for log in logs
+            ],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+
+
 # ─── AI Cleaning endpoints ────────────────────────────────────────────────────
 
 
@@ -500,7 +552,7 @@ async def api_ai_clean_test(
 
     system_prompt = (account.ai_prompt_system if account and account.ai_prompt_system else None) or DEFAULT_SYSTEM_PROMPT
     user_template = (account.ai_prompt_user_template if account and account.ai_prompt_user_template else None) or DEFAULT_USER_PROMPT_TEMPLATE
-    user_prompt = user_template.format(title=test_title)
+    user_prompt = user_template.replace("{title}", test_title)
 
     try:
         response_text = await _call_llm_api(model, system_prompt, user_prompt, timeout=account.ai_timeout_seconds if account else 60)
