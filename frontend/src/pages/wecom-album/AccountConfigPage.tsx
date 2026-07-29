@@ -378,12 +378,20 @@ function SyncLogsTab() {
         queryFn: () => fetchJson<any>('/wecom-album/account'),
     });
 
+    const [logPage, setLogPage] = useState(1);
+
+    const { data: logsData, isLoading: logsLoading } = useQuery({
+        queryKey: ['wecom-album-sync-logs', logPage],
+        queryFn: () => fetchJson<any>(`/wecom-album/sync-logs?page=${logPage}&page_size=15`),
+    });
+
     const syncSuppliersMutation = useMutation({
         mutationFn: async () => fetchJson<any>('/wecom-album/sync/suppliers', { method: 'POST' }),
         onSuccess: (data) => {
             toast.success(isChinese ? `供应商同步完成: ${data.created} 新增, ${data.updated} 更新` : `Suppliers: ${data.created} new, ${data.updated} updated`);
             queryClient.invalidateQueries({ queryKey: ['wecom-album-suppliers'] });
             queryClient.invalidateQueries({ queryKey: ['wecom-album-stats'] });
+            queryClient.invalidateQueries({ queryKey: ['wecom-album-sync-logs'] });
         },
         onError: (err: any) => toast.error(err?.detail || (isChinese ? '同步失败' : 'Failed')),
     });
@@ -394,14 +402,30 @@ function SyncLogsTab() {
             toast.success(isChinese ? `商品同步完成: ${data.created} 新增, ${data.updated} 更新, ${data.skipped} 跳过` : `Products: ${data.created} new, ${data.updated} updated, ${data.skipped} skipped`);
             queryClient.invalidateQueries({ queryKey: ['wecom-album-products'] });
             queryClient.invalidateQueries({ queryKey: ['wecom-album-stats'] });
+            queryClient.invalidateQueries({ queryKey: ['wecom-album-sync-logs'] });
         },
         onError: (err: any) => toast.error(err?.detail || (isChinese ? '同步失败' : 'Failed')),
     });
 
+    const taskTypeMap: Record<string, string> = {
+        sync_suppliers: isChinese ? '同步供应商' : 'Sync Suppliers',
+        sync_products: isChinese ? '同步商品' : 'Sync Products',
+        ai_clean: isChinese ? 'AI清洗' : 'AI Clean',
+        push_to_pool: isChinese ? '推送到选品池' : 'Push to Pool',
+    };
+    const statusMap: Record<string, { label: string; color: string; bg: string }> = {
+        running: { label: isChinese ? '执行中' : 'Running', color: '#2563eb', bg: '#eff6ff' },
+        success: { label: isChinese ? '成功' : 'Success', color: '#16a34a', bg: '#f0fdf4' },
+        failed: { label: isChinese ? '失败' : 'Failed', color: '#dc2626', bg: '#fef2f2' },
+    };
+
+    const logs: any[] = logsData?.items ?? [];
+    const logTotal: number = logsData?.total ?? 0;
+
     return (
         <div>
             {/* Sync buttons */}
-            <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
                 <button
                     onClick={() => syncSuppliersMutation.mutate()}
                     disabled={syncSuppliersMutation.isPending}
@@ -420,30 +444,72 @@ function SyncLogsTab() {
                 </button>
             </div>
 
-            {/* Sync status */}
-            <div style={{ padding: 16, background: 'var(--bg-secondary)', borderRadius: 10, marginBottom: 24 }}>
-                <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 8, color: 'var(--text-primary)' }}>
-                    {isChinese ? '同步状态' : 'Sync Status'}
+            {/* Sync logs table */}
+            <div style={{ background: 'var(--bg-primary)', borderRadius: 12, border: '1px solid var(--border-primary)', overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-primary)', fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>
+                    {isChinese ? '同步日志' : 'Sync Logs'}
                 </div>
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
-                    <div>{isChinese ? '上次供应商同步' : 'Last supplier sync'}: <strong>{account?.last_owner_sync_at ? new Date(account.last_owner_sync_at).toLocaleString() : (isChinese ? '未同步' : 'Never')}</strong></div>
-                    <div>{isChinese ? '上次商品同步' : 'Last product sync'}: <strong>{account?.last_product_sync_at ? new Date(account.last_product_sync_at).toLocaleString() : (isChinese ? '未同步' : 'Never')}</strong></div>
-                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border-primary)' }}>
+                            <th style={{ textAlign: 'left', padding: '10px 12px', color: 'var(--text-secondary)', fontWeight: 500 }}>{isChinese ? '时间' : 'Time'}</th>
+                            <th style={{ textAlign: 'left', padding: '10px 12px', color: 'var(--text-secondary)', fontWeight: 500 }}>{isChinese ? '类型' : 'Type'}</th>
+                            <th style={{ textAlign: 'center', padding: '10px 12px', color: 'var(--text-secondary)', fontWeight: 500 }}>{isChinese ? '状态' : 'Status'}</th>
+                            <th style={{ textAlign: 'center', padding: '10px 12px', color: 'var(--text-secondary)', fontWeight: 500 }}>{isChinese ? '数量' : 'Count'}</th>
+                            <th style={{ textAlign: 'center', padding: '10px 12px', color: 'var(--text-secondary)', fontWeight: 500 }}>{isChinese ? '耗时' : 'Duration'}</th>
+                            <th style={{ textAlign: 'left', padding: '10px 12px', color: 'var(--text-secondary)', fontWeight: 500 }}>{isChinese ? '详情' : 'Detail'}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {logsLoading ? (
+                            <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--text-tertiary)' }}>{isChinese ? '加载中...' : 'Loading...'}</td></tr>
+                        ) : logs.length === 0 ? (
+                            <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--text-tertiary)' }}>{isChinese ? '暂无日志' : 'No logs yet'}</td></tr>
+                        ) : logs.map((log: any) => {
+                            const st = statusMap[log.status] || statusMap.running;
+                            return (
+                                <tr key={log.id} style={{ borderBottom: '1px solid var(--border-primary)' }}>
+                                    <td style={{ padding: '10px 12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                        {new Date(log.created_at).toLocaleString()}
+                                    </td>
+                                    <td style={{ padding: '10px 12px', color: 'var(--text-primary)' }}>
+                                        {taskTypeMap[log.task_type] || log.task_type}
+                                    </td>
+                                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                        <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 500, background: st.bg, color: st.color }}>
+                                            {st.label}
+                                        </span>
+                                    </td>
+                                    <td style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--text-primary)' }}>
+                                        {log.items_count > 0 ? log.items_count : '-'}
+                                    </td>
+                                    <td style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                        {log.duration_ms != null ? `${(log.duration_ms / 1000).toFixed(1)}s` : '-'}
+                                    </td>
+                                    <td style={{ padding: '10px 12px', color: 'var(--text-secondary)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {log.message || log.errors || '-'}
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
             </div>
 
-            {/* Last sync error */}
-            {account?.last_error && (
-                <div style={{ padding: 12, background: '#fef2f2', borderRadius: 8, border: '1px solid #fecaca', fontSize: 13, color: '#991b1b', marginBottom: 24 }}>
-                    <strong>{isChinese ? '上次错误' : 'Last Error'}:</strong> {account.last_error}
+            {/* Pagination */}
+            {logTotal > 15 && (
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12 }}>
+                    <button onClick={() => setLogPage(Math.max(1, logPage - 1))} disabled={logPage <= 1} style={{ ...outlineBtnStyle, padding: '6px 12px', fontSize: 13, opacity: logPage <= 1 ? 0.5 : 1 }}>
+                        {isChinese ? '上一页' : 'Prev'}
+                    </button>
+                    <span style={{ padding: '6px 12px', fontSize: 13, color: 'var(--text-secondary)' }}>
+                        {isChinese ? `第 ${logPage} 页，共 ${Math.ceil(logTotal / 15)} 页` : `Page ${logPage} / ${Math.ceil(logTotal / 15)}`}
+                    </span>
+                    <button onClick={() => setLogPage(logPage + 1)} disabled={logPage * 15 >= logTotal} style={{ ...outlineBtnStyle, padding: '6px 12px', fontSize: 13, opacity: logPage * 15 >= logTotal ? 0.5 : 1 }}>
+                        {isChinese ? '下一页' : 'Next'}
+                    </button>
                 </div>
             )}
-
-            {/* Sync info */}
-            <div style={{ fontSize: 13, color: 'var(--text-tertiary)', lineHeight: 1.8 }}>
-                <div>• {isChinese ? '同步供应商：从 szwego 拉取好友列表作为供应商' : 'Sync Suppliers: fetch friends list from szwego as suppliers'}</div>
-                <div>• {isChinese ? '同步商品：按每个启用供应商的相册拉取最近 N 小时的商品' : 'Sync Products: fetch products from each active supplier\'s album (last N hours)'}</div>
-                <div>• {isChinese ? '同步完成后可到商品列表查看并执行 AI 清洗' : 'After sync, go to Products to run AI cleaning'}</div>
-            </div>
         </div>
     );
 }
