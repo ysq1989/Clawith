@@ -29,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import get_current_user as _jwt_get_current_user
 from app.database import async_session, get_db
-from app.models.wecom_album import WecomAlbumAccount, WecomAlbumSupplier, WecomAlbumProduct, WecomAlbumSyncLog
+from app.models.wecom_album import WecomAlbumAccount, WecomAlbumSupplier, WecomAlbumProduct, WecomAlbumSyncLog, WecomAlbumCategory
 from app.models.product_hub import ProductHubProduct
 from app.services.wecom_album.szwego_client import WecomAlbumSzwegoClient
 from app.services.wecom_album.sync_service import test_connection, sync_suppliers, sync_products
@@ -269,6 +269,143 @@ async def api_sync_suppliers(request: Request, user=Depends(require_admin)):
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result.get("error", "同步失败"))
     return result
+
+
+# ─── Category CRUD ──────────────────────────────────────────────────────────
+
+
+@router.get("/categories")
+async def list_categories(
+    request: Request,
+    user=Depends(get_current_user),
+):
+    """List all categories for the tenant, structured as a tree."""
+    async with async_session() as db:
+        result = await db.execute(
+            select(WecomAlbumCategory).where(
+                WecomAlbumCategory.tenant_id == user.tenant_id,
+            ).order_by(WecomAlbumCategory.sort, WecomAlbumCategory.id)
+        )
+        all_cats = result.scalars().all()
+
+        # Build tree
+        cat_map = {}
+        for c in all_cats:
+            cat_map[c.id] = {
+                "id": c.id,
+                "pid": c.pid,
+                "cate_name": c.cate_name,
+                "sort": c.sort,
+                "is_show": c.is_show,
+                "children": [],
+            }
+        roots = []
+        for c in all_cats:
+            node = cat_map[c.id]
+            if c.pid == 0:
+                roots.append(node)
+            elif c.pid in cat_map:
+                cat_map[c.pid]["children"].append(node)
+        return roots
+
+
+@router.post("/categories")
+async def create_category(
+    request: Request,
+    user=Depends(require_admin),
+):
+    """Create a new category."""
+    body = await request.json()
+    cate_name = body.get("cate_name", "").strip()
+    if not cate_name:
+        raise HTTPException(status_code=400, detail="分类名称不能为空")
+
+    pid = body.get("pid", 0)
+    sort = body.get("sort", 0)
+
+    async with async_session() as db:
+        # If pid != 0, verify parent exists
+        if pid:
+            parent = await db.get(WecomAlbumCategory, pid)
+            if not parent or parent.tenant_id != user.tenant_id:
+                raise HTTPException(status_code=400, detail="父级分类不存在")
+
+        cat = WecomAlbumCategory(
+            tenant_id=user.tenant_id,
+            pid=pid,
+            cate_name=cate_name,
+            sort=sort,
+            is_show=True,
+        )
+        db.add(cat)
+        await db.commit()
+        await db.refresh(cat)
+        return {"success": True, "id": cat.id}
+
+
+@router.patch("/categories/{category_id}")
+async def update_category(
+    category_id: int,
+    request: Request,
+    user=Depends(require_admin),
+):
+    """Update a category."""
+    body = await request.json()
+    async with async_session() as db:
+        result = await db.execute(
+            select(WecomAlbumCategory).where(
+                WecomAlbumCategory.id == category_id,
+                WecomAlbumCategory.tenant_id == user.tenant_id,
+            )
+        )
+        cat = result.scalar_one_or_none()
+        if not cat:
+            raise HTTPException(status_code=404, detail="分类不存在")
+
+        if "cate_name" in body:
+            cat.cate_name = body["cate_name"]
+        if "sort" in body:
+            cat.sort = body["sort"]
+        if "is_show" in body:
+            cat.is_show = body["is_show"]
+        if "pid" in body:
+            cat.pid = body["pid"]
+
+        await db.commit()
+        return {"success": True}
+
+
+@router.delete("/categories/{category_id}")
+async def delete_category(
+    category_id: int,
+    request: Request,
+    user=Depends(require_admin),
+):
+    """Delete a category and its children."""
+    async with async_session() as db:
+        result = await db.execute(
+            select(WecomAlbumCategory).where(
+                WecomAlbumCategory.id == category_id,
+                WecomAlbumCategory.tenant_id == user.tenant_id,
+            )
+        )
+        cat = result.scalar_one_or_none()
+        if not cat:
+            raise HTTPException(status_code=404, detail="分类不存在")
+
+        # Delete children first
+        children = await db.execute(
+            select(WecomAlbumCategory).where(
+                WecomAlbumCategory.pid == category_id,
+                WecomAlbumCategory.tenant_id == user.tenant_id,
+            )
+        )
+        for child in children.scalars().all():
+            await db.delete(child)
+
+        await db.delete(cat)
+        await db.commit()
+        return {"success": True}
 
 
 @router.post("/sync/products")

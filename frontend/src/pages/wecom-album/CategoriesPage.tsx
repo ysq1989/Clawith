@@ -1,89 +1,260 @@
 /**
- * WeChat Business Album — Category settings page.
- * Manages the category mapping used by AI cleaning.
+ * WeChat Business Album — Category management page.
+ * Tree-structured categories with parent-child hierarchy, sorting, and show/hide.
  */
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchJson } from '../../services/api';
 import { useToast } from '../../components/Toast/ToastProvider';
-import { IconPlus, IconTrash, IconCheck, IconX } from '@tabler/icons-react';
+import {
+    IconPlus, IconTrash, IconEdit, IconCheck, IconX,
+    IconChevronDown, IconChevronRight, IconEye, IconEyeOff,
+    IconDraggable, IconArrowsSort,
+} from '@tabler/icons-react';
 
 interface Category {
     id: number;
-    name: string;
-    parent?: string;
-}
-
-/** Default categories for jewelry/jade */
-const DEFAULT_CATEGORIES: Category[] = [
-    { id: 246, name: '手镯', parent: '翡翠' },
-    { id: 245, name: '戒指', parent: '翡翠' },
-    { id: 244, name: '耳坠', parent: '翡翠' },
-    { id: 243, name: '项链', parent: '翡翠' },
-    { id: 242, name: '手链', parent: '翡翠' },
-    { id: 241, name: '手串', parent: '翡翠' },
-    { id: 240, name: '吊坠', parent: '翡翠' },
-];
-
-const STORAGE_KEY = 'wecom_album_categories';
-
-function loadCategories(): Category[] {
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) return JSON.parse(stored);
-    } catch { /* ignore */ }
-    return DEFAULT_CATEGORIES;
-}
-
-function saveCategories(categories: Category[]) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(categories));
+    pid: number;
+    cate_name: string;
+    sort: number;
+    is_show: boolean;
+    children?: Category[];
 }
 
 export default function CategoriesPage() {
     const { i18n } = useTranslation();
     const toast = useToast();
+    const queryClient = useQueryClient();
     const isChinese = i18n.language?.startsWith('zh');
 
-    const [categories, setCategories] = useState<Category[]>(loadCategories);
-    const [editing, setEditing] = useState(false);
-    const [newId, setNewId] = useState('');
-    const [newName, setNewName] = useState('');
-    const [newParent, setNewParent] = useState('翡翠');
+    const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+    const [editingId, setEditingId] = useState<number | null>(null);
+    const [editingName, setEditingName] = useState('');
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [addPid, setAddPid] = useState(0);
+    const [addName, setAddName] = useState('');
+    const [addSort, setAddSort] = useState(0);
 
-    const handleSave = () => {
-        saveCategories(categories);
-        toast.success(isChinese ? '分类已保存' : 'Categories saved');
-        setEditing(false);
+    const { data: categories = [], isLoading } = useQuery({
+        queryKey: ['wecom-album-categories'],
+        queryFn: () => fetchJson<Category[]>('/wecom-album/categories'),
+    });
+
+    const createMutation = useMutation({
+        mutationFn: async (data: { cate_name: string; pid: number; sort: number }) => {
+            return fetchJson<any>('/wecom-album/categories', {
+                method: 'POST',
+                body: JSON.stringify(data),
+            });
+        },
+        onSuccess: () => {
+            toast.success(isChinese ? '分类已添加' : 'Category added');
+            queryClient.invalidateQueries({ queryKey: ['wecom-album-categories'] });
+            setShowAddForm(false);
+            setAddName('');
+            setAddSort(0);
+        },
+        onError: (err: any) => {
+            toast.error(err?.detail || (isChinese ? '添加失败' : 'Add failed'));
+        },
+    });
+
+    const updateMutation = useMutation({
+        mutationFn: async ({ id, ...data }: { id: number; cate_name?: string; sort?: number; is_show?: boolean }) => {
+            return fetchJson<any>(`/wecom-album/categories/${id}`, {
+                method: 'PATCH',
+                body: JSON.stringify(data),
+            });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['wecom-album-categories'] });
+        },
+        onError: (err: any) => {
+            toast.error(err?.detail || (isChinese ? '更新失败' : 'Update failed'));
+        },
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: async (id: number) => {
+            return fetchJson<any>(`/wecom-album/categories/${id}`, { method: 'DELETE' });
+        },
+        onSuccess: () => {
+            toast.success(isChinese ? '分类已删除' : 'Category deleted');
+            queryClient.invalidateQueries({ queryKey: ['wecom-album-categories'] });
+        },
+        onError: (err: any) => {
+            toast.error(err?.detail || (isChinese ? '删除失败' : 'Delete failed'));
+        },
+    });
+
+    const toggleExpand = (id: number) => {
+        setExpandedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const startEdit = (cat: Category) => {
+        setEditingId(cat.id);
+        setEditingName(cat.cate_name);
+    };
+
+    const saveEdit = (id: number) => {
+        if (!editingName.trim()) return;
+        updateMutation.mutate({ id, cate_name: editingName.trim() });
+        setEditingId(null);
     };
 
     const handleAdd = () => {
-        const id = parseInt(newId, 10);
-        if (!id || !newName.trim()) {
-            toast.error(isChinese ? '请填写分类ID和名称' : 'Please fill in ID and name');
+        if (!addName.trim()) {
+            toast.error(isChinese ? '请输入分类名称' : 'Please enter category name');
             return;
         }
-        if (categories.some(c => c.id === id)) {
-            toast.error(isChinese ? '分类ID已存在' : 'Category ID already exists');
-            return;
-        }
-        setCategories([...categories, { id, name: newName.trim(), parent: newParent.trim() || undefined }]);
-        setNewId('');
-        setNewName('');
-        setEditing(true);
+        createMutation.mutate({ cate_name: addName.trim(), pid: addPid, sort: addSort });
     };
 
-    const handleRemove = (id: number) => {
-        setCategories(categories.filter(c => c.id !== id));
-        setEditing(true);
-    };
+    const renderCategory = (cat: Category, level: number = 0) => {
+        const hasChildren = cat.children && cat.children.length > 0;
+        const isExpanded = expandedIds.has(cat.id);
+        const isEditing = editingId === cat.id;
 
-    const handleReset = () => {
-        setCategories(DEFAULT_CATEGORIES);
-        saveCategories(DEFAULT_CATEGORIES);
-        toast.success(isChinese ? '已恢复默认分类' : 'Reset to defaults');
-        setEditing(false);
+        return (
+            <div key={cat.id}>
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '8px 12px',
+                        paddingLeft: level * 24 + 12,
+                        background: level === 0 ? 'var(--bg-secondary)' : 'transparent',
+                        borderBottom: '1px solid var(--border-primary)',
+                        minHeight: 40,
+                    }}
+                >
+                    {/* Expand/collapse */}
+                    <button
+                        onClick={() => toggleExpand(cat.id)}
+                        style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: hasChildren ? 'pointer' : 'default',
+                            color: 'var(--text-tertiary)',
+                            padding: 2,
+                            width: 20,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            opacity: hasChildren ? 1 : 0,
+                        }}
+                    >
+                        {isExpanded ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+                    </button>
+
+                    {/* ID */}
+                    <span style={{
+                        minWidth: 40,
+                        padding: '2px 6px',
+                        background: '#f0f9ff',
+                        color: '#0369a1',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        textAlign: 'center',
+                    }}>
+                        {cat.id}
+                    </span>
+
+                    {/* Name */}
+                    {isEditing ? (
+                        <div style={{ display: 'flex', gap: 4, flex: 1 }}>
+                            <input
+                                value={editingName}
+                                onChange={(e) => setEditingName(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && saveEdit(cat.id)}
+                                autoFocus
+                                style={{
+                                    flex: 1,
+                                    padding: '4px 8px',
+                                    border: '1px solid #4f46e5',
+                                    borderRadius: 4,
+                                    fontSize: 13,
+                                }}
+                            />
+                            <button onClick={() => saveEdit(cat.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#16a34a' }}>
+                                <IconCheck size={16} />
+                            </button>
+                            <button onClick={() => setEditingId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}>
+                                <IconX size={16} />
+                            </button>
+                        </div>
+                    ) : (
+                        <span style={{ flex: 1, fontSize: 14, color: 'var(--text-primary)' }}>
+                            {level > 0 && <span style={{ color: 'var(--text-tertiary)' }}>└ </span>}
+                            {cat.cate_name}
+                        </span>
+                    )}
+
+                    {/* Sort */}
+                    <span style={{ fontSize: 12, color: 'var(--text-tertiary)', minWidth: 30, textAlign: 'center' }}>
+                        {cat.sort}
+                    </span>
+
+                    {/* Show/hide */}
+                    <button
+                        onClick={() => updateMutation.mutate({ id: cat.id, is_show: !cat.is_show })}
+                        style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: cat.is_show ? '#16a34a' : 'var(--text-tertiary)',
+                            padding: 4,
+                        }}
+                        title={cat.is_show ? (isChinese ? '显示' : 'Visible') : (isChinese ? '隐藏' : 'Hidden')}
+                    >
+                        {cat.is_show ? <IconEye size={16} /> : <IconEyeOff size={16} />}
+                    </button>
+
+                    {/* Actions */}
+                    <div style={{ display: 'flex', gap: 4 }}>
+                        <button
+                            onClick={() => startEdit(cat)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: 4 }}
+                            title={isChinese ? '编辑' : 'Edit'}
+                        >
+                            <IconEdit size={14} />
+                        </button>
+                        {level === 0 && (
+                            <button
+                                onClick={() => { setAddPid(cat.id); setShowAddForm(true); }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4f46e5', padding: 4 }}
+                                title={isChinese ? '添加子分类' : 'Add child'}
+                            >
+                                <IconPlus size={14} />
+                            </button>
+                        )}
+                        <button
+                            onClick={() => {
+                                if (confirm(isChinese ? `确定删除「${cat.cate_name}」及其子分类？` : `Delete "${cat.cate_name}" and its children?`)) {
+                                    deleteMutation.mutate(cat.id);
+                                }
+                            }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', padding: 4 }}
+                            title={isChinese ? '删除' : 'Delete'}
+                        >
+                            <IconTrash size={14} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Children */}
+                {isExpanded && cat.children?.map(child => renderCategory(child, level + 1))}
+            </div>
+        );
     };
 
     return (
@@ -93,156 +264,73 @@ export default function CategoriesPage() {
             </h1>
             <p style={{ color: 'var(--text-secondary)', marginBottom: 24, fontSize: 14 }}>
                 {isChinese
-                    ? '管理AI清洗时使用的商品分类。分类ID用于AI自动分类结果。'
-                    : 'Manage product categories used by AI cleaning. Category IDs are used in AI classification results.'}
+                    ? '管理AI清洗时使用的商品分类。支持顶级分类和二级分类。'
+                    : 'Manage product categories for AI cleaning. Supports top-level and second-level categories.'}
             </p>
 
-            {/* Current categories */}
-            <div style={{ background: 'var(--bg-primary)', borderRadius: 12, border: '1px solid var(--border-primary)', padding: 20, marginBottom: 20 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                    <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                        {isChinese ? '分类列表' : 'Category List'}
+            {/* Add button */}
+            <div style={{ marginBottom: 16 }}>
+                <button
+                    onClick={() => { setAddPid(0); setShowAddForm(true); }}
+                    style={{
+                        padding: '8px 16px',
+                        background: '#4f46e5',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontSize: 14,
+                    }}
+                >
+                    <IconPlus size={16} />
+                    {isChinese ? '添加分类' : 'Add Category'}
+                </button>
+            </div>
+
+            {/* Add form */}
+            {showAddForm && (
+                <div style={{
+                    background: 'var(--bg-primary)',
+                    borderRadius: 12,
+                    border: '1px solid var(--border-primary)',
+                    padding: 16,
+                    marginBottom: 16,
+                }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 12px 0', color: 'var(--text-primary)' }}>
+                        {addPid ? (isChinese ? '添加子分类' : 'Add Child Category') : (isChinese ? '添加顶级分类' : 'Add Top Category')}
                     </h3>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                        <button
-                            onClick={handleReset}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <input
+                            value={addName}
+                            onChange={(e) => setAddName(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+                            placeholder={isChinese ? '分类名称' : 'Category name'}
+                            autoFocus
                             style={{
-                                padding: '6px 12px',
-                                background: 'var(--bg-secondary)',
-                                color: 'var(--text-secondary)',
+                                flex: 1,
+                                padding: '8px 10px',
                                 border: '1px solid var(--border-primary)',
                                 borderRadius: 6,
                                 fontSize: 13,
-                                cursor: 'pointer',
                             }}
-                        >
-                            {isChinese ? '恢复默认' : 'Reset'}
-                        </button>
-                        {editing && (
-                            <button
-                                onClick={handleSave}
-                                style={{
-                                    padding: '6px 12px',
-                                    background: '#4f46e5',
-                                    color: '#fff',
-                                    border: 'none',
-                                    borderRadius: 6,
-                                    fontSize: 13,
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 4,
-                                }}
-                            >
-                                <IconCheck size={14} />
-                                {isChinese ? '保存' : 'Save'}
-                            </button>
-                        )}
-                    </div>
-                </div>
-
-                {/* Category list */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {categories.map(cat => (
-                        <div
-                            key={cat.id}
+                        />
+                        <input
+                            type="number"
+                            value={addSort}
+                            onChange={(e) => setAddSort(Number(e.target.value))}
+                            placeholder={isChinese ? '排序' : 'Sort'}
                             style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 12,
-                                padding: '10px 14px',
-                                background: 'var(--bg-secondary)',
-                                borderRadius: 8,
+                                width: 80,
+                                padding: '8px 10px',
                                 border: '1px solid var(--border-primary)',
+                                borderRadius: 6,
+                                fontSize: 13,
                             }}
-                        >
-                            <span style={{
-                                minWidth: 50,
-                                padding: '2px 8px',
-                                background: '#f0f9ff',
-                                color: '#0369a1',
-                                borderRadius: 4,
-                                fontSize: 12,
-                                fontWeight: 600,
-                                textAlign: 'center',
-                            }}>
-                                {cat.id}
-                            </span>
-                            <span style={{ fontSize: 14, color: 'var(--text-primary)', flex: 1 }}>
-                                {cat.parent ? `${cat.parent}>` : ''}{cat.name}
-                            </span>
-                            <button
-                                onClick={() => handleRemove(cat.id)}
-                                style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    color: 'var(--text-tertiary)',
-                                    padding: 4,
-                                    borderRadius: 4,
-                                }}
-                                title={isChinese ? '删除' : 'Delete'}
-                            >
-                                <IconTrash size={16} />
-                            </button>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* Add new category */}
-            <div style={{ background: 'var(--bg-primary)', borderRadius: 12, border: '1px solid var(--border-primary)', padding: 20 }}>
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 12px 0' }}>
-                    {isChinese ? '添加分类' : 'Add Category'}
-                </h3>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <input
-                        type="number"
-                        value={newId}
-                        onChange={(e) => setNewId(e.target.value)}
-                        placeholder={isChinese ? '分类ID' : 'ID'}
-                        style={{
-                            width: 80,
-                            padding: '8px 10px',
-                            border: '1px solid var(--border-primary)',
-                            borderRadius: 6,
-                            fontSize: 13,
-                            background: 'var(--bg-primary)',
-                            color: 'var(--text-primary)',
-                        }}
-                    />
-                    <input
-                        value={newParent}
-                        onChange={(e) => setNewParent(e.target.value)}
-                        placeholder={isChinese ? '父级（如翡翠）' : 'Parent'}
-                        style={{
-                            width: 100,
-                            padding: '8px 10px',
-                            border: '1px solid var(--border-primary)',
-                            borderRadius: 6,
-                            fontSize: 13,
-                            background: 'var(--bg-primary)',
-                            color: 'var(--text-primary)',
-                        }}
-                    />
-                    <input
-                        value={newName}
-                        onChange={(e) => setNewName(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-                        placeholder={isChinese ? '分类名称（如手镯）' : 'Name'}
-                        style={{
-                            flex: 1,
-                            padding: '8px 10px',
-                            border: '1px solid var(--border-primary)',
-                            borderRadius: 6,
-                            fontSize: 13,
-                            background: 'var(--bg-primary)',
-                            color: 'var(--text-primary)',
-                        }}
-                    />
-                    <button
-                        onClick={handleAdd}
-                        style={{
+                        />
+                        <button onClick={handleAdd} style={{
                             padding: '8px 14px',
                             background: '#059669',
                             color: '#fff',
@@ -250,24 +338,63 @@ export default function CategoriesPage() {
                             borderRadius: 6,
                             fontSize: 13,
                             cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 4,
-                        }}
-                    >
-                        <IconPlus size={14} />
-                        {isChinese ? '添加' : 'Add'}
-                    </button>
+                        }}>
+                            {isChinese ? '确定' : 'OK'}
+                        </button>
+                        <button onClick={() => setShowAddForm(false)} style={{
+                            padding: '8px 14px',
+                            background: 'var(--bg-secondary)',
+                            color: 'var(--text-secondary)',
+                            border: '1px solid var(--border-primary)',
+                            borderRadius: 6,
+                            fontSize: 13,
+                            cursor: 'pointer',
+                        }}>
+                            {isChinese ? '取消' : 'Cancel'}
+                        </button>
+                    </div>
                 </div>
-            </div>
+            )}
 
-            {/* AI prompt preview */}
-            <div style={{ marginTop: 20, padding: 16, background: '#fefce8', borderRadius: 8, border: '1px solid #fde68a' }}>
-                <p style={{ fontSize: 13, color: '#92400e', margin: 0 }}>
-                    {isChinese
-                        ? '💡 提示：分类列表会自动应用到AI清洗提示词中。保存后，新清洗的商品将使用更新后的分类。'
-                        : '💡 Tip: The category list is automatically applied to AI cleaning prompts. After saving, newly cleaned products will use the updated categories.'}
-                </p>
+            {/* Category tree */}
+            <div style={{
+                background: 'var(--bg-primary)',
+                borderRadius: 12,
+                border: '1px solid var(--border-primary)',
+                overflow: 'hidden',
+            }}>
+                {/* Header */}
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '10px 12px',
+                    background: 'var(--bg-secondary)',
+                    borderBottom: '1px solid var(--border-primary)',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: 'var(--text-secondary)',
+                }}>
+                    <span style={{ width: 20 }} />
+                    <span style={{ minWidth: 40 }}>ID</span>
+                    <span style={{ flex: 1 }}>{isChinese ? '分类名称' : 'Name'}</span>
+                    <span style={{ minWidth: 30, textAlign: 'center' }}>{isChinese ? '排序' : 'Sort'}</span>
+                    <span style={{ width: 24 }}>{isChinese ? '状态' : 'Status'}</span>
+                    <span style={{ width: 80 }}>{isChinese ? '操作' : 'Actions'}</span>
+                </div>
+
+                {/* List */}
+                {isLoading ? (
+                    <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-tertiary)' }}>
+                        {isChinese ? '加载中...' : 'Loading...'}
+                    </div>
+                ) : categories.length === 0 ? (
+                    <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-tertiary)' }}>
+                        {isChinese ? '暂无分类，请添加' : 'No categories yet'}
+                    </div>
+                ) : (
+                    categories.map(cat => renderCategory(cat))
+                )}
             </div>
         </div>
     );

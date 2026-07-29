@@ -171,6 +171,28 @@ class WecomAlbumProduct(Base):
     )
 
 
+class WecomAlbumCategory(Base):
+    """Product categories for AI cleaning classification."""
+
+    __tablename__ = "wecom_album_categories"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    pid: Mapped[int] = mapped_column(default=0, nullable=False)
+    # 0 = top-level category
+    cate_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    sort: Mapped[int] = mapped_column(default=0, nullable=False)
+    is_show: Mapped[bool] = mapped_column(default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+
+    __table_args__ = (
+        Index("ix_wecom_album_categories_tenant_pid", "tenant_id", "pid"),
+    )
+
+
 class WecomAlbumSyncLog(Base):
     """Sync operation logs."""
 
