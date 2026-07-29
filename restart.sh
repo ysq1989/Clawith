@@ -109,52 +109,18 @@ wait_for_port() {
     return 1
 }
 
-# Start a command as a real detached daemon. Plain `nohup ... &` is not enough in
-# some agent/PTY runners: when the parent command finishes, descendants in the
-# same session can still be cleaned up. Double-fork + setsid detaches the service
-# from this script's session so it survives after restart.sh exits.
+# Start a command as a real detached daemon using bash.
+# Uses nohup + setsid + redirect to ensure the process survives after restart.sh exits.
 start_detached() {
     local cwd=$1 log_file=$2 pid_file=$3
     shift 3
-    python3 - "$cwd" "$log_file" "$pid_file" "$@" <<'PY'
-import os
-import sys
 
-cwd, log_file, pid_file, *cmd = sys.argv[1:]
-if not cmd:
-    raise SystemExit("missing command")
+    mkdir -p "$(dirname "$log_file")" "$(dirname "$pid_file")"
 
-first_pid = os.fork()
-if first_pid:
-    os._exit(0)
-
-os.setsid()
-
-second_pid = os.fork()
-if second_pid:
-    os._exit(0)
-
-os.chdir(cwd)
-os.umask(0o022)
-
-os.makedirs(os.path.dirname(log_file), exist_ok=True)
-os.makedirs(os.path.dirname(pid_file), exist_ok=True)
-
-fd_in = os.open(os.devnull, os.O_RDONLY)
-fd_out = os.open(log_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
-os.dup2(fd_in, 0)
-os.dup2(fd_out, 1)
-os.dup2(fd_out, 2)
-if fd_in > 2:
-    os.close(fd_in)
-if fd_out > 2:
-    os.close(fd_out)
-
-with open(pid_file, "w", encoding="utf-8") as f:
-    f.write(str(os.getpid()))
-
-os.execvpe(cmd[0], cmd, os.environ.copy())
-PY
+    cd "$cwd"
+    nohup setsid "$@" > "$log_file" 2>&1 &
+    local pid=$!
+    echo "$pid" > "$pid_file"
 }
 
 # ═══════════════════════════════════════════════════════
